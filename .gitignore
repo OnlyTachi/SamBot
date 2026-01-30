@@ -1,0 +1,25 @@
+# Configurações e Segredos
+.env
+Data/Config/*.json
+Data/Persistence/Tokens/
+Lavalink/application.yml
+
+# Dados de Utilizador e Memória (RAG)
+Data/Persistence/VectorDB/
+Data/Persistence/playlists.json
+Data/Persistence/channels.json
+
+# Python e Ambiente
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Logs e Temporários
+logs/
+*.log
+cookies.txt
+
+# Docker
+.dockerignore

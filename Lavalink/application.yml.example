@@ -1,0 +1,82 @@
+server: # REST and WS server
+  port: 2333
+  address: 0.0.0.0
+lavalink:
+  plugins:
+    # Versão mais recente e estável do plugin
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.16.0"
+      repository: "https://maven.lavalink.dev/releases"
+      snapshot: false
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false # O plugin gerencia o YouTube, então desativamos o nativo
+      bandcamp: true
+      soundcloud: true
+      twitch: true
+      vimeo: true
+      http: true
+      local: false
+    filters: # All filters enabled
+      volume: true
+      equalizer: true
+      karaoke: true
+      timescale: true
+      tremolo: true
+      vibrato: true
+      distortion: true
+      rotation: true
+      channelMix: true
+      lowPass: true
+    bufferDurationMs: 400
+    frameBufferDurationMs: 5000
+    opusEncodingQuality: 10
+    resamplingQuality: LOW
+    trackStuckThresholdMs: 10000
+    useSeekGhosting: true
+    youtubePlaylistLoadLimit: 6 # Number of pages to load
+    playerUpdateInterval: 5
+    youtubeSearchEnabled: true
+    soundcloudSearchEnabled: true
+    gc-warnings: true
+
+# Configurações específicas do Plugin do YouTube
+plugins:
+  youtube:
+    enabled: true
+    # Definindo clientes explicitamente para evitar avisos e melhorar a estabilidade
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - WEB_EMBEDDED_PLAYER
+    oauth:
+      enabled: true
+      # Token capturado dos seus logs (linha: "Token retrieved successfully...")
+      # Isso garante que o bot continue logado após reiniciar
+      refreshToken: "token aqui"
+
+metrics:
+  prometheus:
+    enabled: false
+    endpoint: /metrics
+
+sentry:
+  dsn: ""
+  environment: ""
+
+logging:
+  file:
+    path: ./logs/
+
+  level:
+    root: INFO
+    lavalink: INFO
+
+  request:
+    enabled: true
+    includeClientInfo: true
+    includeHeaders: false
+    includeQueryString: true
+    includePayload: true
+    maxPayloadLength: 10000

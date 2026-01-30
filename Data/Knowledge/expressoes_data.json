@@ -1,0 +1,80 @@
+{
+    "emojis": {
+        "neutro": [
+            "🤖",
+            "👀",
+            "🤔",
+            "✨"
+        ],
+        "feliz": [
+            "😄",
+            "🥰",
+            "🚀",
+            "😎",
+            "🥳",
+            "🌈"
+        ],
+        "confuso": [
+            "😵‍💫",
+            "🤨",
+            "?",
+            "🧐"
+        ],
+        "bravo": [
+            "😤",
+            "🤬",
+            "😡",
+            "🙄",
+            "😠"
+        ],
+        "triste": [
+            "😢",
+            "💔",
+            "F",
+            "😔",
+            "☁️"
+        ]
+    },
+    "reaction_gifs": {
+        "pensando": [
+            "https://media.tenor.com/7zK_.../thinking-emoji.gif"
+        ],
+        "risada": [
+            "[link suspeito removido]"
+        ],
+        "surpresa": [
+            "[link suspeito removido]"
+        ]
+    },
+    "keywords": {
+        "feliz": [
+            "obrigado",
+            "valeu",
+            "bom",
+            "legal",
+            "kkk",
+            "amei",
+            "top",
+            "perfeito"
+        ],
+        "bravo": [
+            "não",
+            "ruim",
+            "odeio",
+            "chato",
+            "erro",
+            "droga",
+            "pare",
+            "horrível"
+        ],
+        "confuso": [
+            "como",
+            "por que",
+            "onde",
+            "quando",
+            "quem",
+            "entendi nada",
+            "quê"
+        ]
+    }
+}
