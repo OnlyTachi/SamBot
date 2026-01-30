@@ -7,6 +7,13 @@ Ele utiliza **LLMs** (Large Language Models) para conversação natural e **RAG*
 *Curiosidade: O nome "SamBot" foi inspiração de uma pessoa muito querida para mim, esse projeto foi um presente a ela*
 
 ---
+## 📖 Guia de Documentação
+
+[Arquitetura do Sistema](ARCHITECTURE.md) - Detalhes sobre o pipeline cognitivo e estrutura de pastas.
+
+[Guia de Configuração](CONFIG_GUIDE.md) - Como configurar as chaves de API e o ficheiro .env.
+
+[Infraestrutura](INFRA.md) - Detalhes sobre o uso do Tailscale e Ubuntu Server.
 
 ## 💡 Filosofia do Projeto
 
@@ -99,7 +106,7 @@ cp .env.example .env
 
 ## ⚠️ Nota sobre o Estado do Projeto
 
-Este é um projeto em constante evolução e funciona como um laboratório pessoal de Python e IA. O código pode conter redundâncias ou soluções técnicas temporárias ("jeitinhos") que são aprimoradas diariamente conforme o aprendizado avança.
+Este é um projeto em constante evolução e funciona como um laboratório pessoal de Python e IA. O código pode conter redundâncias ou soluções técnicas temporárias ("jeitinhos") que são aprimoradas diariamente conforme o aprendizado avança. Obs: algumas documentaçoes podem estar erradas ou desatualizadas.
 
 ## 📝 Licença
 
