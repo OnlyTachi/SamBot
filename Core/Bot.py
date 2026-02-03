@@ -145,11 +145,10 @@ class SamBot(commands.Bot):
         self.log.info(f"🌐 Servidores ativos: {len(self.guilds)}")
         if not self.status_loop.is_running():
             self.status_loop.start()
-        self.log.info(f"Status dinâmico rodando? {self.status_loop.is_running()}")
 
         # Status inicial focado em música e interação
         activity = discord.Activity(type=discord.ActivityType.listening)
-        await self.change_presence(status=discord.Status.dont_disturb, activity=activity)
+        await self.change_presence(status=discord.Status.dnd, activity=activity)
 
 # talvez mover isso para outro lugar depois e arrumar os status...
 

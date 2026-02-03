@@ -4,7 +4,7 @@ server: # REST and WS server
 lavalink:
   plugins:
     # Versão mais recente e estável do plugin
-    - dependency: "dev.lavalink.youtube:youtube-plugin:1.16.0"
+    - dependency: "dev.lavalink.youtube:youtube-plugin:1.17.0"
       repository: "https://maven.lavalink.dev/releases"
       snapshot: false
   server:
@@ -44,17 +44,24 @@ lavalink:
 plugins:
   youtube:
     enabled: true
-    # Definindo clientes explicitamente para evitar avisos e melhorar a estabilidade
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    # Alteração Estratégica: Clientes que funcionam melhor com OAuth
     clients:
-      - MUSIC
       - ANDROID_VR
+      - ANDROID_MUSIC
       - WEB
-      - WEB_EMBEDDED_PLAYER
+      - MUSIC
+      - TVHTML5EMBEDDED
     oauth:
       enabled: true
-      # Token capturado dos seus logs (linha: "Token retrieved successfully...")
-      # Isso garante que o bot continue logado após reiniciar
-      refreshToken: "token aqui"
+    authentication:
+      cookies: "cookies.txt"
+    pot:
+      token: ""
+      visitorData: ""
+
 
 metrics:
   prometheus:

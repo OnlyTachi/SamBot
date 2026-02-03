@@ -6,9 +6,7 @@ services:
     environment:
       - _JAVA_OPTIONS=-Xmx512m
     volumes:
-      - ./Lavalink/application.yml:/opt/Lavalink/application.yml
-      - ./Lavalink/plugins:/opt/Lavalink/plugins
-      - ./Lavalink/youtube-data:/opt/Lavalink/youtube-data
+      - ./Lavalink:/opt/Lavalink
     ports:
       - "2333:2333"
     networks:
