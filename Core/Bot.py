@@ -156,36 +156,50 @@ class SamBot(commands.Bot):
     async def status_loop(self):
         """Alterna a atividade do bot usando dados do DataManager."""
         if self.is_music_playing:
+            # Se estiver tocando música, não altera o status para não sobrescrever a info da música
             return      
+            
         try:
+            # Tenta buscar as frases do conhecimento
             atividades_data = data_manager.get_knowledge('atividades') if data_manager else {}
             
             frases_arquivo = []
-            
             if atividades_data and isinstance(atividades_data, dict):
                 for categoria, lista in atividades_data.items():
                     if isinstance(lista, list):
                         frases_arquivo.extend(lista)
             
+            # Lista padrão de segurança
             padrao = ["música | Mencione-me!", "evoluindo...", "ajudando pessoas"]
             
-            opcoes = frases_arquivo + padrao
-            
-            if not opcoes:
-                opcoes = padrao 
-
+            # Combina as listas e escolhe uma frase
+            opcoes = frases_arquivo if frases_arquivo else padrao
             escolha = random.choice(opcoes)
             
-            await self.change_presence(
-                status=discord.Status.online,
-                activity=discord.Activity(type=discord.ActivityType.listening, name=escolha, status=discord.Status.dont_disturb)
+            # CORREÇÃO: Activity não aceita 'status' internamente. 
+            # O status (online/dnd) é definido no change_presence.
+            nova_atividade = discord.Activity(
+                type=discord.ActivityType.listening, 
+                name=escolha
             )
+            
+            await self.change_presence(
+                status=discord.Status.dnd, 
+                activity=nova_atividade
+            )
+            
+            # Log de sucesso no terminal
+            self.log.info(f"✅ Status atualizado com sucesso: Ouvindo '{escolha}'")
+
         except Exception as e:
-            self.log.error(f"Erro ao atualizar status: {e}")
+            # Log de erro detalhado no terminal
+            self.log.error(f"❌ Erro crítico ao atualizar status no terminal: {e}")
 
     @status_loop.before_loop
     async def before_status_loop(self):
+        # Garante que o bot esteja logado antes de tentar mudar o status
         await self.wait_until_ready()
+        self.log.info("🕒 Aguardando prontidão do bot para iniciar o loop de status...")
 
     async def on_message(self, message):
         """Processa mensagens recebidas."""

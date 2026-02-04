@@ -18,7 +18,7 @@ class BuscaTool:
             'q': query,
             'key': self.google_key,
             'cx': self.google_cx,
-            'num': 3 
+            'num': 5 
         }
         
         async with aiohttp.ClientSession() as session:
@@ -41,7 +41,7 @@ class BuscaTool:
 
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": self.brave_key}
-        params = {"q": query, "count": 3}
+        params = {"q": query, "count": 5}
 
         async with aiohttp.ClientSession() as session:
             async with session.get(url, headers=headers, params=params) as resp:
