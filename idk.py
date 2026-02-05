@@ -147,15 +147,11 @@ class CerebroIA(commands.Cog):
     async def _aprender_fatos(self, message: discord.Message, clean_text: str) -> str:
         """
         Identifica, valida via LLM, salva no VectorStore e retorna o fato aprendido.
-
-        Retorna:
-            str: O fato extraído se for válido e salvo.
-            None: Se não houver fato relevante ou ocorrer erro.
         """
         if not MEMORY_AVAILABLE:
             return None
 
-        # Gatilhos básicos para evitar chamadas desnecessárias à LLM
+        # Gatilhos básicos para evitar chamadas excessivas à LLM
         gatilhos = [
             "meu nome",
             "eu gosto",
@@ -170,14 +166,12 @@ class CerebroIA(commands.Cog):
             "meu pai",
         ]
 
-        # Verifica se a mensagem contém algum gatilho de interesse
         if not any(g in clean_text.lower() for g in gatilhos):
             return None
 
         try:
             user_name = message.author.name
 
-            # Prompt especializado para o Núcleo de Memória
             system_prompt = (
                 "Você é o Núcleo de Memória da SamBot. Sua função é extrair fatos PERMANENTES sobre o usuário.\n"
                 "Analise a frase do usuário. Se for uma informação pessoal relevante (nome, gosto, profissão, local), extraia APENAS o fato.\n"
@@ -186,17 +180,15 @@ class CerebroIA(commands.Cog):
                 "Exemplo: 'Sou o batman' -> 'IGNORE'"
             )
 
-            # Chamada à LLM para validar e formatar o fato
             extracao = await llm_factory.generate_response(
                 system_prompt=system_prompt,
                 user_prompt=f"Usuário {user_name} disse: '{clean_text}'",
             )
 
-            # Validação da resposta da LLM
             if "IGNORE" in extracao.upper() or len(extracao.strip()) < 3:
                 return None
 
-            # Persistência no VectorStore (Memória de Longo Prazo)
+            # Persistência na memória de longo prazo
             doc_id = f"fact_{message.author.id}_{int(time.time())}"
             vector_store.add_memory(
                 "fatos_usuario",
@@ -209,18 +201,15 @@ class CerebroIA(commands.Cog):
                 doc_id,
             )
 
-            # Feedback visual no Discord
             await message.add_reaction("🧠")
-
             logger.info(
                 f"🧠 Memória Episódica: Fato salvo para {user_name} -> {extracao}"
             )
 
-            # Retorna o fato extraído para uso na lógica principal
             return extracao
 
         except Exception as e:
-            logger.error(f"❌ Erro ao processar/gravar fato contextual: {e}")
+            logger.error(f"❌ Erro ao processar fato: {e}")
             return None
 
     async def _rotear_ferramentas(self, content: str, provider) -> str:
@@ -262,7 +251,7 @@ class CerebroIA(commands.Cog):
                     data = [data]
 
                 if not isinstance(data, list):
-                    continue  # Formato inesperado, tenta de novo
+                    continue
 
                 results_accumulated = []
 
@@ -312,7 +301,7 @@ class CerebroIA(commands.Cog):
         return ""
 
     def _is_command(self, message: discord.Message, prefixes) -> bool:
-        """Verifica agressivamente se a mensagem parece um comando para ser ignorada pelo cérebro."""
+        """Verifica agressivamente se a mensagem parece um comando para ser ignorada."""
         content = message.content.strip()
 
         if isinstance(prefixes, str):
@@ -332,16 +321,13 @@ class CerebroIA(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         """Monitora mensagens e decide quando interagir."""
-        # 1. Ignora bots e a si mesma
         if message.author.bot or message.author.id == self.bot.user.id:
             return
 
-        # 2. Ignora Comandos (Filtro Reforçado)
         prefix = await self.bot.get_prefix(message)
         if self._is_command(message, prefix):
             return
 
-        # 3. Lógica de Atenção (Quando responder?)
         is_mentioned = self.bot.user in message.mentions
         is_dm = isinstance(message.channel, discord.DMChannel)
         is_reply = (
@@ -388,6 +374,7 @@ class CerebroIA(commands.Cog):
                 return
 
             fato_aprendido = await self._aprender_fatos(message, clean_text)
+
             if MEMORY_AVAILABLE and self.autoconhecimento.is_self_inquiry(clean_text):
                 resp = await provider.generate_response(
                     clean_text, self.autoconhecimento.get_identity_prompt()
@@ -423,7 +410,7 @@ class CerebroIA(commands.Cog):
             )
 
             if MEMORY_AVAILABLE and not any(
-                e in resposta for e in ["😀", "🤔", "✨", "💜"]
+                e in resposta for e in ["😀", "🤔", "✨", "💜", "😊"]
             ):
                 resposta += f" {self.expressoes.get_reaction(clean_text)}"
 
@@ -437,80 +424,42 @@ class CerebroIA(commands.Cog):
             await message.reply("🤯 *Tive um pequeno curto-circuito. Pode repetir?*")
 
     async def _enviar_resposta(self, message: discord.Message, texto: str):
-        """
-        Envia a resposta dividindo-a inteligentemente
-        Prioridade de quebra: Parágrafo > Fim de Frase > Espaço.
-        """
+        """Envia a resposta dividindo-a inteligentemente respeitando os limites do Discord."""
         if not texto:
             return
 
-        LIMIT = 1900  # Margem de segurança para o limite de 2000 do Discord
+        LIMIT = 1900
         chunks = []
 
         while len(texto) > LIMIT:
-            # 1. Tenta quebrar no último parágrafo dentro do limite
             split_index = texto[:LIMIT].rfind("\n")
-
-            # 2. Se não achar, tenta quebrar no final de uma frase
             if split_index == -1:
                 split_index = texto[:LIMIT].rfind(". ")
                 if split_index != -1:
-                    split_index += 1  # Mantém o ponto na frase atual
-
-            # 3. Se não achar, tenta quebrar no último espaço
+                    split_index += 1
             if split_index == -1:
                 split_index = texto[:LIMIT].rfind(" ")
-
-            # 4. Fallback: Se for um bloco maciço (ex: código), corta no limite
             if split_index == -1:
                 split_index = LIMIT
 
-            # Extrai o chunk e limpa o restante
             chunk = texto[:split_index].strip()
             if chunk:
                 chunks.append(chunk)
-
             texto = texto[split_index:].strip()
 
-        # Adiciona o restante do texto
         if texto:
             chunks.append(texto)
 
-        # Envio sequencial
         for i, chunk in enumerate(chunks):
             try:
                 if i == 0:
                     await message.reply(chunk, mention_author=False)
                 else:
                     await message.channel.send(chunk)
-
-                # Pequeno delay para garantir a ordem no Discord
                 if len(chunks) > 1:
                     await asyncio.sleep(0.5)
             except discord.HTTPException as e:
-                logger.error(f"❌ Erro ao enviar chunk {i}: {e}")
-
-    @commands.Cog.listener()
-    async def on_reaction_add(self, reaction, user):
-        """
-        Easter Egg: Envia mensagem privada fofa quando o usuário interage com a memória.
-        """
-        if user.bot:
-            return
-
-        if str(reaction.emoji) == "🧠":
-            frases_carinho = [
-                "Pode deixar, isso está guardadinho aqui! 💾💜",
-                "Memória salva com sucesso! Nunca vou esquecer. ✨",
-                "Anotado no meu cadernin digital! 📝",
-                "Adoro saber mais sobre você! 🥰",
-                "Backup realizado! S2",
-            ]
-
-            try:
-                await user.send(f"**SamBot Memória:** {random.choice(frases_carinho)}")
-            except discord.Forbidden:
-                pass
+                logger.error(f"❌ Erro ao enviar chunk: {e}")
 
 
 async def setup(bot):
