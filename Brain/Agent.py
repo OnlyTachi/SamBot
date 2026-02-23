@@ -12,39 +12,41 @@ import asyncio
 from datetime import datetime
 import time
 import os
+import io
 
 # --- Configuração de Logging ---
 logger = logging.getLogger("SamBot.Agent")
 
-# --- Inteligência ---
-try:
-    from Brain.Providers.LLMFactory import llm_factory
-except ImportError:
-    logger.critical("❌ Provedor LLM (LLMFactory) não encontrado!")
-    llm_factory = None
-
-# --- Importação Robusta de Módulos ---
+# --- Importação de Módulos e Inteligência ---
+# Tentamos importar os provedores e managers com suporte a falhas parciais
 TOOLS_AVAILABLE = False
 MEMORY_AVAILABLE = False
 
-# --- Ferramentas Externas ---
 try:
+    from Brain.Providers.LLMFactory import LLMFactory
+except ImportError:
+    logger.critical("❌ Provedor LLM (LLMFactory) não encontrado!")
+    LLMFactory = None
+
+try:
+    # Ferramentas
     from Brain.Tools.WeatherTool import WeatherTool
     from Brain.Tools.Games.GameTool import GameTool
     from Brain.Tools.BuscaTools import BuscaTool
     from Brain.Tools.Images.SearchImages import ImageSearchTool
+    from Brain.Tools.Images.VisionTool import VisionTool
     from Brain.Tools.MusicRecTool import MusicRecTool
 
     TOOLS_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"⚠️ Algumas ferramentas não foram encontradas: {e}")
 
-# --- Módulos de Memória e Dados ---
 try:
-    from Brain.Memory.VectorStore import vector_store
+    # Memória e Dados
+    from Brain.Memory.VectorStore import VectorStore
     from Brain.Memory.Historico import HistoricoManager
     from Brain.Memory.Expressoes import ExpressoesManager
-    from Brain.Memory.AutoConhecimento import AutoConhecimentoManager
+    from Brain.Memory.AutoConhecimento import AutoConhecimento
     from Brain.Memory.Limpeza import LimpezaManager
     from Brain.Memory.DataManager import data_manager
 
@@ -56,43 +58,50 @@ except ImportError as e:
 class CerebroIA(commands.Cog):
     """
     O coração cognitivo da SamBot.
-    Gere a integração entre LLM, Memória Vetorial (RAG), Expressões e Ferramentas.
+    Gere a integração entre LLM, Memória Vetorial (RAG), Expressões, Visão e Ferramentas.
     """
 
     def __init__(self, bot):
         self.bot = bot
+        self.logger = logger
 
         # --- Inicialização de Gestores ---
+        self.llm_factory = LLMFactory() if LLMFactory else None
         self.tools = {}
-        if TOOLS_AVAILABLE:
-            self._inicializar_ferramentas()
 
         if MEMORY_AVAILABLE:
-            self.expressoes = ExpressoesManager()
+            self.vector_store = VectorStore()
             self.historico = HistoricoManager()
-            self.autoconhecimento = AutoConhecimentoManager
+            self.expressoes = ExpressoesManager()
+            self.auto_conhecimento = AutoConhecimento()
             self.limpeza = LimpezaManager()
             self.data_manager = data_manager
             self.identity = (
                 data_manager.get_identity()
                 if hasattr(data_manager, "get_identity")
-                else {"name": "SamBot"}
+                else {"name": "Sam"}
             )
         else:
-            self.identity = {"name": "SamBot"}
+            self.identity = {"name": "Sam"}
 
-        # Canais Ativos e Personas
+        # Canais Ativos e Personas (Persistência da versão 1)
         self.active_channels = {}
-        if MEMORY_AVAILABLE:
-            raw_channels = data_manager.load_active_channels()
+        if MEMORY_AVAILABLE and hasattr(self.data_manager, "load_active_channels"):
+            raw_channels = self.data_manager.load_active_channels()
             self.active_channels = (
                 raw_channels if isinstance(raw_channels, dict) else {}
             )
 
-        logger.info(f"🧠 Cérebro Conectado. Entidade: {self.identity.get('name')}")
+        # --- Inicialização de Ferramentas ---
+        self._inicializar_ferramentas()
+
+        self.logger.info(f"🧠 Cérebro Conectado. Entidade: {self.identity.get('name')}")
 
     def _inicializar_ferramentas(self):
-        """Inicializa ferramentas com tratamento de erro individual."""
+        """Inicializa ferramentas com tratamento de erro individual e suporte a assinaturas variadas."""
+        if not TOOLS_AVAILABLE:
+            return
+
         tool_map = {
             "weather": WeatherTool,
             "game_search": GameTool,
@@ -100,62 +109,75 @@ class CerebroIA(commands.Cog):
             "image_search": ImageSearchTool,
             "music_recommend": MusicRecTool,
         }
+
+        try:
+            self.vision_tool = VisionTool()
+        except:
+            self.vision_tool = None
+
         for key, cls in tool_map.items():
             try:
-                # Tenta instanciar com bot, senão puro
+                # Tenta instanciar com bot ou sem bot (suporte a ambas as versões)
                 try:
                     self.tools[key] = cls(self.bot)
                 except:
                     self.tools[key] = cls()
             except Exception as e:
-                logger.error(f"❌ Erro ao carregar ferramenta {key}: {e}")
+                self.logger.error(f"❌ Erro ao carregar ferramenta {key}: {e}")
 
     def _carregar_prompt(self, persona_name: str) -> str:
-        """Carrega o system prompt baseado na persona ou arquivo."""
-        if MEMORY_AVAILABLE:
+        """Carrega o system prompt baseado na persona ou identidade padrão."""
+        if MEMORY_AVAILABLE and hasattr(self.data_manager, "get_prompt"):
             persona_key = persona_name if persona_name else "padrao"
             return self.data_manager.get_prompt(persona_key)
 
-        # Fallback para arquivo local se data_manager falhar
-        path = f"./Data/Prompts/{persona_name}.txt"
-        if os.path.exists(path):
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
+        if MEMORY_AVAILABLE and hasattr(self.auto_conhecimento, "get_identity"):
+            return self.auto_conhecimento.get_identity()
+
         return "Você é a Sam, uma assistente virtual divertida e especialista em jogos e música."
 
-    async def _consultar_memoria_longa(self, user_id: str, query: str) -> str:
-        """Busca factos relevantes no ChromaDB (RAG)."""
-        if not MEMORY_AVAILABLE:
+    async def _consultar_memoria_longa(self, query: str) -> str:
+        """Busca fatos relevantes no ChromaDB (RAG)."""
+        if not query or not self.vector_store:
             return ""
+
         try:
-            fatos = vector_store.query_relevant(
-                "fatos_usuario", f"user:{user_id} {query}", n_results=2
-            )
-            resumos = vector_store.query_relevant("resumos_diarios", query, n_results=1)
-            memorias = fatos + resumos
-            if not memorias:
+            # Tenta os métodos conhecidos do VectorStore
+            if hasattr(self.vector_store, "query_relevant"):
+                # Método novo (provavelmente só 1 arg)
+                resultados = await self.vector_store.query_relevant(query)
+
+            elif hasattr(self.vector_store, "query_relevant"):
+                # CORREÇÃO: Método antigo exige (coleção, query)
+                # Passamos "fatos_usuario" como coleção padrão
+                resultados = await self.vector_store.query_relevant(
+                    "fatos_usuario", query
+                )
+
+            else:
                 return ""
-            return (
-                f"\n[MEMÓRIA DE LONGO PRAZO RELEVANTE]:\n"
-                + "\n".join([f"- {m}" for m in memorias])
-                + "\n"
-            )
+
+            if not resultados:
+                return ""
+
+            # Se for lista de strings, junta. Se for string, usa direto.
+            if isinstance(resultados, list):
+                texto_memoria = "\n".join([f"- {m}" for m in resultados])
+            else:
+                texto_memoria = str(resultados)
+
+            return f"\n[MEMÓRIA DE LONGO PRAZO RELEVANTE]:\n{texto_memoria}\n"
+
         except Exception as e:
-            logger.error(f"❌ Erro RAG: {e}")
+            # Log de aviso, mas não crasha mais
+            self.logger.warning(f"⚠️ Aviso RAG (Memória ignorada): {e}")
             return ""
 
     async def _aprender_fatos(self, message: discord.Message, clean_text: str) -> str:
-        """
-        Identifica, valida via LLM, salva no VectorStore e retorna o fato aprendido.
-
-        Retorna:
-            str: O fato extraído se for válido e salvo.
-            None: Se não houver fato relevante ou ocorrer erro.
-        """
-        if not MEMORY_AVAILABLE:
+        """Identifica, valida e guarda fatos sobre o utilizador."""
+        if not MEMORY_AVAILABLE or not clean_text or not self.llm_factory:
             return None
 
-        # Gatilhos básicos para evitar chamadas desnecessárias à LLM
         gatilhos = [
             "meu nome",
             "eu gosto",
@@ -164,184 +186,169 @@ class CerebroIA(commands.Cog):
             "eu moro",
             "sou ",
             "tenho ",
-            "meu aniversário",
             "trabalho com",
-            "minha mãe",
-            "meu pai",
         ]
-
-        # Verifica se a mensagem contém algum gatilho de interesse
         if not any(g in clean_text.lower() for g in gatilhos):
             return None
 
         try:
-            user_name = message.author.name
-
-            # Prompt especializado para o Núcleo de Memória
+            user_name = message.author.display_name
             system_prompt = (
-                "Você é o Núcleo de Memória da SamBot. Sua função é extrair fatos PERMANENTES sobre o usuário.\n"
-                "Analise a frase do usuário. Se for uma informação pessoal relevante (nome, gosto, profissão, local), extraia APENAS o fato.\n"
-                "Se for uma brincadeira, sarcasmo ou irrelevante, responda 'IGNORE'.\n"
-                "Exemplo: 'Eu amo pizza' -> 'Gosta de pizza'\n"
-                "Exemplo: 'Sou o batman' -> 'IGNORE'"
+                "Você é o Núcleo de Memória da SamBot. Extraia fatos PERMANENTES.\n"
+                "Se for relevante, extraia APENAS o fato curto. Se for lixo/piada/temporário, responda 'IGNORE'.\n"
+                "Ex: 'Eu amo pizza' -> 'Gosta de pizza'"
             )
 
-            # Chamada à LLM para validar e formatar o fato
-            extracao = await llm_factory.generate_response(
-                system_prompt=system_prompt,
-                user_prompt=f"Usuário {user_name} disse: '{clean_text}'",
+            extracao = await self.llm_factory.generate_response(
+                prompt_parts=[f"Usuário {user_name} disse: '{clean_text}'"],
+                system_instruction=system_prompt,
             )
 
-            # Validação da resposta da LLM
             if "IGNORE" in extracao.upper() or len(extracao.strip()) < 3:
                 return None
 
-            # Persistência no VectorStore (Memória de Longo Prazo)
-            doc_id = f"fact_{message.author.id}_{int(time.time())}"
-            vector_store.add_memory(
-                "fatos_usuario",
-                f"Fato sobre {user_name}: {extracao}",
-                {
-                    "user_id": str(message.author.id),
-                    "timestamp": str(datetime.now()),
-                    "source_text": clean_text,
-                },
-                doc_id,
-            )
-
-            # Feedback visual no Discord
-            await message.add_reaction("🧠")
-
-            logger.info(
-                f"🧠 Memória Episódica: Fato salvo para {user_name} -> {extracao}"
-            )
-
-            # Retorna o fato extraído para uso na lógica principal
-            return extracao
-
-        except Exception as e:
-            logger.error(f"❌ Erro ao processar/gravar fato contextual: {e}")
-            return None
-
-    async def _rotear_ferramentas(self, content: str, provider) -> str:
-        """
-        Decide e executa ferramentas externas via JSON Router.
-        Suporta Multi-Tool Calling e Retry em caso de JSON inválido.
-        """
-        if not self.tools:
-            return ""
-
-        router_prompt = (
-            "Analise a solicitação e responda APENAS um JSON (Lista de Objetos).\n"
-            "Ferramentas disponíveis: 'weather', 'game_search', 'image_search', 'web_search', 'music_recommend'.\n"
-            "Retorne uma lista vazia [] se nenhuma ferramenta for necessária.\n"
-            'Exemplo Multi-Tool: [{"tool": "weather", "args": "São Paulo"}, {"tool": "game_search", "args": "Elden Ring"}]\n'
-            f"Usuário: {content}"
-        )
-
-        last_error = ""
-
-        for attempt in range(3):
-            try:
-                prompt_atual = router_prompt
-                if attempt > 0:
-                    prompt_atual += f"\n\n[ERRO ANTERIOR]: O JSON gerado era inválido ({last_error}). Corrija a sintaxe estritamente."
-
-                decisao_raw = await provider.generate_response(
-                    user_prompt=prompt_atual,
-                    system_prompt="Responda APENAS JSON válido. Sem markdown, sem explicações.",
+            if hasattr(self.vector_store, "add_memory"):
+                await self.vector_store.add_memory(
+                    f"Fato sobre {user_name}: {extracao}",
+                    metadata={
+                        "user_id": str(message.author.id),
+                        "user_name": user_name,
+                        "timestamp": str(datetime.now()),
+                    },
                 )
 
-                json_str = decisao_raw.replace("```json", "").replace("```", "").strip()
-                if not json_str:
-                    return ""
+            await message.add_reaction("🧠")
+            return extracao
+        except Exception as e:
+            self.logger.error(f"❌ Erro ao aprender: {e}")
+            return None
 
-                data = json.loads(json_str)
+    async def _rotear_ferramentas(self, content: str) -> str:
+        """Decide e executa ferramentas usando LLM se gatilhos forem detectados."""
+        if not self.tools or not self.llm_factory:
+            return ""
 
-                if isinstance(data, dict):
-                    data = [data]
+        triggers = [
+            "clima",
+            "tempo",
+            "jogo",
+            "game",
+            "imagem",
+            "foto",
+            "pesquisa",
+            "busca",
+            "recomenda",
+            "musica",
+        ]
+        if not any(t in content.lower() for t in triggers):
+            return ""
 
-                if not isinstance(data, list):
-                    continue  # Formato inesperado, tenta de novo
+        router_instruction = (
+            "Responda APENAS JSON (Lista de Objetos).\n"
+            "Ferramentas: 'weather', 'game_search', 'image_search', 'web_search', 'music_recommend'.\n"
+            'Ex: [{"tool": "weather", "args": "Lisboa"}]'
+        )
 
-                results_accumulated = []
+        try:
+            decisao_raw = await self.llm_factory.generate_response(
+                prompt_parts=[f"Usuário: {content}"],
+                system_instruction=router_instruction,
+            )
 
-                for action in data:
-                    tool_name = action.get("tool")
-                    args = action.get("args", "")
+            json_str = decisao_raw.replace("```json", "").replace("```", "").strip()
+            if not json_str or json_str == "[]" or "{" not in json_str:
+                return ""
 
-                    if tool_name not in self.tools or tool_name == "none":
-                        continue
+            actions = json.loads(json_str)
+            if isinstance(actions, dict):
+                actions = [actions]
 
-                    logger.info(f"🛠️ Executando Tool: {tool_name} | Args: {args}")
-
+            results = []
+            for action in actions:
+                name = action.get("tool")
+                args = str(action.get("args", ""))
+                if name in self.tools:
+                    self.logger.info(f"🛠️ Executando {name}...")
+                    tool = self.tools[name]
+                    res = ""
                     try:
-                        tool_obj = self.tools[tool_name]
-                        res = ""
+                        if name == "image_search":
+                            res = (
+                                await tool.search(args)
+                                if hasattr(tool, "search")
+                                else tool.obter_imagem(args)
+                            )
+                        elif name == "weather":
+                            res = await tool.get_weather(args)
+                        elif name == "music_recommend":
+                            res = await tool.recommend_music(args)
+                        elif name == "game_search":
+                            res = await tool.search_game(args)
+                        elif name == "web_search":
+                            res = (
+                                await tool.buscar_na_cascata(args)
+                                if hasattr(tool, "buscar_na_cascata")
+                                else await tool.search(args)
+                            )
 
-                        if tool_name == "image_search":
-                            res = tool_obj.obter_imagem(str(args))
-                        elif tool_name == "weather":
-                            res = await tool_obj.get_weather(str(args))
-                        elif tool_name == "music_recommend":
-                            res = await tool_obj.recommend_music(str(args))
-                        elif tool_name == "game_search":
-                            res = await tool_obj.search_game(str(args))
-                        else:
-                            res = await tool_obj.buscar_na_cascata(str(args))
-
-                        results_accumulated.append(
-                            f"\n[RESULTADO {tool_name.upper()}]:\n{res}"
-                        )
+                        results.append(f"\n[{name.upper()}]: {res}")
                     except Exception as e:
-                        logger.error(f"❌ Erro na execução da tool {tool_name}: {e}")
-                        results_accumulated.append(
-                            f"\n[ERRO {tool_name.upper()}]: Falha ao executar."
-                        )
+                        self.logger.error(f"Erro na tool {name}: {e}")
 
-                return "\n".join(results_accumulated) + "\n"
-
-            except json.JSONDecodeError as e:
-                logger.warning(f"⚠️ JSON Inválido na tentativa {attempt+1}: {e}")
-                last_error = str(e)
-                continue
-            except Exception as e:
-                logger.error(f"⚠️ Erro crítico no Roteador: {e}")
-                break
-
-        return ""
+            return "".join(results) + "\n"
+        except Exception as e:
+            self.logger.error(f"Erro no roteador: {e}")
+            return ""
 
     def _is_command(self, message: discord.Message, prefixes) -> bool:
-        """Verifica agressivamente se a mensagem parece um comando para ser ignorada pelo cérebro."""
+        """Verificação para não processar comandos como se fosse conversa natural."""
         content = message.content.strip()
+        if not content:
+            return False
+        if isinstance(prefixes, (str, list)) and any(
+            content.startswith(p)
+            for p in (prefixes if isinstance(prefixes, list) else [prefixes])
+        ):
+            return True
+        # Prefixos comuns de outros bots
+        common = ["!", "/", ".", "?", "+", "-", "$", "%", "*"]
+        return (
+            any(content.startswith(p) for p in common)
+            and len(content) > 1
+            and not content[1].isspace()
+        )
 
-        if isinstance(prefixes, str):
-            if content.startswith(prefixes):
-                return True
-        elif isinstance(prefixes, list):
-            if any(content.startswith(p) for p in prefixes):
-                return True
+    async def _processar_anexos(self, message: discord.Message):
+        """Usa VisionTool se disponível, ou fallback para leitura binária básica."""
+        if self.vision_tool and self.vision_tool.is_image_message(message):
+            try:
+                return await self.vision_tool.process_attachments(message.attachments)
+            except Exception as e:
+                self.logger.error(f"❌ Erro VisionTool: {e}")
 
-        common_prefixes = ["!", "/", ".", "?", "+", "-", "$", "%", "&", "*"]
-        if any(content.startswith(p) for p in common_prefixes) and len(content) > 1:
-            if not content[1].isspace():
-                return True
-
-        return False
+        # Fallback manual da versão 1
+        parts = []
+        valid_exts = (".png", ".jpg", ".jpeg", ".webp")
+        for att in message.attachments:
+            if any(att.filename.lower().endswith(ext) for ext in valid_exts):
+                try:
+                    data = await att.read()
+                    parts.append(
+                        {"mime_type": att.content_type or "image/jpeg", "data": data}
+                    )
+                except:
+                    pass
+        return parts
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        """Monitora mensagens e decide quando interagir."""
-        # 1. Ignora bots e a si mesma
         if message.author.bot or message.author.id == self.bot.user.id:
             return
 
-        # 2. Ignora Comandos (Filtro Reforçado)
         prefix = await self.bot.get_prefix(message)
         if self._is_command(message, prefix):
             return
 
-        # 3. Lógica de Atenção (Quando responder?)
         is_mentioned = self.bot.user in message.mentions
         is_dm = isinstance(message.channel, discord.DMChannel)
         is_reply = (
@@ -350,167 +357,173 @@ class CerebroIA(commands.Cog):
             and message.reference.cached_message.author.id == self.bot.user.id
         )
 
-        persona_ativa = self.active_channels.get(str(message.channel.id))
-        chance_aleatoria = persona_ativa and random.random() < 0.05
+        persona = self.active_channels.get(str(message.channel.id))
+        # 5% de chance de intervir se estiver num canal "ativo"
+        should_reply = (
+            is_mentioned or is_dm or is_reply or (persona and random.random() < 0.05)
+        )
 
-        if is_mentioned or is_dm or is_reply or chance_aleatoria:
+        if should_reply:
             async with message.channel.typing():
-                clean_text = (
-                    message.content.replace(f"<@{self.bot.user.id}>", "")
-                    .replace(f"<@!{self.bot.user.id}>", "")
-                    .strip()
-                )
-
-                if not clean_text:
+                clean_text = re.sub(r"<@!?\d+>", "", message.content).strip()
+                if not clean_text and not message.attachments:
                     clean_text = "Olá!"
 
                 input_text = clean_text
-                if MEMORY_AVAILABLE:
+                if MEMORY_AVAILABLE and self.limpeza:
                     try:
-                        clean_data = self.limpeza.identify(clean_text)
-                        input_text = clean_data.get("normalized", clean_text)
-                    except Exception as e:
-                        logger.warning(f"⚠️ Erro na normalização de limpeza: {e}")
+                        # Normalização da versão 1
+                        res = self.limpeza.identify(clean_text)
+                        input_text = (
+                            res.get("normalized", clean_text)
+                            if isinstance(res, dict)
+                            else clean_text
+                        )
+                    except:
+                        pass
 
-                await self.processar_cognicao(message, input_text, persona_ativa)
+                await self.processar_cognicao(message, input_text, persona)
 
     async def processar_cognicao(
-        self, message: discord.Message, clean_text: str, persona_name: str
+        self, message: discord.Message, clean_text: str, persona_name: str = None
     ):
-        """Fluxo: Contexto -> RAG -> Tools -> LLM -> Resposta."""
-        start_time = time.time()
-        user_id = str(message.author.id)
-        user_name = message.author.display_name
+        """Fluxo Cognitivo Híbrido Completo."""
+        start = time.time()
+        if not self.llm_factory:
+            return
 
         try:
-            provider = llm_factory.get_provider() if llm_factory else None
-            if not provider:
-                return
+            user_id = str(message.author.id)
+            user_name = message.author.display_name
 
-            fato_aprendido = await self._aprender_fatos(message, clean_text)
-            if MEMORY_AVAILABLE and self.autoconhecimento.is_self_inquiry(clean_text):
-                resp = await provider.generate_response(
-                    clean_text, self.autoconhecimento.get_identity_prompt()
+            # 1. Autoconhecimento (Verifica se o user pergunta sobre a identidade da IA)
+            if (
+                MEMORY_AVAILABLE
+                and hasattr(self.auto_conhecimento, "is_self_inquiry")
+                and self.auto_conhecimento.is_self_inquiry(clean_text)
+            ):
+                prompt_id = (
+                    self.auto_conhecimento.get_identity_prompt()
+                    if hasattr(self.auto_conhecimento, "get_identity_prompt")
+                    else "Diga quem você é."
                 )
+                resp = await self.llm_factory.generate_response(clean_text, prompt_id)
                 return await self._enviar_resposta(message, resp)
 
-            contexto_memoria = await self._consultar_memoria_longa(user_id, clean_text)
-            contexto_ferramentas = await self._rotear_ferramentas(clean_text, provider)
+            # 2. Pipeline de Dados
+            anexos = await self._processar_anexos(message)
+            fato_novo = await self._aprender_fatos(message, clean_text)
+            rag = await self._consultar_memoria_longa(user_id, clean_text)
+            tools = await self._rotear_ferramentas(clean_text)
 
-            historico_chat = ""
+            # Histórico
+            hist_str = ""
             if MEMORY_AVAILABLE:
-                historico_chat = await self.historico.get_formatted_history(
-                    message, self.bot.user
+                hist_data = (
+                    self.historico.get_context(user_id)
+                    if hasattr(self.historico, "get_context")
+                    else await self.historico.get_formatted_history(
+                        message, self.bot.user
+                    )
+                )
+                hist_str = (
+                    "\n".join(hist_data)
+                    if isinstance(hist_data, list)
+                    else str(hist_data)
                 )
 
-            sys_prompt = self._carregar_prompt(persona_name)
-
-            full_system = (
-                f"{sys_prompt}\n"
-                f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
-                f"{contexto_memoria}{contexto_ferramentas}"
-                f"\nHistórico:\n{historico_chat}"
+            # 3. Construção do Prompt Final
+            sys_prompt_base = self._carregar_prompt(persona_name)
+            full_sys = (
+                f"{sys_prompt_base}\n"
+                f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
+                f"Conversando com: {user_name} (ID: {user_id})\n"
+                f"{rag}{tools}\n"
+                f"Histórico Recente:\n{hist_str}"
             )
 
-            if fato_aprendido:
-                full_system += (
-                    f"\n[EVENTO DE SISTEMA]: Você ACABOU de aprender e salvar uma nova memória sobre o usuário: '{fato_aprendido}'. "
-                    "Use essa informação AGORA para dar uma resposta calorosa e confirmar que guardou isso!"
-                )
+            if fato_novo:
+                full_sys += f"\n[SISTEMA]: Você acabou de aprender isto agora: '{fato_novo}'. Comente brevemente!"
 
-            resposta = await provider.generate_response(
-                user_prompt=f"{user_name}: {clean_text}", system_prompt=full_system
+            # 4. Payload e Geração
+            parts = [f"{user_name}: {clean_text}"] if clean_text else []
+            if anexos:
+                parts.extend(anexos)
+                if not clean_text:
+                    parts.append("Analise estas imagens.")
+
+            resposta = await self.llm_factory.generate_response(
+                prompt_parts=parts, system_instruction=full_sys
             )
 
-            if MEMORY_AVAILABLE and not any(
-                e in resposta for e in ["😀", "🤔", "✨", "💜"]
+            # 5. Personalidade (Expressões/Reações)
+            if (
+                MEMORY_AVAILABLE
+                and self.expressoes
+                and not any(e in resposta for e in ["😀", "💜", "✨", "🎮"])
             ):
-                resposta += f" {self.expressoes.get_reaction(clean_text)}"
+                reacao = self.expressoes.get_reaction(clean_text)
+                if reacao:
+                    resposta += f" {reacao}"
 
-            logger.info(
-                f"🗣️ Resposta para {user_name} gerada em {time.time()-start_time:.2f}s"
-            )
+            # 6. Pós-processamento e Envio
+            self.logger.info(f"🗣️ Resposta gerada em {time.time()-start:.2f}s")
+
+            if MEMORY_AVAILABLE and hasattr(self.historico, "add_message"):
+                log_in = clean_text + (" [Anexo]" if anexos else "")
+                self.historico.add_message(user_id, "user", log_in)
+                self.historico.add_message(user_id, "model", resposta)
+
             await self._enviar_resposta(message, resposta)
 
         except Exception:
-            logger.error(f"🔥 Erro Cognitivo: {traceback.format_exc()}")
-            await message.reply("🤯 *Tive um pequeno curto-circuito. Pode repetir?*")
+            self.logger.error(traceback.format_exc())
+            await message.reply("🤯 *Meus neurônios entraram em curto! Pode repetir?*")
 
     async def _enviar_resposta(self, message: discord.Message, texto: str):
-        """
-        Envia a resposta dividindo-a inteligentemente
-        Prioridade de quebra: Parágrafo > Fim de Frase > Espaço.
-        """
+        """Envia dividindo inteligentemente por parágrafos ou frases (respeitando limite de 2k)."""
         if not texto:
             return
-
-        LIMIT = 1900  # Margem de segurança para o limite de 2000 do Discord
-        chunks = []
+        LIMIT = 1900
 
         while len(texto) > LIMIT:
-            # 1. Tenta quebrar no último parágrafo dentro do limite
-            split_index = texto[:LIMIT].rfind("\n")
+            # Tenta quebrar em linha, senão em ponto, senão em espaço
+            idx = texto[:LIMIT].rfind("\n")
+            if idx == -1:
+                idx = texto[:LIMIT].rfind(". ")
+            if idx == -1:
+                idx = texto[:LIMIT].rfind(" ")
+            if idx == -1:
+                idx = LIMIT
 
-            # 2. Se não achar, tenta quebrar no final de uma frase
-            if split_index == -1:
-                split_index = texto[:LIMIT].rfind(". ")
-                if split_index != -1:
-                    split_index += 1  # Mantém o ponto na frase atual
-
-            # 3. Se não achar, tenta quebrar no último espaço
-            if split_index == -1:
-                split_index = texto[:LIMIT].rfind(" ")
-
-            # 4. Fallback: Se for um bloco maciço (ex: código), corta no limite
-            if split_index == -1:
-                split_index = LIMIT
-
-            # Extrai o chunk e limpa o restante
-            chunk = texto[:split_index].strip()
+            chunk = texto[:idx].strip()
             if chunk:
-                chunks.append(chunk)
+                await message.channel.send(chunk)
+            texto = texto[idx:].strip()
+            await asyncio.sleep(0.4)
 
-            texto = texto[split_index:].strip()
-
-        # Adiciona o restante do texto
         if texto:
-            chunks.append(texto)
-
-        # Envio sequencial
-        for i, chunk in enumerate(chunks):
-            try:
-                if i == 0:
-                    await message.reply(chunk, mention_author=False)
-                else:
-                    await message.channel.send(chunk)
-
-                # Pequeno delay para garantir a ordem no Discord
-                if len(chunks) > 1:
-                    await asyncio.sleep(0.5)
-            except discord.HTTPException as e:
-                logger.error(f"❌ Erro ao enviar chunk {i}: {e}")
+            await message.reply(texto, mention_author=False)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):
-        """
-        Easter Egg: Envia mensagem privada fofa quando o usuário interage com a memória.
-        """
-        if user.bot:
+        """Recurso da versão 1: Reagir com 🧠 para forçar aprendizado ou feedback."""
+        if user.bot or str(reaction.emoji) != "🧠":
             return
+        frases = [
+            "Guardado! 💾💜",
+            "Memória salva! ✨",
+            "Anotado no meu HD! 📝",
+            "Adoro saber mais sobre ti! 🥰",
+        ]
+        try:
+            await user.send(f"**SamBot Memória:** {random.choice(frases)}")
+        except:
+            pass
 
-        if str(reaction.emoji) == "🧠":
-            frases_carinho = [
-                "Pode deixar, isso está guardadinho aqui! 💾💜",
-                "Memória salva com sucesso! Nunca vou esquecer. ✨",
-                "Anotado no meu cadernin digital! 📝",
-                "Adoro saber mais sobre você! 🥰",
-                "Backup realizado! S2",
-            ]
-
-            try:
-                await user.send(f"**SamBot Memória:** {random.choice(frases_carinho)}")
-            except discord.Forbidden:
-                pass
+    async def run(self, message):
+        """Método de compatibilidade para chamadas manuais."""
+        await self.on_message(message)
 
 
 async def setup(bot):

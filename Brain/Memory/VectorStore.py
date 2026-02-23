@@ -4,55 +4,73 @@ import uuid
 import time
 import requests
 import logging
+import asyncio
 import google.generativeai as genai
 from chromadb.api.types import EmbeddingFunction
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Importação da Fábrica Central ---
 try:
     from Brain.Providers.LLMFactory import llm_factory
 except ImportError:
     llm_factory = None
-    logging.error("❌ LLMFactory não encontrada. O sistema de chaves Gemini será limitado.")
+    logging.error(
+        "❌ LLMFactory não encontrada. O sistema de chaves Gemini será limitado."
+    )
 
 # Configuração de Logger
 logger = logging.getLogger("SamBot.VectorStore")
 
-class NomicFailoverEmbedding(EmbeddingFunction):
+
+class SmartEmbeddingFunction(EmbeddingFunction):
     """
-    Estratégia Híbrida de Embedding com Rotação de Chaves:
-    1. Tenta Local (Ollama/Nomic) -> Timeout de 2s.
-    2. Fallback para Google Gemini -> Usa Pool de chaves da LLMFactory com rotação automática.
+    Estratégia Híbrida e Inteligente de Embedding:
+    1. Tenta Local (Ollama/Nomic) -> Timeout rápido.
+    2. Fallback Gemini Cloud:
+       - Tenta modelos em cascata: text-embedding-004 -> embedding-001.
+       - Rotação de chaves automática para erros de cota (429).
+       - Troca de modelo imediata para erros de disponibilidade (404).
     """
+
     def __init__(self):
-        self.ollama_url = os.getenv("OLLAMA_HOST")
+        self.ollama_url = os.getenv("OLLAMA_HOST") or os.getenv(
+            "OLLAMA_LOCAL_URL", "http://localhost:11434"
+        )
         self.model_local = "nomic-embed-text"
-        self.model_cloud = "models/text-embedding-004"
-        
-        self.keys = llm_factory.keys if llm_factory and hasattr(llm_factory, 'keys') else []
-        self.current_key_index = 0
-        
+
+        self.cloud_models = ["models/text-embedding-004", "models/embedding-001"]
+
+        self.keys = (
+            llm_factory.keys if llm_factory and hasattr(llm_factory, "keys") else []
+        )
         if not self.keys:
-            env_key = os.getenv("GEMINI_API_KEY")
-            if env_key:
-                self.keys = [env_key]
-        
+            k = os.getenv("GEMINI_API_KEY")
+            if k:
+                self.keys = [k]
+
+        self.current_key_index = 0
         self.working_mode = "IDLE"
 
     def _rotate_key(self):
-        """Rotaciona para a próxima chave Gemini disponível."""
-        if len(self.keys) <= 1: return
-        old_index = self.current_key_index
+        if len(self.keys) <= 1:
+            return
         self.current_key_index = (self.current_key_index + 1) % len(self.keys)
-        logger.info(f"🔄 Rotação de Chave Embedding: {old_index} -> {self.current_key_index}")
+        logger.info(f"🔄 Rotação de Chave Embedding: Índice {self.current_key_index}")
 
-    def _get_local_embedding(self, text):
-        """Tenta Ollama Local com timeout de 2s."""
+    async def _get_local_embedding(self, text):
+        """Tenta gerar o vetor via Ollama local."""
         try:
-            response = requests.post(
-                f"{self.ollama_url}/api/embeddings",
-                json={"model": self.model_local, "prompt": text},
-                timeout=2
-            )
+
+            def call_ollama():
+                return requests.post(
+                    f"{self.ollama_url}/api/embeddings",
+                    json={"model": self.model_local, "prompt": text},
+                    timeout=2,
+                )
+
+            response = await asyncio.to_thread(call_ollama)
             if response.status_code == 200:
                 self.working_mode = "LOCAL"
                 return response.json()["embedding"]
@@ -60,114 +78,154 @@ class NomicFailoverEmbedding(EmbeddingFunction):
             pass
         return None
 
-    def _get_google_embedding(self, text):
-        """Tenta Google Gemini com rotação em caso de erro (Quota/Auth)."""
-        if not self.keys: return None
+    async def _get_google_embedding(self, text):
+        """Tenta gerar o vetor via Google Gemini com cascata de modelos e chaves."""
+        if not self.keys:
+            return None
 
-        tentativas = len(self.keys)
-        for _ in range(tentativas):
-            key = self.keys[self.current_key_index]
-            try:
-                genai.configure(api_key=key)
-                result = genai.embed_content(
-                    model=self.model_cloud,
-                    content=text,
-                    task_type="retrieval_document"
-                )
-                self.working_mode = "CLOUD"
-                return result['embedding']
-            except Exception as e:
-                logger.warning(f"⚠️ Erro na chave Gemini {self.current_key_index}: {e}")
-                self._rotate_key()
-                continue
+        for model_name in self.cloud_models:
+            for _ in range(len(self.keys)):
+                key = self.keys[self.current_key_index]
+                try:
+                    genai.configure(api_key=key)
+
+                    result = await asyncio.to_thread(
+                        genai.embed_content,
+                        model=model_name,
+                        content=text,
+                        task_type="retrieval_document",
+                    )
+
+                    self.working_mode = f"CLOUD ({model_name})"
+                    return result["embedding"]
+
+                except Exception as e:
+                    err_msg = str(e)
+
+                    if "404" in err_msg and "models/" in err_msg:
+                        logger.warning(
+                            f"⚠️ Modelo {model_name} indisponível. Pulando para o próximo..."
+                        )
+                        break  # Sai do loop de chaves e vai para o próximo modelo
+
+                    logger.warning(
+                        f"⚠️ Erro no modelo {model_name} (Chave {self.current_key_index}): {err_msg[:50]}..."
+                    )
+                    self._rotate_key()
+                    await asyncio.sleep(0.5)
+
         return None
 
+    async def get_single_embedding(self, text):
+        """Fluxo de decisão do embedding."""
+        emb = await self._get_local_embedding(text)
+        if emb:
+            return emb
+
+        emb = await self._get_google_embedding(text)
+        if emb:
+            return emb
+
+        self.working_mode = "ERROR"
+        return [0.0] * 768
+
     def __call__(self, input):
-        """Método obrigatório para o ChromaDB."""
-        texts = [input] if isinstance(input, str) else input
-        embeddings = []
-        
-        for text in texts:
-            emb = self._get_local_embedding(text)
-            
-            if not emb:
-                emb = self._get_google_embedding(text)
-            
-            if not emb:
-                self.working_mode = "ERROR"
-                emb = [0.0] * 768
-                
-            embeddings.append(emb)
-        return embeddings
+        """
+        Método obrigatório para o ChromaDB.
+        Nota: O ChromaDB costuma chamar isso de forma síncrona internamente.
+        """
+        if isinstance(input, str):
+            return [asyncio.run(self.get_single_embedding(input))]
+        return [asyncio.run(self.get_single_embedding(t)) for t in input]
+
 
 class VectorStore:
     """
-    Gerencia Fatos e Resumos no ChromaDB. 
-    Compatível com o fluxo do Agent.py.
+    Gerencia Fatos e Resumos no ChromaDB.
+    Focado em persistência de longo prazo para o Agente.
     """
+
     def __init__(self):
         self.db_path = os.path.join("Data", "Persistence", "VectorDB")
         os.makedirs(self.db_path, exist_ok=True)
-        
-        self.embedding_fn = NomicFailoverEmbedding()
-        
+
+        self.embedding_fn = SmartEmbeddingFunction()
+
         try:
             self.client = chromadb.PersistentClient(path=self.db_path)
-            
+
             self.collections = {
                 "fatos_usuario": self.client.get_or_create_collection(
-                    name="fatos_usuario",
-                    embedding_function=self.embedding_fn
+                    name="fatos_usuario", metadata={"hnsw:space": "cosine"}
                 ),
                 "resumos_diarios": self.client.get_or_create_collection(
-                    name="resumos_diarios",
-                    embedding_function=self.embedding_fn
-                )
+                    name="resumos_diarios", metadata={"hnsw:space": "cosine"}
+                ),
             }
-            
-            num_keys = len(self.embedding_fn.keys)
-            logger.info(f"✅ ChromaDB Híbrido pronto ({num_keys} chaves Gemini de backup).")
-            
+            logger.info(
+                f"✅ VectorStore pronta. Modo: {self.embedding_fn.working_mode}"
+            )
         except Exception as e:
-            logger.error(f"❌ Falha crítica ao iniciar VectorStore: {e}")
+            logger.error(f"❌ Falha ao iniciar ChromaDB: {e}")
             self.client = None
 
-    def add_memory(self, collection_name: str, text: str, metadata: dict, doc_id: str = None):
-        """Adiciona uma memória em uma coleção específica."""
-        if not self.client: return
+    async def add_memory(
+        self, collection_name: str, text: str, metadata: dict = None, doc_id: str = None
+    ):
+        """Adiciona uma memória de forma assíncrona."""
+        if not self.client or not text:
+            return
+
         try:
             col = self.collections.get(collection_name)
-            if not col: return
+            if not col:
+                return
 
-            id_final = doc_id if doc_id else f"mem_{int(time.time()*1000)}_{uuid.uuid4().hex[:4]}"
-            
+            embedding = await self.embedding_fn.get_single_embedding(text)
+
+            id_final = (
+                doc_id
+                if doc_id
+                else f"mem_{int(time.time()*1000)}_{uuid.uuid4().hex[:4]}"
+            )
+
             col.add(
                 documents=[text],
+                embeddings=[embedding],
                 metadatas=[metadata or {"timestamp": str(time.time())}],
-                ids=[id_final]
+                ids=[id_final],
             )
-            logger.debug(f"💾 Memória salva [{self.embedding_fn.working_mode}] -> {collection_name}")
+            logger.debug(
+                f"💾 Memória salva em {collection_name} ({self.embedding_fn.working_mode})"
+            )
         except Exception as e:
             logger.error(f"❌ Erro ao salvar memória: {e}")
 
-    def query_relevant(self, collection_name: str, query: str, n_results: int = 2) -> list:
-        """Busca conteúdos relevantes para o contexto."""
-        if not self.client: return []
+    async def query_relevant(
+        self, collection_name: str, query: str, n_results: int = 2
+    ) -> list:
+        """Busca conteúdos relevantes."""
+        if not self.client or not query:
+            return []
+
         try:
             col = self.collections.get(collection_name)
-            if not col or col.count() == 0: return []
+            if not col or col.count() == 0:
+                return []
+
+            embedding = await self.embedding_fn.get_single_embedding(query)
 
             res = col.query(
-                query_texts=[query],
-                n_results=min(n_results, col.count())
+                query_embeddings=[embedding], n_results=min(n_results, col.count())
             )
 
-            if res and 'documents' in res and res['documents']:
-                return res['documents'][0]
+            if res and "documents" in res and res["documents"]:
+                return res["documents"][0]
             return []
         except Exception as e:
             logger.error(f"❌ Erro na busca vetorial: {e}")
             return []
 
-# Instância Global para o sistema
+
+# Instância Global
 vector_store = VectorStore()

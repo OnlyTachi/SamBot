@@ -1,5 +1,25 @@
 # Changelog
 
+## [v2.1.0-beta] - 10 de fevereiro de 2026
+
+- Introduzidas funcionalidades nativas de visão computacional para o sistema do bot: O módulo `VisionTool` foi criado para processar e formatar imagens baixadas do Discord automaticamente.
+
+VisionTool --process-images
+
+- Modelo de Linguagem Multimodal (LLM) aprimorado: O bot agora é capaz de lidar com solicitações textuais juntamente com blobs de imagem para interações com a API, suportando especificamente entradas de conteúdo misto para o Google Gemini.
+
+- Correção do bug "Loop da Morte": Um problema crítico em que chaves de modelo incorretas eram trocadas ao incorporar erros 404 foi resolvido com a implementação de uma lista de modelos alternativos e detecção inteligente de erros com base nos status dos modelos.
+
+- Corrigido o problema de travamento do RAG relacionado à falta de argumento de consulta na recuperação de memória: O bot agora identifica corretamente se está executando operações de `search_memory` ou `query_relevant`, garantindo que os argumentos necessários sejam passados ​​para uma interação perfeita com o ChromaDB.
+
+- Correções de espera assíncrona: Avisos sobre chamadas de corrotina não aguardadas em processos de recuperação de memória foram corrigidos para garantir um comportamento assíncrono confiável em dependências de agentes e ferramentas.
+
+## [v2.0.5] - 9 de fevereiro de 2026
+
+- **Sistema de Memória Vetorial (ChromaDB)**: A estrutura inicial do ChromaDB foi estabelecida com integração básica à funcionalidade de serviços de música Lavalink.
+
+- Problemas intermitentes identificados durante a geração de embeddings usando chaves de modelo livres: A instabilidade identificada com os embeddings para o pipeline de texto-imagem está sendo tratada. Investigações e soluções adicionais estão em andamento para garantir um desempenho consistente em vários modelos, sem incorrer em custos adicionais ou configurações complexas.
+
 ## [Brain/Agent.py e Brain/Memory] - 2026-02-05
 
 ### 🧠 Otimização de Contexto e Memória Episódica
