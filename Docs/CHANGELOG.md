@@ -1,5 +1,30 @@
 # Changelog
 
+## [v2.1.1-beta] - 16 de abril de 2026
+
+### 🚀 Adicionado
+
+- **Playlists Pessoais (`PlaylistUser.py`):** Novo sistema que permite aos utilizadores criar, guardar, carregar, renomear e apagar as suas próprias playlists locais através de ficheiros JSON, sem depender de contas da cloud.
+- **Estrutura Modular de Áudio:** O sistema de música foi dividido em componentes independentes para melhor manutenção (`Core.py`, `Controles.py`, `Info.py`, `Reproducao.py` e `_utils.py`).
+- **Nova Documentação:** Aba de [API](API.md) para detalhar o que foi usada na bot
+
+### 🔄 Alterado
+
+- **Pesquisa Wavelink Nativa:** O comando `play` agora utiliza a pesquisa embutida do Lavalink/Wavelink para procurar músicas e links, aumentando a rapidez e a estabilidade.
+- **Prefixo Dinâmico:** O rodapé do menu de ajuda (`HelpSystem.py`) agora adapta-se automaticamente a qualquer alteração de prefixo do bot.
+- **Refatoração do Áudio:** Remoção da dependência da API nativa do YouTube (Google OAuth) para prevenir bloqueios e crashes (headless) ao rodar o bot via Docker.
+
+### 🗑️ Removido
+
+- Ficheiro monolítico `Music.py`.
+- Ficheiro de autenticação `_YoutubeHelper.py` e comandos associados de gestão de tokens do Google.
+
+### 🐛 Corrigido
+
+- **Crashes em DMs:** Os comandos de servidor (`userinfo`, `serverinfo`, `servericon`, `clear`, `kick`, `ban`) receberam blindagem (`@commands.guild_only()`) para impedir falhas graves quando executados em Mensagens Diretas.
+- **Steam Store KeyError:** Corrigida a falha silenciosa no módulo `SteamStore.py` que crashava o bot quando um jogo pesquisado era bloqueado por região ou não tinha detalhes públicos.
+- **Limite do Discord Dropdown:** Foi imposto um limite de 25 opções no `SelectMenu` do `HelpSystem.py`, evitando erros catastróficos da API do Discord caso o número de módulos (Cogs) cresça no futuro.
+
 ## [v2.1.0-beta] - 10 de fevereiro de 2026
 
 - Introduzidas funcionalidades nativas de visão computacional para o sistema do bot: O módulo `VisionTool` foi criado para processar e formatar imagens baixadas do Discord automaticamente.

@@ -142,18 +142,11 @@ class CerebroIA(commands.Cog):
             return ""
 
         try:
-            # Tenta os métodos conhecidos do VectorStore
+            # Forçamos o uso do método com a coleção padrão "fatos_usuario"
             if hasattr(self.vector_store, "query_relevant"):
-                # Método novo (provavelmente só 1 arg)
-                resultados = await self.vector_store.query_relevant(query)
-
-            elif hasattr(self.vector_store, "query_relevant"):
-                # CORREÇÃO: Método antigo exige (coleção, query)
-                # Passamos "fatos_usuario" como coleção padrão
                 resultados = await self.vector_store.query_relevant(
                     "fatos_usuario", query
                 )
-
             else:
                 return ""
 
@@ -413,7 +406,7 @@ class CerebroIA(commands.Cog):
             # 2. Pipeline de Dados
             anexos = await self._processar_anexos(message)
             fato_novo = await self._aprender_fatos(message, clean_text)
-            rag = await self._consultar_memoria_longa(user_id, clean_text)
+            rag = await self._consultar_memoria_longa(clean_text)
             tools = await self._rotear_ferramentas(clean_text)
 
             # Histórico

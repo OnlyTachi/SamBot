@@ -1,6 +1,6 @@
 # 🤖 SamBot: A Agente do meu HomeLab
 
-A **SamBot** não é apenas um bot de comandos: é uma **Agente Autônomo Híbrido** que atua como o coração experimental do meu HomeLab. Este projeto nasceu da necessidade de criar uma inteligência artificial funcional que respeitasse as limitações de hardware e as particularidades de uma rede privada, oferecendo memória de longo prazo, consciência contextual e áudio de alta fidelidade.
+A **SamBot** não é apenas uma bot de comandos: é uma **Agente Autônomo Híbrido** que atua como o coração experimental do meu HomeLab. Este projeto nasceu da necessidade de criar uma inteligência artificial funcional que respeitasse as limitações de hardware e as particularidades de uma rede privada, oferecendo memória de longo prazo, consciência contextual e áudio de alta fidelidade.
 
 Ele utiliza **LLMs** (Large Language Models) para conversação natural e **RAG** (Retrieval-Augmented Generation) para recordar fatos, operando sob uma arquitetura resiliente que alterna entre o processamento em nuvem e local.
 
@@ -18,9 +18,11 @@ _Curiosidade: O nome "SamBot" foi inspiração de uma pessoa muito querida para 
 
 [Atualizações](CHANGELOG.md) - Informações sobre mudanças e atualizações
 
+[Api](API.md) - Informações sobre ferramentas externas e APIs.
+
 ## 💡 Filosofia do Projeto
 
-Diferente de bots comerciais, o SamBot foi projetado para um ecossistema específico:
+Diferente de bots comerciais, a SamBot foi projetado para um ecossistema específico:
 
 - **Foco Pessoal:** Desenvolvido para uso próprio e de amigos próximos.
 - **Desenvolvimento Assistido:** O projeto é uma jornada de aprendizado, utilizando LLMs (como o Google Gemini) como "professores" para revisar código e ajudar no debug de novas arquiteturas.
@@ -30,10 +32,10 @@ Diferente de bots comerciais, o SamBot foi projetado para um ecossistema especí
 
 ## 🏗️ Arquitetura Híbrida & Infraestrutura
 
-O bot opera numa estrutura de **Failover Inteligente** para garantir disponibilidade e eficiência:
+A bot opera numa estrutura de **Failover Inteligente** para garantir disponibilidade e eficiência:
 
 1. **O "Cérebro" na Nuvem (Google Gemini):** Garante respostas constantes, mesmo com o hardware local desligado ou fora da rede.
-2. **O "Músculo" Local (Ollama):** Quando a workstation está ativa, o bot prioriza o processamento local para economizar tokens e testar modelos personalizados.
+2. **O "Músculo" Local (Ollama):** Quando a workstation está ativa, a bot prioriza o processamento local para economizar tokens e testar modelos personalizados.
 
 ### 🌐 Networking com Tailscale
 
@@ -56,7 +58,7 @@ A espinha dorsal da rede é o **Tailscale**, que permite:
 ### 🧠 Inteligência & Memória
 
 - **Conversação Natural:** Entende contexto, ironia e intenções através de menções diretas.
-- **Memória Infinita (RAG):** Utiliza **ChromaDB** para "aprender" e persistir fatos sobre os usuários ao longo do tempo. Ex: Se você disser _"Meu nome é Tachi e gosto de Jazz"_, ele lembrará disso semanas depois.
+- **Memória Infinita (RAG):** Utiliza **ChromaDB** para "aprender" e persistir fatos sobre os usuários ao longo do tempo. Ex: Se você disser _"Meu nome é Tachi e gosto de Jazz"_, ela lembrará disso semanas depois.
 - **Identidade Sólida:** Personalidade definida via `identity.json` e prompts dinâmicos (Nerd, Louco, Amiga, etc.), evitando alucinações sobre sua natureza.
 - **Redundância (Failover):** \* Se a API do Google cair, ele aciona modelos locais automaticamente.Obs: Rotação automática de chaves de API para evitar limites de uso.
 
