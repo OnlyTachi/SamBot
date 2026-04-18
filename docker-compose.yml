@@ -1,16 +1,16 @@
 services:
   lavalink:
-    image: ghcr.io/lavalink-devs/lavalink:4
+    image: ghcr.io/lavalink-devs/lavalink:4.1.2
     container_name: lavalink
     restart: always
+    network_mode: "host"
     environment:
-      - _JAVA_OPTIONS=-Xmx512m
+      - _JAVA_OPTIONS=-Xmx4G
+      - LAVALINK_SERVER_KOE_ENABLE_JDA_NAS=true 
+      - LAVALINK_SERVER_NATIVE_AUDIO_TYPE=magma
     volumes:
       - ./Lavalink:/opt/Lavalink
-    ports:
-      - "2333:2333"
-    networks:
-      - bot-network
+      - ./Lavalink/application.yml:/opt/Lavalink/application.yml
 
   sambot:
     build: .
@@ -19,14 +19,9 @@ services:
       - .:/app
     env_file:
       - .env
+    network_mode: "host"
+    environment:
+      - WAVE_URI=http://127.0.0.1:2333 
     restart: unless-stopped
     depends_on:
       - lavalink
-    networks:
-      - bot-network
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-networks:
-  bot-network:
-    driver: bridge
