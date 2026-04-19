@@ -1,5 +1,44 @@
 # Changelog
 
+## [v2.1.2-beta] - 19 de abril de 2026
+
+### 💰 Economia & RPG (Refatoração Completa)
+
+- **Sistema Visual:** Implementação da biblioteca `easy-pil` para geração de cards dinâmicos.
+  - **Perfil:** Agora exibe avatar redondo, barra de progresso de XP e planos de fundo customizáveis.
+  - **Ranking:** Top 5 visual com barras de XP e download assíncrono de avatares para evitar travamentos.
+- **Minigames Interativos:** Adição de desafios visuais para o comando `+work`:
+  - **Lixeiro:** Minigame de separação de resíduos usando botões (`discord.ui.View`).
+  - **Hacker:** Desafio de quebra de hash com geração de imagem dinâmica e ruído anti-bot.
+- **Mercado de Capitais:** Criação da Bolsa de Valores Sam:
+  - **Ativos:** Suporte para Ações e Fundos Imobiliários (FIIs) via `mercado.json`.
+  - **Lógica Financeira:** Implementação de cálculo de Preço Médio (PM) e lucro/prejuízo em tempo real.
+  - **Ciclo Noturno:** Automação via `NightCycle.py` para flutuação de preços e pagamento de dividendos durante a madrugada.
+- **Cosméticos:** Loja de fundos de perfil com sistema de **Preview Efêmero** (imagem temporária antes da compra).
+
+### 🛡️ Administração & Segurança (Suíte Admin)
+
+- **Modularização:** O antigo arquivo `Admin.py` foi substituído por uma pasta dedicada com lógica isolada.
+- **Auditoria Avançada:** Sistema de logs com **6 níveis de intensidade** (Básico até Geral) e suporte para filtros personalizados via menu dropdown.
+- **AutoMod Configurável:** Proteção ativa contra links, spam (janela de tempo de 5s) e palavras bloqueadas com painel de controle interativo (`+configautomod`).
+- **Avisos Públicos:** Novo módulo `Avisos.py` que centraliza e anuncia punições de forma elegante em canais configurados.
+- **Moderação Nativa:** Comandos de `ban`, `kick` e `mute` (Timeout nativo do Discord) com verificação de hierarquia de cargos.
+
+### 📈 Progressão & Chat
+
+- **XP Passivo:** Sistema de ganho de XP por mensagens no chat com cooldown de 60 segundos.
+- **Auto-Roles:** Configuração de cargos de recompensa automáticos ao atingir níveis específicos via `+configxp`.
+
+### 🛠️ Utilitários & Interface
+
+- **Otimização de Código:** Fusão dos módulos `General.py` e `Identify.py` no novo `Informacoes.py` para reduzir o consumo de memória.
+- **Sistema de Ajuda Dinâmico:** Novo `+help` utilizando menus suspensos (`Select`) que agrupa comandos automaticamente por pasta pai, suportando expansão infinita.
+
+### 🧠 Core & Infraestrutura
+
+- **DataManager:** Centralização total de leitura/escrita de JSONs para garantir integridade dos dados entre os módulos.
+- **Docker:** Estrutura otimizada para rodar no HomeLab com persistência de dados em volumes mapeados.
+
 ## [v2.1.1-beta] - 16 de abril de 2026
 
 ### 🚀 Adicionado

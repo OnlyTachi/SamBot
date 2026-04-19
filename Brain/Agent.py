@@ -18,8 +18,6 @@ import io
 logger = logging.getLogger("SamBot.Agent")
 
 # --- Importação de Módulos e Inteligência ---
-# Tentamos importar os provedores e managers com suporte a falhas parciais
-TOOLS_AVAILABLE = False
 MEMORY_AVAILABLE = False
 
 try:
@@ -28,18 +26,29 @@ except ImportError:
     logger.critical("❌ Provedor LLM (LLMFactory) não encontrado!")
     LLMFactory = None
 
-try:
-    # Ferramentas
-    from Brain.Tools.WeatherTool import WeatherTool
-    from Brain.Tools.Games.GameTool import GameTool
-    from Brain.Tools.BuscaTools import BuscaTool
-    from Brain.Tools.Images.SearchImages import ImageSearchTool
-    from Brain.Tools.Images.VisionTool import VisionTool
-    from Brain.Tools.MusicRecTool import MusicRecTool
+# 1. Carregamento Modular de Ferramentas
+TOOL_CLASSES = {}
 
-    TOOLS_AVAILABLE = True
-except ImportError as e:
-    logger.warning(f"⚠️ Algumas ferramentas não foram encontradas: {e}")
+
+def tentar_importar_tool(nome, modulo, classe):
+    try:
+        # Tenta importar dinamicamente
+        mod = __import__(modulo, fromlist=[classe])
+        TOOL_CLASSES[nome] = getattr(mod, classe)
+    except ImportError:
+        logger.warning(f"⚠️ Tool desativada ou não encontrada: {nome}")
+
+
+tentar_importar_tool("weather", "Brain.Tools.WeatherTool", "WeatherTool")
+tentar_importar_tool("game_search", "Brain.Tools.Games.GameTool", "GameTool")
+tentar_importar_tool("web_search", "Brain.Tools.BuscaTools", "BuscaTool")
+tentar_importar_tool(
+    "image_search", "Brain.Tools.Images.SearchImages", "ImageSearchTool"
+)
+tentar_importar_tool("vision", "Brain.Tools.Images.VisionTool", "VisionTool")
+tentar_importar_tool("music_recommend", "Brain.Tools.MusicRecTool", "MusicRecTool")
+
+TOOLS_AVAILABLE = len(TOOL_CLASSES) > 0
 
 try:
     # Memória e Dados
@@ -102,22 +111,17 @@ class CerebroIA(commands.Cog):
         if not TOOLS_AVAILABLE:
             return
 
-        tool_map = {
-            "weather": WeatherTool,
-            "game_search": GameTool,
-            "web_search": BuscaTool,
-            "image_search": ImageSearchTool,
-            "music_recommend": MusicRecTool,
-        }
+        self.vision_tool = None
 
-        try:
-            self.vision_tool = VisionTool()
-        except:
-            self.vision_tool = None
+        for key, cls in TOOL_CLASSES.items():
+            if key == "vision":
+                try:
+                    self.vision_tool = cls()
+                except Exception as e:
+                    self.logger.error(f"❌ Erro ao carregar VisionTool: {e}")
+                continue
 
-        for key, cls in tool_map.items():
             try:
-                # Tenta instanciar com bot ou sem bot (suporte a ambas as versões)
                 try:
                     self.tools[key] = cls(self.bot)
                 except:
@@ -236,9 +240,12 @@ class CerebroIA(commands.Cog):
         if not any(t in content.lower() for t in triggers):
             return ""
 
+        # Monta a lista dinamicamente baseada nas tools que importaram com sucesso
+        ferramentas_disponiveis = "', '".join(self.tools.keys())
+
         router_instruction = (
             "Responda APENAS JSON (Lista de Objetos).\n"
-            "Ferramentas: 'weather', 'game_search', 'image_search', 'web_search', 'music_recommend'.\n"
+            f"Ferramentas: {ferramentas_disponiveis}.\n"
             'Ex: [{"tool": "weather", "args": "Lisboa"}]'
         )
 

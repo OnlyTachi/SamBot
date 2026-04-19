@@ -2,35 +2,37 @@ import logging
 import json
 from Brain.Providers.LLMFactory import LLMFactory
 from Brain.Tools.BuscaTools import BuscaTool
-from Brain.Memory.DataManager import NeuralArchive
+from Brain.Memory.DataManager import data_manager
+
 
 class AutoConhecimento:
     def __init__(self):
         self.logger = logging.getLogger("SamBot.AutoConhecimento")
         self.llm = LLMFactory.get_instance()
         self.busca_tool = BuscaTool()
-        self.data_manager = NeuralArchive()
+        self.data_manager = data_manager
 
     def _get_identity_data(self):
         """
         Recupera os dados de identidade de forma segura via DataManager.
+        Agora respeitando o encapsulamento!
         """
-        if hasattr(self.data_manager, "get_identity"):
+        try:
             return self.data_manager.get_identity()
-        data = self.data_manager._cache.get("identity")
-        if not data:
-             try:
-                 path = self.data_manager.folders["persistence"] / "identity.json"
-                 data = self.data_manager._io_read_json(path)
-                 self.data_manager._cache["identity"] = data
-             except Exception as e:
-                 self.logger.error(f"Erro crítico ao ler identidade: {e}")
-                 return {}
-        return data
+        except Exception as e:
+            self.logger.error(f"Erro ao recuperar identidade do banco: {e}")
+            return {"name": "SamBot"}  # Fallback seguro
 
     def is_self_inquiry(self, text: str) -> bool:
         """Verifica se a pergunta é sobre a identidade da bot."""
-        gatilhos = ["quem é você", "quem e voce", "te criou", "seu autor", "sua tecnologia", "como você funciona"]
+        gatilhos = [
+            "quem é você",
+            "quem e voce",
+            "te criou",
+            "seu autor",
+            "sua tecnologia",
+            "como você funciona",
+        ]
         return any(g in text.lower() for g in gatilhos)
 
     def get_identity_prompt(self):
@@ -49,7 +51,7 @@ class AutoConhecimento:
         identity = self._get_identity_data()
         nome = identity.get("name", "SamBot")
         desc = identity.get("description", "Sou uma bot em desenvolvimento.")
-        
+
         intro = (
             f"Olá! Eu sou a **{nome}**. 🤖✨\n"
             f"*{desc}*\n\n"
@@ -71,16 +73,27 @@ class AutoConhecimento:
         identity = self._get_identity_data()
 
         # 1. Detecção de Intenção de Comparação (Gatilho para Pesquisa)
-        gatilhos_pesquisa = ["melhor que", "por que usa", "pq usa", "diferença entre", "ao invés de", "alternativa"]
+        gatilhos_pesquisa = [
+            "melhor que",
+            "por que usa",
+            "pq usa",
+            "diferença entre",
+            "ao invés de",
+            "alternativa",
+        ]
         precisa_pesquisar = any(g in pergunta for g in gatilhos_pesquisa)
 
         contexto_pesquisa = ""
         if precisa_pesquisar:
-            self.logger.info(f"AutoConhecimento: Pesquisando contexto para '{pergunta}'")
+            self.logger.info(
+                f"AutoConhecimento: Pesquisando contexto para '{pergunta}'"
+            )
             # Pesquisa genérica sobre a stack da bot para dar contexto
             query = f"{pergunta} python discord bot technology comparison"
             resultados = self.busca_tool.buscar_na_cascata(query)
-            contexto_pesquisa = f"\n[CONTEXTO DA WEB - USE PARA COMPARAR]:\n{resultados}\n"
+            contexto_pesquisa = (
+                f"\n[CONTEXTO DA WEB - USE PARA COMPARAR]:\n{resultados}\n"
+            )
 
         # 2. Montagem do Prompt com a Identidade Dinâmica
         identity_str = json.dumps(identity, indent=2, ensure_ascii=False)
@@ -111,5 +124,6 @@ class AutoConhecimento:
     def get_resumo_audio(self):
         arch = self._get_identity_data().get("architecture", {})
         return f"Para música, eu uso o motor **{arch.get('audio_engine', 'Lavalink')}**. Isso garante áudio de alta qualidade sem travar meu pensamento."
+
 
 AutoConhecimentoManager = AutoConhecimento()

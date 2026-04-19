@@ -1,0 +1,29 @@
+{
+    "vip": {
+        "nome": "Emblema VIP",
+        "preco": 50000,
+        "tipo": "emblema",
+        "valor": "💎 VIP",
+        "descricao": "Mostre para todos que você é da elite financeira!"
+    },
+    "hacker_badge": {
+        "nome": "Badge de Segurança",
+        "preco": 1500,
+        "tipo": "emblema",
+        "valor": "🛡️ SecOps",
+        "descricao": "Um emblema exclusivo para os mestres da rede."
+    },
+    "cafe": {
+        "nome": "Café Expresso",
+        "preco": 50,
+        "tipo": "consumivel",
+        "descricao": "Dá energia, mas na verdade você só gastou moedas à toa."
+    },
+    "bg_neon": {
+        "nome": "Cappie",
+        "preco": 10000,
+        "tipo": "background",
+        "valor": "cappie.png",
+        "descricao": "Deixa o teu perfil com cappie pensativa."
+    }
+}
