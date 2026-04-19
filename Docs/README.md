@@ -2,11 +2,9 @@
 
 A **SamBot** não é apenas uma bot de comandos: é uma **Agente Autônomo Híbrido** que atua como o coração experimental do meu HomeLab. Este projeto nasceu da necessidade de criar uma inteligência artificial funcional que respeitasse as limitações de hardware e as particularidades de uma rede privada, oferecendo memória de longo prazo, consciência contextual e áudio de alta fidelidade.
 
-Ele utiliza **LLMs** (Large Language Models) para conversação natural e **RAG** (Retrieval-Augmented Generation) para recordar fatos, operando sob uma arquitetura resiliente que alterna entre o processamento em nuvem e local.
+Ela utiliza **LLMs** (Large Language Models) para conversação natural e **RAG** (Retrieval-Augmented Generation) para recordar fatos, operando sob uma arquitetura resiliente que alterna entre o processamento em nuvem e local.
 
 _Curiosidade: O nome "SamBot" foi inspiração de uma pessoa muito querida para mim, esse projeto foi um presente a ela_
-
----
 
 ## 📖 Guia de Documentação
 

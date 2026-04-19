@@ -1,0 +1,41 @@
+{
+    "lixeiro": {
+        "nome": "Lixeiro Comunitário",
+        "salario_base": 150,
+        "xp_ganho": 10,
+        "xp_necessario": 0,
+        "minigames": [
+            "separar_lixo"
+        ],
+        "descricao": "Trabalho honesto. Ajude a manter a cidade limpa!"
+    },
+    "barista": {
+        "nome": "Barista Iniciante",
+        "salario_base": 200,
+        "xp_ganho": 15,
+        "xp_necessario": 0,
+        "minigames": [],
+        "descricao": "Sirva cafés. Sem minigames, pagamento garantido."
+    },
+    "pescador": {
+        "nome": "Pescador Local",
+        "salario_base": 400,
+        "xp_ganho": 25,
+        "xp_necessario": 1000,
+        "minigames": [
+            "pesca_ritmo"
+        ],
+        "descricao": "Paciência é uma virtude. Requer nível 2 (1000 XP)."
+    },
+    "hacker": {
+        "nome": "Especialista em Cibersegurança",
+        "salario_base": 1200,
+        "xp_ganho": 100,
+        "xp_necessario": 5000,
+        "minigames": [
+            "digitar_codigo",
+            "quebrar_senha"
+        ],
+        "descricao": "Invasão autorizada. Requer nível 6 (5000 XP)."
+    }
+}

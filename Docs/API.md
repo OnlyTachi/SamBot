@@ -27,6 +27,7 @@ Módulos dedicados a fornecer informações em tempo real sobre o mundo dos vide
 - **Steam Web API:** Utilizada para procurar preços, descrições e avaliações de jogos diretamente na loja da Valve.
 - **IGDB (Twitch API):** Fornece uma base de dados exaustiva sobre jogos, incluindo capas, datas de lançamento e plataformas.
 - **CheapShark API:** Utilizada pelas ferramentas de IA para comparar preços de jogos em múltiplas lojas digitais e encontrar promoções.
+- **Easy-PIL:** Biblioteca principal para a criação de imagens dinâmicas. É utilizada para renderizar os cards de +perfil (com avatares redondos e barras de progresso) e o leaderboard do +rank.
 
 ## 🫂 Interações Sociais & Diversão
 

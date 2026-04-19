@@ -1,103 +1,198 @@
 import discord
 from discord.ext import commands
-from typing import Optional, List
+import logging
 
-class HelpSelect(discord.ui.Select):
-    def __init__(self, bot: commands.Bot, mapping: dict):
+# --- INTERFACE DE UI (O MENU DROPDOWN) ---
+
+
+class HelpDropdown(discord.ui.Select):
+    def __init__(self, categorias):
+        self.categorias = categorias
         options = [
             discord.SelectOption(
-                label="Início", 
-                description="Página principal da ajuda", 
-                emoji="🏠"
+                label="Início",
+                description="Voltar para a página principal",
+                emoji="🏠",
+                value="home",
             )
         ]
-        
-        # Filtra cogs com comandos e cria opções
-        for cog, cmds in mapping.items():
-            if not cog or not cmds:
-                continue
-            name = cog.qualified_name
-            emoji = getattr(cog, "emoji", "📁") # Tenta pegar emoji do cog se existir
-            options.append(discord.SelectOption(label=name, description=f"Comandos de {name}", emoji=emoji))
 
-        super().__init__(placeholder="Escolha uma categoria...", min_values=1, max_values=1, options=options)
-        self.bot = bot
-        self.mapping = mapping
+        # Ordena as categorias para o menu ficar organizado
+        for key in sorted(categorias.keys()):
+            info = categorias[key]
+            # Só exibe se a categoria tiver comandos visíveis
+            if not info["comandos"]:
+                continue
+
+            options.append(
+                discord.SelectOption(
+                    label=info["exibir_nome"],
+                    description=info["desc"],
+                    emoji=info["emoji"],
+                    value=key,
+                )
+            )
+
+        super().__init__(
+            placeholder="Selecione um módulo para explorar...",
+            min_values=1,
+            max_values=1,
+            options=options,
+        )
 
     async def callback(self, interaction: discord.Interaction):
-        if self.values[0] == "Início":
-            embed = self.view.create_main_embed()
-            await interaction.response.edit_message(embed=embed, view=self.view)
+        cat_key = self.values[0]
+
+        if cat_key == "home":
+            await interaction.response.edit_message(
+                embed=self.view.main_embed, view=self.view
+            )
             return
 
-        cog = self.bot.get_cog(self.values[0])
-        cmds = self.mapping.get(cog)
-        
-        embed = discord.Embed(
-            title=f"Categoria: {cog.qualified_name}",
-            description=cog.description or "Sem descrição detalhada.",
-            color=discord.Color.blue()
-        )
-        
-        for cmd in cmds:
-            name = f"+{cmd.name}"
-            params = f" `{cmd.signature}`" if cmd.signature else ""
-            desc = cmd.short_doc or "Sem descrição."
-            embed.add_field(name=f"{name}{params}", value=desc, inline=False)
+        info = self.categorias[cat_key]
 
-        embed.set_footer(text=f"Use +help <comando> para detalhes específicos.")
+        embed = discord.Embed(
+            title=f"{info['emoji']} Categoria: {info['exibir_nome']}",
+            description=f"*{info['desc']}*\n\n",
+            color=discord.Color.blurple(),
+        )
+
+        texto_comandos = ""
+        comandos_ordenados = sorted(info["comandos"], key=lambda c: c.name)
+
+        for cmd in comandos_ordenados:
+            doc = cmd.short_doc or "Nenhuma descrição disponível."
+            texto_comandos += f"**`+{cmd.name}`** — {doc}\n"
+
+        if len(texto_comandos) > 4000:
+            texto_comandos = texto_comandos[:4000] + "\n... (Muitos comandos)"
+
+        embed.description += texto_comandos
+        embed.set_footer(
+            text=f"Total: {len(info['comandos'])} comandos nesta categoria."
+        )
+
         await interaction.response.edit_message(embed=embed, view=self.view)
 
-class HelpView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, mapping: dict):
-        super().__init__(timeout=60)
-        self.bot = bot
-        self.mapping = mapping
-        self.add_item(HelpSelect(bot, mapping))
 
-    def create_main_embed(self):
+class HelpView(discord.ui.View):
+    def __init__(self, categorias, main_embed):
+        super().__init__(timeout=120)
+        self.main_embed = main_embed
+        self.add_item(HelpDropdown(categorias))
+
+
+# --- COG PRINCIPAL ---
+
+
+class HelpSystem(commands.Cog):
+    """Substitui o sistema de ajuda nativo por um menu dinâmico e inteligente."""
+
+    def __init__(self, bot):
+        self.bot = bot
+        self.logger = logging.getLogger("SamBot.Help")
+
+        self.config_pastas = {
+            "Economy": {
+                "nome": "Economia & RPG",
+                "desc": "Trabalho, banco, loja e investimentos.",
+                "emoji": "💰",
+            },
+            "Admin": {
+                "nome": "Administração",
+                "desc": "Moderação, AutoMod e Auditoria.",
+                "emoji": "🛡️",
+            },
+            "Audio": {
+                "nome": "Música",
+                "desc": "Playlists e controlo de áudio.",
+                "emoji": "🎶",
+            },
+            "Fun": {
+                "nome": "Diversão",
+                "desc": "Interações sociais e jogos.",
+                "emoji": "🎲",
+            },
+            "Utility": {
+                "nome": "Utilitários",
+                "desc": "Informações e ferramentas do sistema.",
+                "emoji": "🛠️",
+            },
+            "Developer": {
+                "nome": "Desenvolvedor",
+                "desc": "Ferramentas restritas de infraestrutura.",
+                "emoji": "💻",
+            },
+        }
+
+        # Remove o comando de ajuda padrão do Discord.py
+        self._original_help = bot.help_command
+        bot.help_command = None
+
+    def cog_unload(self):
+        self.bot.help_command = self._original_help
+
+    @commands.hybrid_command(
+        name="help",
+        aliases=["ajuda"],
+        description="Abre a central de ajuda interativa.",
+    )
+    async def help_cmd(self, ctx: commands.Context):
+        # 1. Estrutura para agrupar comandos
+        categorias = {}
+
+        for cmd in self.bot.commands:
+            # Ignora comandos escondidos
+            if cmd.hidden:
+                continue
+
+            if (
+                cmd.cog
+                and cmd.cog.qualified_name == "Developer"
+                and not await self.bot.is_owner(ctx.author)
+            ):
+                continue
+
+            modulo_path = cmd.cog.__module__ if cmd.cog else ""
+            partes = modulo_path.split(".")
+
+            if len(partes) > 1 and partes[0] == "Modules":
+                folder_name = partes[1]
+            else:
+                folder_name = "Utility"
+
+            if folder_name not in categorias:
+                conf = self.config_pastas.get(folder_name, {})
+                categorias[folder_name] = {
+                    "exibir_nome": conf.get("nome", folder_name),
+                    "desc": conf.get("desc", f"Comandos do módulo {folder_name}"),
+                    "emoji": conf.get("emoji", "📁"),
+                    "comandos": [],
+                }
+
+            categorias[folder_name]["comandos"].append(cmd)
+
         embed = discord.Embed(
             title="📚 Central de Ajuda - SamBot",
             description=(
-                "Olá! Eu sou a **SamBot**. Abaixo podes ver as categorias de comandos disponíveis.\n\n"
-                "🔹 **Como usar:** Seleciona uma categoria no menu abaixo para ver os comandos."
+                "Bem-vindo! Seleciona uma categoria no menu abaixo para ver os comandos.\n\n"
+                "💡 **Dica:** Também pode conversar comigo naturalmente no chat!"
             ),
-            color=discord.Color.gold()
+            color=discord.Color.gold(),
         )
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        return embed
 
-class CustomHelpCommand(commands.HelpCommand):
-    def __init__(self):
-        super().__init__(command_attrs={
-            'help': 'Mostra este menu de ajuda.',
-            'aliases': ['ajuda', 'h']
-        })
+        for folder, info in categorias.items():
+            if info["comandos"] and folder != "Developer":
+                embed.add_field(
+                    name=f"{info['emoji']} {info['exibir_nome']}",
+                    value=f"`{len(info['comandos'])} comandos`",
+                    inline=True,
+                )
 
-    def get_command_signature(self, command):
-        return f"{self.context.clean_prefix}{command.qualified_name} {command.signature}"
+        view = HelpView(categorias, embed)
+        await ctx.send(embed=embed, view=view)
 
-    async def send_bot_help(self, mapping):
-        dest = self.get_destination()
-        view = HelpView(self.context.bot, mapping)
-        embed = view.create_main_embed()
-        await dest.send(embed=embed, view=view)
-
-    async def send_command_help(self, command):
-        embed = discord.Embed(title=f"Comando: +{command.name}", color=discord.Color.green())
-        embed.add_field(name="Descrição", value=command.help or "Sem descrição.", inline=False)
-        
-        if command.aliases:
-            embed.add_field(name="Atalhos", value=", ".join(command.aliases), inline=True)
-            
-        embed.add_field(name="Uso", value=f"`{self.get_command_signature(command)}`", inline=False)
-        
-        dest = self.get_destination()
-        await dest.send(embed=embed)
-
-    async def send_error_message(self, error):
-        embed = discord.Embed(title="❌ Erro", description=error, color=discord.Color.red())
-        await self.get_destination().send(embed=embed)
 
 async def setup(bot):
-    bot.help_command = CustomHelpCommand()
+    await bot.add_cog(HelpSystem(bot))

@@ -1,12 +1,23 @@
-# algum dia no futuro, talvez eu suporte múltiplos provedores LLM
-# por enquanto, apenas Gemini com fallback para Ollama local/remoto
 import os
 import logging
 import asyncio
-import google.generativeai as genai
-from ollama import AsyncClient
-from google.api_core import exceptions as google_exceptions
 from dotenv import load_dotenv
+
+# 1. IMPORTAÇÕES SEGURAS (Tratamento de falta de libs)
+try:
+    import google.generativeai as genai
+    from google.api_core import exceptions as google_exceptions
+
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+
+try:
+    from ollama import AsyncClient
+
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
 
 # --- Configuração de Logs ---
 try:
@@ -46,10 +57,10 @@ load_dotenv()
 
 class LLMFactory:
     """
-    Factory que gerencia a inteligência do SamBot.
-    Implementa cascata de provedores: Gemini -> Ollama Remote -> Ollama Local.
-    Suporta múltiplas chaves Gemini com rotação automática e diagnóstico inicial.
-    Agora com suporte nativo a visão (multimodal) e instruções de sistema.
+    Factory inteligente do SamBot.
+    - Importações dinâmicas (sobrevive sem Ollama ou Gemini instalados).
+    - Inicialização não-bloqueante (lazy loading).
+    - Failover de Embeddings (Nuvem -> Local).
     """
 
     _instance = None
@@ -59,6 +70,9 @@ class LLMFactory:
 
         # --- Configurações Gemini ---
         self.model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash")
+        self.embed_model_cloud = (
+            "text-embedding-004"  # Modelo de vetor gratuito do Google
+        )
         self.keys = self._carregar_chaves()
         self.current_key_index = 0
         self.active_model = None
@@ -70,7 +84,7 @@ class LLMFactory:
             "OLLAMA_LOCAL_URL", "http://host.docker.internal:11434"
         )
         self.local_model = os.getenv("MODEL_FAST_LOCAL", "qwen2.5:1.5b")
-        self.embed_model = os.getenv("MODEL_EMBED_LOCAL", "nomic-embed-text")
+        self.embed_model_local = os.getenv("MODEL_EMBED_LOCAL", "nomic-embed-text")
 
         # --- Configurações de Segurança e Geração ---
         self.safety_settings = [
@@ -87,10 +101,8 @@ class LLMFactory:
             "max_output_tokens": 8192,
         }
 
-        if not self.keys:
-            self.log.error("❌ Nenhuma chave API do Gemini encontrada no .env!")
-        else:
-            self._inicializar_melhor_chave()
+        # 2. FLAG DE IGNIÇÃO
+        self.is_ready = False
 
     @classmethod
     def get_instance(cls):
@@ -99,7 +111,6 @@ class LLMFactory:
         return cls._instance
 
     def _carregar_chaves(self):
-        """Carrega chaves sequenciais (GEMINI_API_KEY_1...) ou a chave única padrão."""
         keys = []
         k_default = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         if k_default:
@@ -116,43 +127,63 @@ class LLMFactory:
             i += 1
         return keys
 
-    def _inicializar_melhor_chave(self):
-        """Testa as chaves detectadas e configura o modelo com a primeira funcional."""
+    async def setup_providers(self):
+        """Inicializa e testa as conexões de forma assíncrona, sem travar o bot."""
+        if self.is_ready:
+            return
+
+        if not GEMINI_AVAILABLE:
+            self.log.warning(
+                "⚠️ Biblioteca google-generativeai não encontrada. Gemini offline."
+            )
+        elif not self.keys:
+            self.log.error("❌ Nenhuma chave API do Gemini encontrada no .env!")
+        else:
+            await self._inicializar_melhor_chave_async()
+
+        if not OLLAMA_AVAILABLE:
+            self.log.warning(
+                "⚠️ Biblioteca ollama não encontrada. Fallbacks locais offline."
+            )
+
+        self.is_ready = True
+
+    async def _inicializar_melhor_chave_async(self):
         self.log.info(
             f"🔑 {len(self.keys)} chaves detectadas. Iniciando diagnóstico..."
         )
-
         for index, key in enumerate(self.keys):
-            if self._testar_chave(key, index + 1):
+            if await self._testar_chave_async(key, index + 1):
                 genai.configure(api_key=key)
                 self.active_model = self._criar_modelo()
                 self.current_key_index = index
-                self.log.info(f"✨ SamBot está conectado usando a Chave {index + 1}.")
+                self.log.info(f"✨ SamBot conectado usando a Chave {index + 1}.")
                 return
 
         self.log.critical(
             "⛔ Todas as chaves falharam nos testes. IA Gemini em modo OFFLINE."
         )
 
-    def _testar_chave(self, key, index):
-        """Valida a chave realizando uma chamada mínima de 1 token (Síncrono)."""
+    async def _testar_chave_async(self, key, index):
+        """Valida a chave sem travar a thread principal."""
         try:
             genai.configure(api_key=key)
             model = genai.GenerativeModel(self.model_name)
-            model.generate_content("ping", generation_config={"max_output_tokens": 1})
+            await model.generate_content_async(
+                "ping", generation_config={"max_output_tokens": 1}
+            )
             return True
         except Exception as e:
             err = str(e)
             if "429" in err:
-                self.log.warning(f"⚠️ Chave {index} está com Rate Limit (429).")
+                self.log.warning(f"⚠️ Chave {index} com Rate Limit (429).")
             else:
-                self.log.warning(
-                    f"⚠️ Chave {index} inválida ou erro de conexão: {err[:50]}..."
-                )
+                self.log.warning(f"⚠️ Chave {index} falhou: {err[:50]}...")
             return False
 
     def _criar_modelo(self, system_instruction=None):
-        """Instancia o modelo com configurações de segurança e instrução de sistema opcional."""
+        if not GEMINI_AVAILABLE:
+            return None
         return genai.GenerativeModel(
             model_name=self.model_name,
             safety_settings=self.safety_settings,
@@ -161,34 +192,14 @@ class LLMFactory:
         )
 
     def get_model(self):
-        """Retorna a instância ativa do GenerativeModel."""
         return self.active_model
 
-    async def check_health(self=None):
-        """Verifica se o subsistema de IA está saudável."""
-        instance = self if isinstance(self, LLMFactory) else llm_factory
-        if not instance or not instance.keys:
-            return False
-
-        if instance.active_model:
-            return True
-
-        for key in instance.keys:
-            try:
-                genai.configure(api_key=key)
-                model = genai.GenerativeModel(instance.model_name)
-                await asyncio.to_thread(
-                    model.generate_content,
-                    "ping",
-                    generation_config={"max_output_tokens": 1},
-                )
-                return True
-            except Exception:
-                continue
-        return False
+    async def check_health(self):
+        if not self.is_ready:
+            await self.setup_providers()
+        return self.active_model is not None or OLLAMA_AVAILABLE
 
     def _get_next_key(self):
-        """Rotaciona o índice para a próxima chave disponível."""
         if not self.keys:
             return None
         key = self.keys[self.current_key_index]
@@ -196,7 +207,8 @@ class LLMFactory:
         return key
 
     async def _generate_gemini(self, system_instruction, prompt_parts) -> str:
-        """Tenta gerar via Gemini com suporte multimodal e rotação de chaves."""
+        if not GEMINI_AVAILABLE or not self.keys:
+            return None
         attempts = len(self.keys)
 
         for _ in range(attempts):
@@ -204,15 +216,11 @@ class LLMFactory:
             try:
                 genai.configure(api_key=key)
                 model = self._criar_modelo(system_instruction=system_instruction)
-
                 response = await model.generate_content_async(prompt_parts)
-
                 self.active_model = model
                 return response.text
             except google_exceptions.ResourceExhausted:
-                self.log.warning(
-                    f"🔄 Chave esgotada (429). Tentando próxima rotação..."
-                )
+                self.log.warning("🔄 Chave esgotada (429). Tentando próxima...")
                 continue
             except Exception as e:
                 self.log.error(f"⚠️ Erro no Gemini: {e}")
@@ -220,26 +228,24 @@ class LLMFactory:
         return None
 
     async def generate_response(self, prompt_parts, system_instruction=None) -> str:
-        """
-        Cascata Principal: Gemini -> Ollama Remoto -> Ollama Local.
+        """Cascata Principal mantida, mas agora 100% segura."""
+        # Se alguém chamou a geração antes do bot estar pronto, ele inicia sozinho (Lazy Loading)
+        if not self.is_ready:
+            await self.setup_providers()
 
-        Args:
-            prompt_parts: String ou Lista [texto, imagem_dict, ...]
-            system_instruction: Instrução de sistema (identidade do bot)
-        """
-
-        # 1. TENTATIVA GEMINI (Suporta Multimodal)
+        # 1. TENTATIVA GEMINI
         res = await self._generate_gemini(system_instruction, prompt_parts)
         if res:
             return res
 
-        # Fallbacks (Ollama geralmente não suporta as mesmas estruturas de imagem do SDK Google de forma direta)
-        # Se for uma lista (multimodal), tentamos extrair apenas o texto para os fallbacks básicos
         text_only_prompt = prompt_parts
         if isinstance(prompt_parts, list):
             text_only_prompt = " ".join(
                 [p if isinstance(p, str) else "[Imagem]" for p in prompt_parts]
             )
+
+        if not OLLAMA_AVAILABLE:
+            return "🤯 *Meus sistemas falharam e o motor de emergência local não está instalado neste ambiente.*"
 
         # 2. TENTATIVA OLLAMA REMOTO
         if self.remote_url:
@@ -251,45 +257,64 @@ class LLMFactory:
                         {"role": "system", "content": str(system_instruction)}
                     )
                 messages.append({"role": "user", "content": text_only_prompt})
-
                 response = await client.chat(model=self.remote_model, messages=messages)
                 return f"[☁️] {response['message']['content']}"
             except Exception as e:
                 self.log.warning(f"⚠️ Falha Ollama Remoto: {e}")
 
-        # 3. TENTATIVA OLLAMA LOCAL (Fallback CPU)
+        # 3. TENTATIVA OLLAMA LOCAL
         try:
             client = AsyncClient(host=self.local_url)
             messages = []
             if system_instruction:
                 messages.append({"role": "system", "content": str(system_instruction)})
             messages.append({"role": "user", "content": text_only_prompt})
-
             response = await client.chat(model=self.local_model, messages=messages)
             return f"[📟] {response['message']['content']}"
         except Exception:
-            return "🤯 *Meus sistemas de pensamento estão offline. Verifique minha conexão ou chaves de API.*"
-
-    async def get_embedding(self, text: str) -> list:
-        """Gera vetores para memória de longo prazo (ChromaDB)."""
-        try:
-            client = AsyncClient(host=self.local_url)
-            res = await client.embeddings(model=self.embed_model, prompt=text)
-            return res["embedding"]
-        except Exception as e:
-            self.log.error(f"❌ Erro ao gerar embedding: {e}")
-            return []
+            return "🤯 *Meus sistemas de pensamento estão offline.*"
 
     async def generate_summary(self, text: str) -> str:
-        """Helper para resumos rápidos."""
+        """Helper para resumos rápidos no ciclo noturno."""
         return await self.generate_response(
             text,
             system_instruction="Você é um assistente técnico. Resuma o texto a seguir de forma extremamente concisa.",
         )
 
+    async def get_embedding(self, text: str) -> list:
+        """3. FAILOVER NA MEMÓRIA: Tenta Gemini primeiro, depois Ollama."""
+        if not self.is_ready:
+            await self.setup_providers()
+
+        # Tentativa 1: Nuvem (Gemini)
+        if GEMINI_AVAILABLE and self.keys:
+            try:
+                key = self.keys[self.current_key_index]
+                genai.configure(api_key=key)
+                # Executa a geração de vetor em thread separada para não travar
+                result = await asyncio.to_thread(
+                    genai.embed_content,
+                    model=f"models/{self.embed_model_cloud}",
+                    content=text,
+                    task_type="retrieval_document",
+                )
+                return result["embedding"]
+            except Exception as e:
+                self.log.warning(
+                    f"⚠️ Nuvem falhou ao gravar memória: {e}. Tentando HD local..."
+                )
+
+        # Tentativa 2: Local (Ollama)
+        if OLLAMA_AVAILABLE:
+            try:
+                client = AsyncClient(host=self.local_url)
+                res = await client.embeddings(model=self.embed_model_local, prompt=text)
+                return res["embedding"]
+            except Exception as e:
+                self.log.error(f"❌ Erro crítico ao gravar memória local: {e}")
+
+        return []
+
 
 # Instância Singleton global
 llm_factory = LLMFactory.get_instance()
-
-# Alias para compatibilidade
-LLMFactory.get_provider = lambda self: llm_factory

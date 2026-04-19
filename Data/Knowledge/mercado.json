@@ -1,0 +1,30 @@
+{
+    "SAMS11": {
+        "nome": "Sam Shopping (FII de Tijolo)",
+        "tipo": "FII",
+        "preco_atual": 105,
+        "dividendo_estimado": 1.20,
+        "descricao": "Fundo dono dos maiores shoppings virtuais do servidor. Paga dividendos estáveis."
+    },
+    "SAMR11": {
+        "nome": "Sam Recebíveis (FII de Papel)",
+        "tipo": "FII",
+        "preco_atual": 9.50,
+        "dividendo_estimado": 0.12,
+        "descricao": "Fundo focado em dívidas e crédito do cassino. Cotas baratas e alto rendimento (High Yield)."
+    },
+    "SAMT3": {
+        "nome": "SamTech Inc.",
+        "tipo": "Ação",
+        "preco_atual": 45,
+        "volatilidade": "alta",
+        "descricao": "A empresa que desenvolve o Cérebro da bot. Alto risco, alto potencial de valorização."
+    },
+    "SAMB4": {
+        "nome": "Banco Central da Sam",
+        "tipo": "Ação",
+        "preco_atual": 22,
+        "volatilidade": "media",
+        "descricao": "O banco que guarda todas as moedas. Estável e seguro."
+    }
+}

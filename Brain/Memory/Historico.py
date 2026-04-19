@@ -35,8 +35,8 @@ class HistoricoManager:
 
             try:
                 summary = await self.llm.generate_response(
-                    system_prompt="Você é um otimizador de memória. Resuma a conversa anterior em 1 parágrafo conciso, mantendo nomes e tópicos chave.",
-                    user_prompt=f"Conversa antiga:\n{text_block}",
+                    prompt_parts=[f"Conversa antiga:\n{text_block}"],
+                    system_instruction="Você é um otimizador de memória. Resuma a conversa anterior em 1 parágrafo conciso, mantendo nomes e tópicos chave.",
                 )
 
                 # Formata: Resumo + Chat Recente
