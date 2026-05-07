@@ -30,7 +30,7 @@ class AudioReproducao(commands.Cog):
     )
     @app_commands.describe(busca="Nome da música ou link.")
     async def play(self, ctx: commands.Context, *, busca: str):
-        """Toca música com sistema de retry e pesquisa nativa."""
+        """Toca música com sistema de retry, pesquisa nativa e fallback para SoundCloud."""
         if not ctx.author.voice:
             return await ctx.send(
                 "❌ Precisas de estar num canal de voz.", ephemeral=True
@@ -52,25 +52,42 @@ class AudioReproducao(commands.Cog):
         await ctx.defer()
 
         tracks = None
+        # 1. Tentativa de Pesquisa Padrão (Geralmente YouTube)
         try:
-            # 2. Pesquisa de Música
+            tracks = await wavelink.Playable.search(busca)
+        except Exception as e:
+            # Em vez de parar aqui, vamos registrar silenciosamente e deixar o fallback agir
+            pass
+
+        # 2. Fallback para SoundCloud se a pesquisa anterior falhou ou não retornou resultados
+        if not tracks:
             try:
-                tracks = await wavelink.Playable.search(busca)
+                tracks = await wavelink.Playable.search(
+                    busca, source=wavelink.TrackSource.SoundCloud
+                )
             except Exception as e:
                 await self._notify_owner(
-                    f"⚠️ **Falha na Pesquisa:**\nBusca: `{busca}`\nErro: `{e}`"
+                    f"⚠️ **Falha na Pesquisa (YT e SC):**\nBusca: `{busca}`\nErro: `{e}`"
                 )
                 return await ctx.send(
-                    f"❌ Erro durante a pesquisa: {e}"
-                )  # Adicionado o RETURN aqui
+                    f"❌ Erro durante a pesquisa nas plataformas: {e}"
+                )
 
-            if not tracks:
-                return await ctx.send(f"❌ Não encontrei resultados para: `{busca}`")
+        # Se após as duas tentativas ainda não houver músicas
+        if not tracks:
+            return await ctx.send(
+                f"❌ Não encontrei resultados para: `{busca}` nem no YouTube nem no SoundCloud."
+            )
 
+        try:
             # 3. Lógica para Playlists
             if isinstance(tracks, wavelink.Playlist):
                 added_count = 0
-                for track in tracks:
+                for (
+                    track
+                ) in (
+                    tracks.tracks
+                ):  # Garantindo a iteração correta na playlist no Wavelink 3
                     await vc.queue.put_wait(track)
                     added_count += 1
                 await ctx.send(
@@ -91,8 +108,12 @@ class AudioReproducao(commands.Cog):
                             await asyncio.sleep(1)
 
                 if success:
+                    # Verifica a fonte para personalizar a mensagem visualmente, se desejar
+                    plataforma = (
+                        "SoundCloud" if track.source == "soundcloud" else "YouTube"
+                    )
                     embed = discord.Embed(
-                        description=f"🎵 **[{track.title}]({track.uri})** na fila.",
+                        description=f"🎵 **[{track.title}]({track.uri})** na fila via {plataforma}.",
                         color=discord.Color.green(),
                     )
                     if track.artwork:
