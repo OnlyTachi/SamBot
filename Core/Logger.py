@@ -1,7 +1,8 @@
 import logging
-import sys
+from logging.handlers import RotatingFileHandler
 import os
-from datetime import datetime
+import sys
+
 
 class Logger:
     _instance = None
@@ -15,33 +16,48 @@ class Logger:
     def _initialize_logger(self):
         self.logger = logging.getLogger("SamBot")
         self.logger.setLevel(logging.INFO)
-        
-        # Evita duplicidade de handlers se re-inicializado
+
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
 
-        # Formato do log
         formatter = logging.Formatter(
-            '%(asctime)s | %(levelname)-8s | %(module)-15s | %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s | %(levelname)-8s | %(module)-15s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-        # Handler para Console (Stdout)
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        # Handler para Arquivo (opcional, cria pasta logs se não existir)
+        # Garantir que a pasta de logs existe
         log_dir = "logs"
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
-            
-        file_handler = logging.FileHandler(
-            os.path.join(log_dir, f"sambot_{datetime.now().strftime('%Y-%m-%d')}.log"),
-            encoding='utf-8'
+
+        max_bytes = 5 * 1024 * 1024
+        backup_count = 3
+
+        general_file = os.path.join(log_dir, "sambot_general.log")
+        general_handler = RotatingFileHandler(
+            general_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding="utf-8",
         )
-        file_handler.setFormatter(formatter)
-        self.logger.addHandler(file_handler)
+        general_handler.setLevel(logging.INFO)
+        general_handler.setFormatter(formatter)
+        self.logger.addHandler(general_handler)
+
+        error_file = os.path.join(log_dir, "sambot_errors.log")
+        error_handler = RotatingFileHandler(
+            error_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding="utf-8",
+        )
+        error_handler.setLevel(logging.ERROR)  # Filtra para só salvar ERROR ou CRITICAL
+        error_handler.setFormatter(formatter)
+        self.logger.addHandler(error_handler)
 
     def info(self, message):
         self.logger.info(message)
@@ -54,10 +70,6 @@ class Logger:
 
     def debug(self, message):
         self.logger.debug(message)
-    
+
     def critical(self, message):
         self.logger.critical(message)
-
-    def get_logger(self):
-        return self.logger
-    # eu poderia ter removido o método get_logger e usado self.logger diretamente, mas deixei assim para manter a interface limpa... ou preguiça mesmo kkk

@@ -59,9 +59,21 @@ class AudioCore(commands.Cog):
     async def on_wavelink_track_exception(
         self, payload: wavelink.TrackExceptionEventPayload
     ):
-        """Avisa se uma música específica falhar ao carregar (ex: vídeo privado)."""
-        msg = f"❌ **Erro de Reprodução:** Falha ao tocar `{payload.track.title}`.\nMotivo: `{payload.exception}`"
-        await self._notify_owner(msg)
+        player = payload.player
+
+        msg = f"⚠️ **Bloqueio do YouTube detectado:** A música `{payload.track.title}` sofreu uma queda. Pulando para a próxima..."
+        if hasattr(player, "home") and player.home is not None:
+            await player.home.send(msg)
+
+        await self._notify_owner(
+            f"❌ **Erro de Reprodução:** `{payload.track.title}`.\nMotivo: `{str(payload.exception)[:1000]}`"
+        )
+
+        if not player.queue.is_empty:
+            await player.play(player.queue.get())
+            await player.set_pause(False)
+        else:
+            self.bot.dispatch("wavelink_queue_end", player)
 
     # --- Eventos de Fluxo ---
 

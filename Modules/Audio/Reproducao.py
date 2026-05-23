@@ -10,10 +10,9 @@ class AudioReproducao(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.emoji = "🎶"
-        self.owner_id = int(os.getenv("OWNER_ID", 0))  # Carrega o ID do dono
+        self.owner_id = int(os.getenv("OWNER_ID", 0))
 
     async def _notify_owner(self, message: str):
-        """Método auxiliar para notificar o dono via DM."""
         if self.owner_id == 0:
             return
         try:
@@ -28,12 +27,11 @@ class AudioReproducao(commands.Cog):
     @commands.hybrid_command(
         name="play", aliases=["p", "tocar"], description="Pesquisa e toca música."
     )
-    @app_commands.describe(busca="Nome da música ou link.")
+    @app_commands.describe(busca="Nome da música ou link (YouTube, Spotify, etc).")
     async def play(self, ctx: commands.Context, *, busca: str):
-        """Toca música com sistema de retry e pesquisa nativa."""
         if not ctx.author.voice:
             return await ctx.send(
-                "❌ Precisas de estar num canal de voz.", ephemeral=True
+                "❌ Precisa de estar num canal de voz.", ephemeral=True
             )
 
         if not ctx.guild.voice_client:
@@ -49,63 +47,65 @@ class AudioReproducao(commands.Cog):
         else:
             vc: wavelink.Player = ctx.guild.voice_client
 
+        vc.home = ctx.channel
+
         await ctx.defer()
 
-        tracks = None
         try:
-            # 2. Pesquisa de Música
-            try:
+            # Realiza a busca usando o Wavelink
+            if busca.startswith("http"):
                 tracks = await wavelink.Playable.search(busca)
-            except Exception as e:
-                await self._notify_owner(
-                    f"⚠️ **Falha na Pesquisa:**\nBusca: `{busca}`\nErro: `{e}`"
+            else:
+                tracks = await wavelink.Playable.search(
+                    busca, source=wavelink.TrackSource.SoundCloud
                 )
-                return await ctx.send(
-                    f"❌ Erro durante a pesquisa: {e}"
-                )  # Adicionado o RETURN aqui
+        except Exception as e:
+            return await ctx.send(f"❌ Erro na pesquisa: {e}")
 
-            if not tracks:
-                return await ctx.send(f"❌ Não encontrei resultados para: `{busca}`")
+        if not tracks:
+            return await ctx.send(f"❌ Não encontrei resultados.")
 
-            # 3. Lógica para Playlists
+        try:
+            # 1. Se a busca retornar uma playlist direto (ex: link do Spotify/YouTube)
             if isinstance(tracks, wavelink.Playlist):
                 added_count = 0
-                for track in tracks:
+                for track in tracks.tracks:
                     await vc.queue.put_wait(track)
                     added_count += 1
                 await ctx.send(
                     f"✅ Playlist **{tracks.name}** carregada ({added_count} músicas)."
                 )
 
-            # 4. Lógica para Música Única
+            # 2. Se for uma busca por texto puro ou link de música única
             else:
-                track = tracks[0]
-                success = False
-                for attempt in range(1, 3):
-                    try:
-                        await vc.queue.put_wait(track)
-                        success = True
-                        break
-                    except:
-                        if attempt < 2:
-                            await asyncio.sleep(1)
-
-                if success:
-                    embed = discord.Embed(
-                        description=f"🎵 **[{track.title}]({track.uri})** na fila.",
-                        color=discord.Color.green(),
-                    )
-                    if track.artwork:
-                        embed.set_thumbnail(url=track.artwork)
-                    await ctx.send(embed=embed)
+                # O Wavelink devolve um objeto Search, então usamos tracks.tracks para pegar a lista
+                if hasattr(tracks, "tracks") and tracks.tracks:
+                    track = tracks.tracks[0]
                 else:
-                    return await ctx.send("❌ Falha ao carregar a música.")
+                    track = tracks[0]  # Fallback caso seja uma lista pura
 
+                await vc.queue.put_wait(track)
+
+                plataforma = (
+                    "Spotify"
+                    if getattr(track, "source", "") == "spotify"
+                    else track.source.capitalize()
+                )
+
+                embed = discord.Embed(
+                    description=f"🎵 **[{track.title}]({track.uri})** na fila via {plataforma}.",
+                    color=discord.Color.green(),
+                )
+                if track.artwork:
+                    embed.set_thumbnail(url=track.artwork)
+                await ctx.send(embed=embed)
+
+            # Inicia a reprodução se o player estiver parado
             if not vc.playing:
                 await vc.play(vc.queue.get())
 
         except Exception as e:
-            await ctx.send(f"❌ Erro inesperado: {e}")
+            await ctx.send(f"❌ Erro inesperado ao tocar: {e}")
 
 
 async def setup(bot):

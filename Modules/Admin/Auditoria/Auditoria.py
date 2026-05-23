@@ -1,11 +1,21 @@
 import discord
 from discord.ext import commands
 import logging
-from datetime import datetime
 
 from Brain.Memory.DataManager import data_manager
 
-# --- UI DE CONFIGURAÇÃO (PAINEL INTERATIVO) ---
+# Importação dos Handlers (usando try/except para não quebrar enquanto construímos)
+try:
+    from ._audit_msg import MsgAuditHandler
+    from ._audit_cargo import CargoAuditHandler
+    from ._audit_voz import VozAuditHandler
+    from ._audit_membro import MembroAuditHandler
+except ImportError as e:
+    logging.getLogger("SamBot.Auditoria").warning(
+        f"⚠️ Handlers de Auditoria pendentes: {e}"
+    )
+
+# --- UI DE CONFIGURAÇÃO (O PAINEL VISUAL - INTACTO) ---
 
 
 class AuditoriaPresetSelect(discord.ui.Select):
@@ -66,7 +76,6 @@ class AuditoriaPresetSelect(discord.ui.Select):
         nivel = int(self.values[0])
         configs[self.guild_id]["auditoria"]["preset"] = nivel
         data_manager.save_knowledge("guild_configs", configs)
-
         await interaction.response.send_message(
             f"✅ Preset de Auditoria atualizado para o **Nível {nivel}**.",
             ephemeral=True,
@@ -74,8 +83,6 @@ class AuditoriaPresetSelect(discord.ui.Select):
 
 
 class AuditoriaCustomSelect(discord.ui.Select):
-    """Menu múltiplo que só tem efeito se o servidor estiver no Nível 6."""
-
     def __init__(self, guild_id, ativados_antes):
         self.guild_id = guild_id
         options = [
@@ -88,11 +95,6 @@ class AuditoriaCustomSelect(discord.ui.Select):
                 label="Cargos do Servidor",
                 value="cargos",
                 default=("cargos" in ativados_antes),
-            ),
-            discord.SelectOption(
-                label="Configurações do Servidor",
-                value="servidor",
-                default=("servidor" in ativados_antes),
             ),
             discord.SelectOption(
                 label="Atualizações de Usuário",
@@ -108,7 +110,7 @@ class AuditoriaCustomSelect(discord.ui.Select):
         super().__init__(
             placeholder="[Apenas Nível 6] Marque os logs que deseja...",
             min_values=0,
-            max_values=5,
+            max_values=4,
             options=options,
         )
 
@@ -119,13 +121,10 @@ class AuditoriaCustomSelect(discord.ui.Select):
         if "auditoria" not in configs[self.guild_id]:
             configs[self.guild_id]["auditoria"] = {}
 
-        # Guarda a lista do que o admin selecionou
         configs[self.guild_id]["auditoria"]["custom_flags"] = self.values
         data_manager.save_knowledge("guild_configs", configs)
-
         await interaction.response.send_message(
-            "✅ Filtros personalizados salvos! (Lembre-se de ativar o Nível 6 no menu de Presets)",
-            ephemeral=True,
+            "✅ Filtros personalizados salvos!", ephemeral=True
         )
 
 
@@ -160,13 +159,35 @@ class AuditoriaConfigView(discord.ui.View):
         self.add_item(AuditoriaCustomSelect(guild_id, custom_flags))
 
 
-# --- O MOTOR DE ESPIONAGEM ESCALONADO ---
+# --- O MOTOR DO ORQUESTRADOR ---
 
 
-class Auditoria(commands.Cog):
+class AuditoriaCore(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger("SamBot.Auditoria")
+
+        # Inicialização Dinâmica dos Handlers
+        self.msg_handler = (
+            globals().get("MsgAuditHandler")()
+            if "MsgAuditHandler" in globals()
+            else None
+        )
+        self.cargo_handler = (
+            globals().get("CargoAuditHandler")()
+            if "CargoAuditHandler" in globals()
+            else None
+        )
+        self.voz_handler = (
+            globals().get("VozAuditHandler")()
+            if "VozAuditHandler" in globals()
+            else None
+        )
+        self.membro_handler = (
+            globals().get("MembroAuditHandler")()
+            if "MembroAuditHandler" in globals()
+            else None
+        )
 
     @commands.hybrid_command(
         name="configauditoria",
@@ -193,36 +214,27 @@ class Auditoria(commands.Cog):
 
         if preset == 6:
             embed.add_field(
-                name="Filtros Personalizados",
+                name="Filtros Ativos",
                 value=", ".join(custom_flags).title() if custom_flags else "Nenhum",
                 inline=False,
             )
-
-        embed.set_footer(text="Use os menus abaixo para configurar seu servidor.")
 
         await ctx.send(embed=embed, view=AuditoriaConfigView(guild_id, custom_flags))
 
     async def _should_log(
         self, guild_id: int, event_level: int, flag_name: str
     ) -> tuple:
-        """
-        O Roteador Genial: Retorna (canal_id, booleano_se_deve_logar).
-        Se for nível 1 a 5, compara os números. Se for 6, checa a flag.
-        """
         configs = data_manager.get_knowledge("guild_configs") or {}
         config = configs.get(str(guild_id), {}).get("auditoria", {})
-
         canal_id = config.get("canal_id")
+
         if not canal_id:
             return None, False
-
         preset = config.get("preset", 1)
 
         if preset == 6:
-            custom_flags = config.get("custom_flags", [])
-            return canal_id, (flag_name in custom_flags)
-        else:
-            return canal_id, (preset >= event_level)
+            return canal_id, (flag_name in config.get("custom_flags", []))
+        return canal_id, (preset >= event_level)
 
     async def enviar_log(
         self, guild: discord.Guild, canal_id: int, embed: discord.Embed
@@ -231,163 +243,55 @@ class Auditoria(commands.Cog):
         if canal:
             try:
                 await canal.send(embed=embed)
-            except:
+            except discord.Forbidden:
                 pass
 
-    # ==========================================
-    # NÍVEL 1: MENSAGENS (Flag: "mensagens")
-    # ==========================================
+    # ================= EVENTOS DELEGAÇÃO =================
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
         if message.author.bot or not message.guild:
             return
-        canal_id, pode_logar = await self._should_log(message.guild.id, 1, "mensagens")
-        if not pode_logar:
-            return
-
-        embed = discord.Embed(
-            title="🗑️ Mensagem Apagada",
-            color=discord.Color.red(),
-            timestamp=datetime.now(),
-        )
-        embed.description = (
-            f"**Autor:** {message.author.mention}\n**Canal:** {message.channel.mention}"
-        )
-        embed.add_field(
-            name="Conteúdo", value=message.content[:1024] or "*Sem texto*", inline=False
-        )
-        await self.enviar_log(message.guild, canal_id, embed)
+        canal_id, pode = await self._should_log(message.guild.id, 1, "mensagens")
+        if pode and self.msg_handler:
+            # Pede para o especialista criar o Embed e depois o envia
+            embed = await self.msg_handler.on_delete(message)
+            if embed:
+                await self.enviar_log(message.guild, canal_id, embed)
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message):
         if before.author.bot or not before.guild or before.content == after.content:
             return
-        canal_id, pode_logar = await self._should_log(before.guild.id, 1, "mensagens")
-        if not pode_logar:
-            return
-
-        embed = discord.Embed(
-            title="✏️ Mensagem Editada",
-            color=discord.Color.blue(),
-            timestamp=datetime.now(),
-        )
-        embed.description = (
-            f"**Autor:** {before.author.mention} no canal {before.channel.mention}"
-        )
-        embed.add_field(
-            name="Antes", value=before.content[:1024] or "Vazio", inline=False
-        )
-        embed.add_field(
-            name="Depois", value=after.content[:1024] or "Vazio", inline=False
-        )
-        await self.enviar_log(before.guild, canal_id, embed)
-
-    # ==========================================
-    # NÍVEL 2: CARGOS DO SERVIDOR (Flag: "cargos")
-    # ==========================================
+        canal_id, pode = await self._should_log(before.guild.id, 1, "mensagens")
+        if pode and self.msg_handler:
+            embed = await self.msg_handler.on_edit(before, after)
+            if embed:
+                await self.enviar_log(before.guild, canal_id, embed)
 
     @commands.Cog.listener()
     async def on_guild_role_create(self, role: discord.Role):
-        canal_id, pode_logar = await self._should_log(role.guild.id, 2, "cargos")
-        if not pode_logar:
-            return
-        embed = discord.Embed(
-            title="🔰 Cargo Criado",
-            description=f"O cargo **{role.name}** foi criado.",
-            color=discord.Color.green(),
-            timestamp=datetime.now(),
-        )
-        await self.enviar_log(role.guild, canal_id, embed)
+        canal_id, pode = await self._should_log(role.guild.id, 2, "cargos")
+        if pode and self.cargo_handler:
+            embed = await self.cargo_handler.on_create(role)
+            if embed:
+                await self.enviar_log(role.guild, canal_id, embed)
 
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role: discord.Role):
-        canal_id, pode_logar = await self._should_log(role.guild.id, 2, "cargos")
-        if not pode_logar:
-            return
-        embed = discord.Embed(
-            title="🗑️ Cargo Deletado",
-            description=f"O cargo **{role.name}** foi deletado.",
-            color=discord.Color.dark_red(),
-            timestamp=datetime.now(),
-        )
-        await self.enviar_log(role.guild, canal_id, embed)
-
-    # ==========================================
-    # NÍVEL 3: SERVIDOR E BOT (Flag: "servidor")
-    # ==========================================
-
-    @commands.Cog.listener()
-    async def on_guild_update(self, before: discord.Guild, after: discord.Guild):
-        canal_id, pode_logar = await self._should_log(after.id, 3, "servidor")
-        if not pode_logar:
-            return
-
-        embed = discord.Embed(
-            title="⚙️ Servidor Modificado",
-            color=discord.Color.orange(),
-            timestamp=datetime.now(),
-        )
-        if before.name != after.name:
-            embed.add_field(
-                name="Nome do Servidor",
-                value=f"De: {before.name}\nPara: {after.name}",
-                inline=False,
-            )
-        if before.icon != after.icon:
-            embed.add_field(
-                name="Ícone Alterado",
-                value="O avatar do servidor foi modificado.",
-                inline=False,
-            )
-
-        if (
-            len(embed.fields) > 0
-        ):  # Só envia se realmente achar uma alteração importante
-            await self.enviar_log(after, canal_id, embed)
-
-    # ==========================================
-    # NÍVEL 4: USUÁRIOS (Flag: "usuarios")
-    # ==========================================
+        canal_id, pode = await self._should_log(role.guild.id, 2, "cargos")
+        if pode and self.cargo_handler:
+            embed = await self.cargo_handler.on_delete(role)
+            if embed:
+                await self.enviar_log(role.guild, canal_id, embed)
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
-        canal_id, pode_logar = await self._should_log(after.guild.id, 4, "usuarios")
-        if not pode_logar:
-            return
-
-        embed = discord.Embed(timestamp=datetime.now())
-        enviar = False
-
-        if before.nick != after.nick:
-            embed.title = "🏷️ Apelido Modificado"
-            embed.color = discord.Color.light_grey()
-            embed.description = f"{after.mention} mudou o nickname."
-            embed.add_field(name="Antes", value=before.nick or before.name, inline=True)
-            embed.add_field(name="Depois", value=after.nick or after.name, inline=True)
-            enviar = True
-
-        elif before.roles != after.roles:
-            embed.title = "🔰 Atualização de Cargos do Usuário"
-            embed.color = discord.Color.purple()
-            embed.description = f"{after.mention} teve cargos alterados."
-            enviar = True
-
-        # Discord.py recente dispara avatar de servidor aqui
-        elif before.guild_avatar != after.guild_avatar:
-            embed.title = "🖼️ Avatar do Servidor Modificado"
-            embed.color = discord.Color.blurple()
-            embed.description = (
-                f"{after.mention} mudou a foto de perfil neste servidor."
-            )
-            enviar = True
-
-        if enviar:
-            await self.enviar_log(after.guild, canal_id, embed)
-
-    # ==========================================
-    # NÍVEL 5: VOZ E MAXIMO (Flag: "voz")
-    # ==========================================
+        canal_id, pode = await self._should_log(after.guild.id, 4, "usuarios")
+        if pode and self.membro_handler:
+            embed = await self.membro_handler.on_update(before, after)
+            if embed:
+                await self.enviar_log(after.guild, canal_id, embed)
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -398,28 +302,12 @@ class Auditoria(commands.Cog):
     ):
         if member.bot:
             return
-        canal_id, pode_logar = await self._should_log(member.guild.id, 5, "voz")
-        if not pode_logar:
-            return
-
-        if before.channel != after.channel:
-            embed = discord.Embed(timestamp=datetime.now())
-            if before.channel is None and after.channel is not None:
-                embed.title, embed.color = "🎙️ Entrou no Canal", discord.Color.green()
-                embed.description = (
-                    f"{member.mention} conectou-se em {after.channel.mention}."
-                )
-            elif before.channel is not None and after.channel is None:
-                embed.title, embed.color = "🔇 Saiu do Canal", discord.Color.red()
-                embed.description = (
-                    f"{member.mention} saiu de {before.channel.mention}."
-                )
-            elif before.channel is not None and after.channel is not None:
-                embed.title, embed.color = "🔄 Trocou de Canal", discord.Color.gold()
-                embed.description = f"{member.mention} mudou de {before.channel.mention} para {after.channel.mention}."
-
-            await self.enviar_log(member.guild, canal_id, embed)
+        canal_id, pode = await self._should_log(member.guild.id, 5, "voz")
+        if pode and self.voz_handler:
+            embed = await self.voz_handler.on_update(member, before, after)
+            if embed:
+                await self.enviar_log(member.guild, canal_id, embed)
 
 
 async def setup(bot):
-    await bot.add_cog(Auditoria(bot))
+    await bot.add_cog(AuditoriaCore(bot))

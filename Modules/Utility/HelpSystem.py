@@ -20,7 +20,7 @@ class HelpDropdown(discord.ui.Select):
         # Ordena as categorias para o menu ficar organizado
         for key in sorted(categorias.keys()):
             info = categorias[key]
-            # Só exibe se a categoria tiver comandos visíveis
+            # Só exibe se a categoria tiver comandos visíveis e permitidos
             if not info["comandos"]:
                 continue
 
@@ -61,7 +61,11 @@ class HelpDropdown(discord.ui.Select):
         comandos_ordenados = sorted(info["comandos"], key=lambda c: c.name)
 
         for cmd in comandos_ordenados:
-            doc = cmd.short_doc or "Nenhuma descrição disponível."
+            doc = (
+                cmd.short_doc
+                or cmd.description
+                or "Nenhuma descrição disponível ainda."
+            )
             texto_comandos += f"**`+{cmd.name}`** — {doc}\n"
 
         if len(texto_comandos) > 4000:
@@ -76,21 +80,31 @@ class HelpDropdown(discord.ui.Select):
 
 
 class HelpView(discord.ui.View):
-    def __init__(self, categorias, main_embed):
+    def __init__(self, categorias, main_embed, original_author_id):
         super().__init__(timeout=120)
         self.main_embed = main_embed
+        self.original_author_id = original_author_id
         self.add_item(HelpDropdown(categorias))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        # Garante que apenas quem pediu a ajuda possa clicar no menu
+        if interaction.user.id == self.original_author_id:
+            return True
+        await interaction.response.send_message(
+            "❌ Apenas quem executou o comando pode interagir!", ephemeral=True
+        )
+        return False
 
 
 # --- COG PRINCIPAL ---
 
 
 class HelpSystem(commands.Cog):
-    """Substitui o sistema de ajuda nativo por um menu dinâmico e inteligente."""
+    """Substitui o sistema de ajuda nativo por um menu dinâmico, inteligente e restrito por permissões."""
 
     def __init__(self, bot):
         self.bot = bot
-        self.logger = logging.getLogger("SamBot.Help")
+        self.logger = logging.getLogger("Bot.Help")
 
         self.config_pastas = {
             "Economy": {
@@ -123,9 +137,13 @@ class HelpSystem(commands.Cog):
                 "desc": "Ferramentas restritas de infraestrutura.",
                 "emoji": "💻",
             },
+            "Streamer": {
+                "nome": "Stream / Transmissão",
+                "desc": "Configuração e monitoramento de transmissões ao vivo.",
+                "emoji": "🎥",
+            },
         }
 
-        # Remove o comando de ajuda padrão do Discord.py
         self._original_help = bot.help_command
         bot.help_command = None
 
@@ -138,19 +156,17 @@ class HelpSystem(commands.Cog):
         description="Abre a central de ajuda interativa.",
     )
     async def help_cmd(self, ctx: commands.Context):
-        # 1. Estrutura para agrupar comandos
         categorias = {}
 
         for cmd in self.bot.commands:
-            # Ignora comandos escondidos
             if cmd.hidden:
                 continue
 
-            if (
-                cmd.cog
-                and cmd.cog.qualified_name == "Developer"
-                and not await self.bot.is_owner(ctx.author)
-            ):
+            try:
+                pode_executar = await cmd.can_run(ctx)
+                if not pode_executar:
+                    continue
+            except commands.CommandError:
                 continue
 
             modulo_path = cmd.cog.__module__ if cmd.cog else ""
@@ -173,9 +189,10 @@ class HelpSystem(commands.Cog):
             categorias[folder_name]["comandos"].append(cmd)
 
         embed = discord.Embed(
-            title="📚 Central de Ajuda - SamBot",
+            title=f"📚 Central de Ajuda - {self.bot.user.name}",
             description=(
-                "Bem-vindo! Seleciona uma categoria no menu abaixo para ver os comandos.\n\n"
+                "Bem-vindo! Selecione uma categoria no menu abaixo para ver os comandos.\n"
+                "Módulos administrativos e restritos são exibidos apenas se você possuir permissão.\n\n"
                 "💡 **Dica:** Também pode conversar comigo naturalmente no chat!"
             ),
             color=discord.Color.gold(),
@@ -183,14 +200,14 @@ class HelpSystem(commands.Cog):
         embed.set_thumbnail(url=self.bot.user.display_avatar.url)
 
         for folder, info in categorias.items():
-            if info["comandos"] and folder != "Developer":
+            if info["comandos"]:
                 embed.add_field(
                     name=f"{info['emoji']} {info['exibir_nome']}",
                     value=f"`{len(info['comandos'])} comandos`",
                     inline=True,
                 )
 
-        view = HelpView(categorias, embed)
+        view = HelpView(categorias, embed, ctx.author.id)
         await ctx.send(embed=embed, view=view)
 
 
