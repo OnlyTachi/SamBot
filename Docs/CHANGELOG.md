@@ -1,5 +1,52 @@
 # Changelog
 
+## [v2.1.5] - 23 de maio de 2026
+
+### 🛠️ Novas Funcionalidades & Comandos
+
+- **`+afk`:** Gerencia o status de ausência do usuário, notificando menções de forma autônoma.
+- **`+anagrama`:** Gera anagramas aleatórios a partir de uma palavra informada e calcula o número total de permutações únicas.
+- **`+calc`:** Calculadora integrada capaz de avaliar expressões matemáticas complexas com tratamento de erros robusto.
+- **`+choose`:** Efetua a escolha aleatória e imparcial de uma opção contida em uma lista fornecida pelo usuário.
+- **`+corinfo`:** Exibe detalhes técnicos completos de cores e paletas visuais a partir de entradas em formato Hexadecimal ou RGB.
+- **`+dicio`:** Consulta e retorna definições gramaticais, sinônimos e frases de exemplo para termos e palavras.
+- **`+moeda`:** Realiza a conversão de valores entre diferentes moedas em tempo real utilizando integração com API externa.
+- **`+morse`:** Codifica textos legíveis em código Morse ou decodifica sequências de Morse para texto padrão.
+- **`+qrcode`:** Gera instantaneamente códigos QR dinâmicos e exportáveis com base em links ou textos inseridos.
+- **`+reminder`:** Cria e gerencia lembretes personalizados com suporte integrado à função de soneca (_snooze_).
+- **`+tempo`:** Busca e exibe as condições climáticas e meteorológicas atuais para uma cidade especificada pelo usuário.
+  Aqui está o novo bloco de comandos formatado exatamente no mesmo padrão de Markdown do anterior:
+
+* **`+info [subcomandos]`:** Módulo expandido com subcomandos estruturados para extração de metadados:
+  - **`emojis`:** Estatísticas, IDs e detalhes dos emojis customizados do servidor.
+  - **`invite`:** Rastreamento e informações sobre links de convites ativos.
+  - **`server`:** Diagnóstico completo, contagem de membros e dados de criação da guilda.
+* **`+manage emojis`:** Painel/ferramentas para adicionar, remover e gerenciar os emojis customizados do servidor diretamente pelo Discord.
+* **`+manage webhook`:** Interface para criação, edição de propriedades e auditoria de webhooks ativos nos canais de texto.
+* **`+sistema bemvindo`:** Módulo automatizado de boas-vindas para novos membros, integrando saudações customizadas e atribuição inicial.
+
+### Módulos de Usuário & Economia (REFATORADO):
+
+- **Informações e Utilidades do Usuário:** A unificação das propriedades de perfil otimizou o carregamento de dados e unificou os comandos de consulta de perfis.
+- **Comando Dice (Dados):** Aprimoramento da lógica matemática interna e melhoria na exibição visual dos resultados de rolagem de dados no chat.
+- **Sistema de Experiência (XP) & Ranking:** Refatoração completa do algoritmo de cálculo de
+  progressão, garantindo consistência no armazenamento e carregamento de posições de rank globais e
+  locais.
+
+### **Atualizações em `Core/Bot.py`:**
+
+- **Leitura Dinâmica de Configurações:** Realiza o parse e a leitura do arquivo `config.json` em tempo de execução para extrair nome e versão dinamicamente, com fallback seguro.
+- **Tratamento Resiliente do Prefix:** Suporte robusto à extração via `os.getenv("BOT_PREFIX", "-")`, garantindo o prefixo padrão caso ocorram falhas ou ausência no arquivo `.env`.
+- **Correção no Fluxo de Sincronização:** A rotina `run_diagnostics()` foi movida do `setup_hook` para o evento nativo `on_ready`, solucionando bugs de latência nula e adicionando persistência para a visualização `AppealStartView`.
+- **Gerenciador de Erros Visual Avançado:** O listener global `on_command_error` agora gera embeds detalhados e intuitivos para exceções do tipo `MissingRequiredArgument`, eliminando mensagens em texto simples.
+- **Padronização de Fuso Horário:** Correção na captura do `start_time` do sistema, migrando para o método recomendado `discord.utils.utcnow()`.
+
+- **Subsistema de Logging & Diagnósticos (LOGS):**
+- **Controle e Limitação de Arquivos:** Substituição do `FileHandler` genérico pela classe `RotatingFileHandler`, fixando o tamanho máximo por arquivo (ex: 5 MB) e o histórico em no máximo 3 arquivos simultâneos (deleção assíncrona do mais antigo).
+- **Segregação Arquitetural de Arquivos de Log:** Separação analítica do fluxo de logs na pasta `logs/` para otimizar auditorias e debug:
+- **`sambot_general.log`:** Captura o fluxo completo e cronológico do sistema, englobando os níveis `INFO`, `WARNING`, `ERROR` e `CRITICAL`.
+- **`sambot_errors.log`:** Arquivo exclusivo de telemetria de falhas, retendo estritamente os níveis `ERROR` e `CRITICAL` através de filtros personalizados.
+
 ## [v2.1.2-beta] - 19 de abril de 2026
 
 ### 💰 Economia & RPG (Refatoração Completa)

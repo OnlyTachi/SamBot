@@ -6,72 +6,90 @@ import random
 import asyncio
 import os
 import math
+import json
 from datetime import datetime
 
 # Camada de Inteligência e Dados
 from Brain.Memory.DataManager import data_manager
+from Modules.Admin.Mods._appeals import AppealStartView
+
 try:
-    # Importa a instância já inicializada para diagnósticos
     from Brain.Providers.LLMFactory import LLMFactory, llm_factory
 except ImportError:
     LLMFactory = None
     llm_factory = None
 
-# Tenta importar o Logger customizado
 try:
     from .Logger import Logger
 except ImportError:
+
     class Logger:
         def __init__(self):
             self.logger = logging.getLogger("SamBot.Core")
             if not self.logger.handlers:
                 logging.basicConfig(level=logging.INFO)
-        def info(self, msg): self.logger.info(msg)
-        def error(self, msg): self.logger.error(msg)
-        def critical(self, msg): self.logger.critical(msg)
-        def warning(self, msg): self.logger.warning(msg)
+
+        def info(self, msg):
+            self.logger.info(msg)
+
+        def error(self, msg):
+            self.logger.error(msg)
+
+        def critical(self, msg):
+            self.logger.critical(msg)
+
+        def warning(self, msg):
+            self.logger.warning(msg)
+
 
 class SamBot(commands.Bot):
     def __init__(self):
-        # 1. Configuração de Intents (Permissões)
         intents = discord.Intents.default()
         intents.message_content = True
         intents.members = True
         intents.voice_states = True
         intents.presences = True
 
-        # 2. Configuração de Identidade
-        self.version = "2.0.5"
-        self.start_time = datetime.now()
+        try:
+            with open("config.json", "r", encoding="utf-8") as f:
+                self.config_info = json.load(f)
+        except FileNotFoundError:
+            self.config_info = {"version": "2.0.5", "name": "SamBot"}
+
+        self.version = self.config_info.get("version", "2.0.5")
+        self.start_time = discord.utils.utcnow()
         owner_id = os.getenv("OWNER_ID")
         self._owner_id_manual = int(owner_id) if owner_id else None
         self.is_music_playing = False
 
-        # 3. Inicialização do Logger
         self.log = Logger()
-        self.agent = None 
-        
-        self.log.info(f"🤖 Inicializando SamBot Core v{self.version}...")
+        self.agent = None
+
+        self.log.info(
+            f"🤖 Inicializando {self.config_info.get('name')} Core v{self.version}..."
+        )
 
         super().__init__(
-            command_prefix=os.getenv("BOT_PREFIX"),
+            command_prefix=os.getenv("BOT_PREFIX", "-"),
             intents=intents,
             help_command=None,
             case_insensitive=True,
-            owner_id=self._owner_id_manual
+            owner_id=self._owner_id_manual,
         )
 
     async def setup_hook(self):
-        """Método de inicialização assíncrona do discord.py"""
-        self.log.info("🔌 Iniciando Main Loop...")
+        """Carrega os módulos e sincroniza comandos ANTES de conectar."""
         await self.carregar_cogs()
-        self.agent = self.get_cog('CerebroIA')
-        if self.agent:
-            self.log.info(f"🧠 Cérebro IA (Agent) vinculado ao Core. Status: {self.agent.status if hasattr(self.agent, 'status') else 'Pronto'}")
-        else:
-            self.log.warning("⚠️ O módulo Brain/Agent.py não foi carregado. O bot está em modo 'Lobotomizado'.")    
 
-        await self.run_diagnostics()
+        self.agent = self.get_cog("CerebroIA")
+        if self.agent:
+            self.log.info(
+                f"🧠 Cérebro IA (Agent) vinculado ao Core. Status: {getattr(self.agent, 'status', 'Pronto')}"
+            )
+        else:
+            self.log.warning(
+                "⚠️ Módulo Brain/Agent.py não carregado. Bot operando sem Inteligência Artificial."
+            )
 
         self.log.info("🔄 Sincronizando árvore de comandos...")
         try:
@@ -80,28 +98,37 @@ class SamBot(commands.Bot):
         except Exception as e:
             self.log.error(f"❌ Falha na sincronização de comandos: {e}")
 
-        self.log.info("✅ Setup do hook concluído.")
-
     async def carregar_cogs(self):
         """Carrega recursivamente os arquivos .py nas pastas Modules e Brain, filtrando utilitários."""
         self.log.info("📥 Carregando extensões (Cogs)...")
-        
-        pastas_raizes = ['./Modules', './Brain']
-        ignorar_pastas = ['Tools', 'Memory', 'Providers', 'Core', 'Data', '__pycache__', 'Lavalink']
-        ignorar_arquivos = ['__init__.py', 'LLMFactory.py', 'Bot.py', 'Logger.py']
+
+        pastas_raizes = ["./Modules", "./Brain"]
+        ignorar_pastas = [
+            "Tools",
+            "Memory",
+            "Providers",
+            "Core",
+            "Data",
+            "__pycache__",
+            "Lavalink",
+        ]
+        ignorar_arquivos = ["__init__.py", "LLMFactory.py", "Bot.py", "Logger.py"]
 
         for pasta_raiz in pastas_raizes:
             if not os.path.exists(pasta_raiz):
                 continue
-                
+
             for root, dirs, files in os.walk(pasta_raiz):
                 dirs[:] = [d for d in dirs if d not in ignorar_pastas]
-                
+
                 for file in files:
                     if file.endswith(".py") and file not in ignorar_arquivos:
-                        caminho_relativo = os.path.relpath(os.path.join(root, file), ".")
-                        nome_extensao = caminho_relativo.replace(os.sep, ".").replace(".py", "")
-                        
+                        caminho_relativo = os.path.relpath(
+                            os.path.join(root, file), "."
+                        )
+                        nome_extensao = caminho_relativo.replace(os.sep, ".").replace(
+                            ".py", ""
+                        )
                         try:
                             await self.load_extension(nome_extensao)
                             self.log.info(f"🔹 Módulo carregado: {nome_extensao}")
@@ -112,94 +139,89 @@ class SamBot(commands.Bot):
 
     async def run_diagnostics(self):
         """Executa verificações de inicialização e saúde do sistema."""
-        self.log.info("🏥 Iniciando diagnóstico de sistemas...")
-        
+        self.log.info("🏥 Diagnóstico pós-conexão...")
+
         lat = self.latency
-        latency_msg = f"{int(lat * 1000)}ms" if lat and not math.isnan(lat) else "WS Offline"
+        latency_msg = (
+            f"{int(lat * 1000)}ms" if lat and not math.isnan(lat) else "Desconhecida"
+        )
+
         ia_status = "OFFLINE"
         if self.agent:
             ia_status = "ONLINE"
-            if llm_factory and llm_factory.active_model:
-                nome_modelo = getattr(llm_factory.active_model, 'model_name', str(llm_factory.active_model))
+            if llm_factory and getattr(llm_factory, "active_model", None):
+                nome_modelo = getattr(
+                    llm_factory.active_model,
+                    "model_name",
+                    str(llm_factory.active_model),
+                )
                 ia_status += f" ({nome_modelo})"
-            else:
-                ia_status += " (Sem LLM)"
         else:
             ia_status = "CÉREBRO NÃO ENCONTRADO"
 
         checks = {
             "Discord API": f"v{discord.__version__}",
-            "Latência": latency_msg,
+            "Latência WS": latency_msg,
             "Inteligência": ia_status,
-            "Base de Dados": "Conectado" if data_manager else "Erro"
+            "Base de Dados": "Conectado" if data_manager else "Erro",
         }
-        
+
         for check, status in checks.items():
             self.log.info(f"   - {check}: {status}")
-            
-        return True
 
     async def on_ready(self):
         """Evento disparado ao estabelecer conexão."""
         self.log.info(f"🚀 Logado como: {self.user} (ID: {self.user.id})")
         self.log.info(f"🌐 Servidores ativos: {len(self.guilds)}")
+
+        # Mantém as views persistentes ativas (como o painel de appeals de ban)
+        self.add_view(AppealStartView(self, 0, 0, "BAN"))
+
+        await self.run_diagnostics()
+
         if not self.status_loop.is_running():
             self.status_loop.start()
 
-        # Status inicial focado em música e interação
-        activity = discord.Activity(type=discord.ActivityType.listening)
+        activity = discord.Activity(
+            type=discord.ActivityType.listening, name="inicializando sistemas..."
+        )
         await self.change_presence(status=discord.Status.dnd, activity=activity)
-
-# talvez mover isso para outro lugar depois e arrumar os status...
 
     @tasks.loop(minutes=30)
     async def status_loop(self):
         """Alterna a atividade do bot usando dados do DataManager."""
         if self.is_music_playing:
-            # Se estiver tocando música, não altera o status para não sobrescrever a info da música
-            return      
-            
+            return
+
         try:
-            # Tenta buscar as frases do conhecimento
-            atividades_data = data_manager.get_knowledge('atividades') if data_manager else {}
-            
+            atividades_data = (
+                data_manager.get_knowledge("atividades") if data_manager else {}
+            )
             frases_arquivo = []
             if atividades_data and isinstance(atividades_data, dict):
                 for categoria, lista in atividades_data.items():
                     if isinstance(lista, list):
                         frases_arquivo.extend(lista)
-            
-            # Lista padrão de segurança
+
             padrao = ["música | Mencione-me!", "evoluindo...", "ajudando pessoas"]
-            
-            # Combina as listas e escolhe uma frase
             opcoes = frases_arquivo if frases_arquivo else padrao
             escolha = random.choice(opcoes)
-            
-            # CORREÇÃO: Activity não aceita 'status' internamente. 
-            # O status (online/dnd) é definido no change_presence.
+
             nova_atividade = discord.Activity(
-                type=discord.ActivityType.listening, 
-                name=escolha
+                type=discord.ActivityType.listening, name=escolha
             )
-            
             await self.change_presence(
-                status=discord.Status.dnd, 
-                activity=nova_atividade
+                status=discord.Status.dnd, activity=nova_atividade
             )
-            
-            # Log de sucesso no terminal
             self.log.info(f"✅ Status atualizado com sucesso: Ouvindo '{escolha}'")
 
         except Exception as e:
-            # Log de erro detalhado no terminal
             self.log.error(f"❌ Erro crítico ao atualizar status no terminal: {e}")
 
     @status_loop.before_loop
     async def before_status_loop(self):
-        # Garante que o bot esteja logado antes de tentar mudar o status
         await self.wait_until_ready()
-        self.log.info("🕒 Aguardando prontidão do bot para iniciar o loop de status...")
+        self.log.info("🕒 Loop de status de atividades iniciado.")
 
     async def on_message(self, message):
         """Processa mensagens recebidas."""
@@ -208,8 +230,8 @@ class SamBot(commands.Bot):
         await self.process_commands(message)
 
     async def on_command_error(self, ctx, error):
-        """Gerencia erros de comandos e sugere alternativas similares."""
-        if hasattr(ctx.command, 'on_error'):
+        """Gerencia erros de comandos e sugere alternativas similares ou embeds explicativos."""
+        if hasattr(ctx.command, "on_error"):
             return
 
         if isinstance(error, commands.CommandNotFound):
@@ -217,16 +239,72 @@ class SamBot(commands.Bot):
             all_cmds = [cmd.name for cmd in self.commands]
             for cmd in self.commands:
                 all_cmds.extend(cmd.aliases)
-            
+
             matches = difflib.get_close_matches(invoked, all_cmds, n=1, cutoff=0.6)
             if matches:
-                await ctx.reply(f"Não encontrei `{ctx.prefix}{invoked}`. Você quis dizer `{ctx.prefix}{matches[0]}`? bobao!!", delete_after=15)
+                await ctx.reply(
+                    f"Não encontrei `{ctx.prefix}{invoked}`. Você quis dizer `{ctx.prefix}{matches[0]}`? bobao!!",
+                    delete_after=15,
+                )
             return
 
         if isinstance(error, commands.MissingPermissions):
-            return await ctx.reply("⛔ Você não tem permissão para usar este comando.", delete_after=10)
+            return await ctx.reply(
+                "⛔ Você não tem permissão para usar este comando.", delete_after=10
+            )
 
         if isinstance(error, commands.MissingRequiredArgument):
-            return await ctx.reply(f"⚠️ Uso incorreto! Tente: `{ctx.prefix}{ctx.command.name} {ctx.command.signature}`", delete_after=20)
+            cmd = ctx.command
+            prefixo = ctx.prefix
+
+            modulo_path = cmd.cog.__module__ if cmd.cog else ""
+            partes = modulo_path.split(".")
+            folder_name = (
+                partes[1] if len(partes) > 1 and partes[0] == "Modules" else "Utility"
+            )
+
+            categorias_nomes = {
+                "Admin": "Administração",
+                "Fun": "Diversão",
+                "Utility": "Utilitários",
+                "Developer": "Desenvolvedor",
+                "Streamer": "Streamer",
+            }
+            categoria = categorias_nomes.get(folder_name, "Geral")
+
+            descricao = (
+                cmd.description
+                or cmd.help
+                or "Nenhuma descrição detalhada fornecida para este comando."
+            )
+
+            lista_sinonimos = [f"{prefixo}{alias}" for alias in cmd.aliases]
+            lista_sinonimos.append(f"/{cmd.qualified_name}")
+            txt_sinonimos = ", ".join(lista_sinonimos)
+
+            embed = discord.Embed(
+                title="📌 Como usar este comando?",
+                description=(
+                    f"**{prefixo}{cmd.qualified_name}**\n"
+                    f"{descricao}\n\n"
+                    f"🤔 **Uso Correto:**\n"
+                    f"`{prefixo}{cmd.qualified_name} {cmd.signature}`"
+                ),
+                color=0x9146FF,
+                timestamp=discord.utils.utcnow(),
+            )
+
+            embed.add_field(
+                name="🔍 Sinônimos",
+                value=f"```\n{txt_sinonimos}\n```",
+                inline=False,
+            )
+
+            embed.set_footer(
+                text=f"{ctx.author.name} • {categoria}",
+                icon_url=ctx.author.display_avatar.url,
+            )
+
+            return await ctx.reply(embed=embed, delete_after=30)
 
         self.log.error(f"Erro no comando '{ctx.command}': {error}")
