@@ -7,13 +7,13 @@ import asyncio
 import os
 import math
 import json
-from datetime import datetime
 
 # Camada de Inteligência e Dados
 from Brain.Memory.DataManager import data_manager
 from Modules.Admin.Mods._appeals import AppealStartView
 
 try:
+    # Importa a instância já inicializada para diagnósticos
     from Brain.Providers.LLMFactory import LLMFactory, llm_factory
 except ImportError:
     LLMFactory = None
@@ -66,7 +66,7 @@ class SamBot(commands.Bot):
         self.agent = None
 
         self.log.info(
-            f"🤖 Inicializando {self.config_info.get('name')} Core v{self.version}..."
+            f"🤖 Inicializando {self.config_info.get('name', 'SamBot')} Core v{self.version}..."
         )
 
         super().__init__(
@@ -78,7 +78,8 @@ class SamBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        """Carrega os módulos e sincroniza comandos ANTES de conectar."""
+        """Método de inicialização assíncrona para carregar cogs e preparar o bot."""
+        self.log.info("🔌 Iniciando Main Loop e carregando módulos...")
         await self.carregar_cogs()
 
         self.agent = self.get_cog("CerebroIA")
@@ -88,7 +89,7 @@ class SamBot(commands.Bot):
             )
         else:
             self.log.warning(
-                "⚠️ Módulo Brain/Agent.py não carregado. Bot operando sem Inteligência Artificial."
+                "⚠️ O módulo Brain/Agent.py não foi carregado. O bot está operando sem IA."
             )
 
         self.log.info("🔄 Sincronizando árvore de comandos...")
@@ -97,6 +98,8 @@ class SamBot(commands.Bot):
             self.log.info(f"✅ {len(synced)} comandos sincronizados com sucesso.")
         except Exception as e:
             self.log.error(f"❌ Falha na sincronização de comandos: {e}")
+
+        self.log.info("✅ Setup do hook concluído.")
 
     async def carregar_cogs(self):
         """Carrega recursivamente os arquivos .py nas pastas Modules e Brain, filtrando utilitários."""
@@ -129,6 +132,7 @@ class SamBot(commands.Bot):
                         nome_extensao = caminho_relativo.replace(os.sep, ".").replace(
                             ".py", ""
                         )
+
                         try:
                             await self.load_extension(nome_extensao)
                             self.log.info(f"🔹 Módulo carregado: {nome_extensao}")
@@ -156,6 +160,8 @@ class SamBot(commands.Bot):
                     str(llm_factory.active_model),
                 )
                 ia_status += f" ({nome_modelo})"
+            else:
+                ia_status += " (Sem LLM)"
         else:
             ia_status = "CÉREBRO NÃO ENCONTRADO"
 
@@ -169,12 +175,13 @@ class SamBot(commands.Bot):
         for check, status in checks.items():
             self.log.info(f"   - {check}: {status}")
 
+        return True
+
     async def on_ready(self):
         """Evento disparado ao estabelecer conexão."""
         self.log.info(f"🚀 Logado como: {self.user} (ID: {self.user.id})")
         self.log.info(f"🌐 Servidores ativos: {len(self.guilds)}")
 
-        # Mantém as views persistentes ativas (como o painel de appeals de ban)
         self.add_view(AppealStartView(self, 0, 0, "BAN"))
 
         await self.run_diagnostics()
@@ -197,6 +204,7 @@ class SamBot(commands.Bot):
             atividades_data = (
                 data_manager.get_knowledge("atividades") if data_manager else {}
             )
+
             frases_arquivo = []
             if atividades_data and isinstance(atividades_data, dict):
                 for categoria, lista in atividades_data.items():
@@ -210,9 +218,11 @@ class SamBot(commands.Bot):
             nova_atividade = discord.Activity(
                 type=discord.ActivityType.listening, name=escolha
             )
+
             await self.change_presence(
                 status=discord.Status.dnd, activity=nova_atividade
             )
+
             self.log.info(f"✅ Status atualizado com sucesso: Ouvindo '{escolha}'")
 
         except Exception as e:
@@ -305,6 +315,6 @@ class SamBot(commands.Bot):
                 icon_url=ctx.author.display_avatar.url,
             )
 
-            return await ctx.reply(embed=embed, delete_after=30)
+            return await ctx.reply(embed=embed, delete_after=60)
 
         self.log.error(f"Erro no comando '{ctx.command}': {error}")

@@ -5,6 +5,7 @@ Data/Persistence/Tokens/
 Lavalink/application.yml
 
 # Dados de Utilizador e Memória (RAG)
+Data/Persistence/Users/*
 Data/Persistence/VectorDB/
 Data/Persistence/playlists.json
 Data/Persistence/channels.json
