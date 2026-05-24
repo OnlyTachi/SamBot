@@ -6,8 +6,8 @@ import uuid
 
 # Imports dos módulos internos
 from Brain.Providers.LLMFactory import LLMFactory
-from Brain.Memory.VectorStore import vector_store
-from Brain.Memory.NightCycle import NightCycle
+from Brain.Memory.LongTerm.VectorStore import vector_store
+from Brain.Core.NightCycle import NightCycle
 
 
 class Developer(commands.Cog):

@@ -2,7 +2,7 @@ import logging
 import random
 from datetime import datetime
 from ..Providers.LLMFactory import LLMFactory
-from .VectorStore import vector_store
+from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Memory.DataManager import data_manager
 
 

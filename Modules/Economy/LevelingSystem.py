@@ -139,7 +139,7 @@ class LevelingSystem(commands.Cog):
     # ==========================================
     @commands.hybrid_command(
         name="level",
-        aliases=["perfil", "xp"],
+        aliases=["xp"],
         description="Gera o teu cartão de perfil visual.",
     )
     async def level(self, ctx: commands.Context, membro: discord.Member = None):
