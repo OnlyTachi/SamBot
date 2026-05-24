@@ -82,9 +82,7 @@ class AudioCore(commands.Cog):
         player = payload.player
         if not player:
             return
-        if player.queue.mode == wavelink.QueueMode.loop:
-            await player.play(payload.track)
-            return
+
         if not player.queue.is_empty:
             await player.play(player.queue.get())
             await player.set_pause(False)
