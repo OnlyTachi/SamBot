@@ -1,6 +1,6 @@
 # so fiz isso, pq nao ironicamente a sam pediu pra eu fazer
 import random
-from .DataManager import data_manager
+from ..DataManager import data_manager
 
 
 class CuriosidadeManager:

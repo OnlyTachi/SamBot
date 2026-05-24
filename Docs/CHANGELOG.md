@@ -1,5 +1,40 @@
 # Changelog
 
+## [v2.2.0] - 24 de maio de 2026
+
+### 🚀 Instalação e Infraestrutura
+
+- **Novo Assistente de Inicialização (`launcher.py`):** O processo de boot foi completamente reescrito em Python, criando um painel de controle interativo no terminal.
+  - **Setup Wizard Interativo:** A SamBot agora guia usuários novatos passo a passo na criação do arquivo `.env`, com dicas de ajuda didáticas (acionadas ao digitar `?`) para explicar o que é o Token ou o Owner ID.
+  - **Divulgação Progressiva:** Implementado um Menu Avançado opcional para configuração de chaves secundárias (Steam, IGDB, Gemini, Google Search), permitindo pular serviços que o usuário ainda não possui sem causar falhas no código.
+  - **Menu de Boot Seguro:** O painel impede inicializações sem o `.env` configurado e oferece opções claras para rodar via Docker ou Nativamente, incluindo detecção inteligente de portas (ping no Lavalink 2333) e uma trava de segurança contra a exclusão acidental de chaves.
+- **Suporte Multiplataforma Simplificado:** Os arquivos `start.sh` (Linux) e `start.bat` (Windows) foram reduzidos a gatilhos limpos que validam a existência do Python e invocam o painel gráfico de forma nativa e padronizada em qualquer sistema operacional.
+
+### 📚 Documentação e Manuais
+
+- **`README.md` Totalmente Revisado:** O guia principal foi reescrito para refletir a nova Arquitetura Híbrida Orientada a Domínios (DDD), o novo Fast Track de Embeddings e a nova forma de Instalação Rápida e Interativa via Launcher.
+- **`ARCHITECTURE.md` Expandido:** Documento atualizado com uma visão profunda e técnica do ecossistema cognitivo. Agora ele detalha o motor descentralizado (`Pipeline.py`), a divisão estrita de responsabilidades de memória (ShortTerm, LongTerm, DataManager, SelfKnowledge) e os diagramas de fluxo de dados assíncronos e contingências (Failover).
+
+### 🏗️ Arquitetura Cognitiva (Domain-Driven Design)
+
+- **Reestruturação Completa da Memória:** A antiga pasta monolítica `Brain/Memory` foi dividida em subdomínios especializados para garantir alta escalabilidade e isolamento de responsabilidades:
+  - **`DataManager/`:** O núcleo de persistência foi dividido em I/O protegido por threads (`_json_provider.py`), RAM estática (`_cache.py`) e um orquestrador unificado (`Manager.py`), permitindo leituras de dados sem travamentos.
+  - **`ShortTerm/`:** Focado no contexto imediato, isolando o histórico de conversas locais (`Context.py`) e a injeção de reações de humor (`_expressions.py`).
+  - **`LongTerm/`:** O banco de dados vetorial foi isolado (`VectorStore.py`). O sistema de extração ativa de fatos foi desacoplado do arquivo principal para um módulo dedicado (`_learning.py`).
+  - **`SelfKnowledge/`:** Todo o conhecimento descritivo sobre o que o bot é e como ele opera (incluindo modificadores de personalidade) agora reside de forma nativa nesta pasta (`Identity.py` e `Curiosidades.py`).
+
+### ⚙️ Núcleo e Pipeline de Processamento (Core)
+
+- **Transplante de Cérebro (`Pipeline.py`):** Toda a lógica pesada de pensamento, roteamento de ferramentas e formatação de chunks de mensagens foi extraída do Discord Bot e migrada para um motor puro (`Brain/Core/Pipeline.py`).
+- **Limpeza da Interface (`Agent.py`):** O módulo `Agent.py` foi limpo e reduzido a um simples receptor (Cog) do Discord. Sua única função agora é captar as menções, ignorar comandos, e encaminhar o sinal para o `Pipeline`.
+- **Rotinas de Fundo Movidas:** O sistema de consolidação noturna e mercado financeiro (`NightCycle.py`) e o motor de normalização linguística (`Limpeza.py`) foram promovidos e migrados adequadamente para a pasta `Brain/Core/`.
+
+### ⚡ Otimização de Performance e Latência da IA
+
+- **Via Verde de Embeddings (Fast Track):** Refatoração crítica na função híbrida de geração de vetores (`_embeddings.py`).
+  - **Problema resolvido:** O bot não perde mais 10 a 14 segundos testando modelos inativos ou chaves corrompidas (Erros 404) do Google Gemini a cada mensagem recebida.
+  - **Solução:** O sistema agora salva localmente a última combinação de "Provedor + Modelo + Chave" que funcionou perfeitamente. Nas consultas subsequentes, ele utiliza essa "via verde" com latência quase zero. Este estado otimizado é validado e atualizado a cada 7 dias para garantir disponibilidade contínua sem prejudicar a performance do chat.
+
 ## [v2.1.5] - 23 de maio de 2026
 
 ### 🛠️ Novas Funcionalidades & Comandos

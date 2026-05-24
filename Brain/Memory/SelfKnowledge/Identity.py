@@ -1,5 +1,8 @@
+# Brain/Memory/SelfKnowledge/Identity.py
 import logging
 import json
+
+# Ferramentas e Providers
 from Brain.Providers.LLMFactory import LLMFactory
 from Brain.Tools.BuscaTools import BuscaTool
 from Brain.Memory.DataManager import data_manager

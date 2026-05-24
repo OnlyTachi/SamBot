@@ -92,20 +92,22 @@ O bot decide autonomamente quando utilizar ferramentas externas para:
 
 ## 🚀 Instalação Rápida
 
-> [!NOTE]
-> Ao iniciar, o bot verificará automaticamente a saúde dos sistemas de IA antes de se conectar ao Discord.
+A SamBot agora possui um **Painel Assistente Interativo**, projetado para que você não precise editar códigos ou arquivos de ambiente manualmente!
 
-1. **Clonar e Configurar:**
+1. **Clonar o Repositório:**
 
 ```bash
 git clone https://github.com/OnlyTachi/SamBot.git
-cd sambot
-cp .env.example .env
+cd SamBot
 ```
 
-2. **Configuração:** Edite o `.env` com suas credenciais do Discord e chaves de API.
-3. **Iniciar:**
-   `./start.sh`
+2. **Iniciar o Assistente de Configuração:**
+
+- No **Linux**: Execute `./start.sh`
+- No **Windows**: Dê um duplo clique em `start.bat`
+  _(Nota: Você precisa ter o Python 3 instalado no sistema)_
+
+3. **Siga as instruções na tela:** O menu guiará você passo a passo (com dicas de ajuda ao digitar `?`) para criar seu arquivo `.env`, adicionar suas chaves opcionais e decidir se deseja iniciar o bot nativamente ou de forma conteinerizada (Docker).
 
 ---
 

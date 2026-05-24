@@ -1,12 +1,14 @@
-import json
+# Brain/Memory/DataManager/Manager.py
+
 import os
-import glob
 import logging
-import threading
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
+
+from ._json_provider import JsonIO
+from ._cache import DataCache
 
 load_dotenv()
 
@@ -38,18 +40,21 @@ class DatabaseProvider(ABC):
         pass
 
 
-# --- 2. MOTOR ANTIGO (AGORA CHAMADO JSON PROVIDER) ---
+# --- 2. ORQUESTRADOR JSON ---
 class JsonProvider(DatabaseProvider):
     """
-    Gestor Unificado de Dados em JSON.
-    Antigo NeuralArchive, agora implementando a interface DatabaseProvider.
+    Gestor Unificado de Dados em JSON refatorado.
     """
 
     def __init__(self):
         self.logger = logging.getLogger("SamBot.Archive")
-        self._lock = threading.Lock()
 
-        self.base_dir = Path(__file__).resolve().parent
+        # Módulos isolados
+        self.io = JsonIO()
+        self.cache = DataCache()
+
+        # Ajuste de rota: Agora estamos dentro de Brain/Memory/DataManager
+        self.base_dir = Path(__file__).resolve().parent.parent
         self.root = self.base_dir.parent.parent / "Data"
 
         self.folders = {
@@ -63,52 +68,33 @@ class JsonProvider(DatabaseProvider):
         for folder in self.folders.values():
             folder.mkdir(parents=True, exist_ok=True)
 
-        self._cache = {
-            "identity": None,
-            "prompts": {},
-            "nlp": None,
-            "expressions": None,
-            "channels": None,
-        }
-
-    # --- NÚCLEO DE I/O (ENTRADA E SAÍDA) ---
+    # --- ATALHOS DE COMPATIBILIDADE (Para NightCycle.py) ---
     def _io_read_json(self, path: Path, default_type: Any = dict) -> Any:
-        if not path.exists():
-            return default_type()
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                if default_type is dict and not isinstance(data, dict):
-                    return {}
-                return data
-        except (json.JSONDecodeError, Exception) as e:
-            self.logger.error(f"Erro ao ler JSON em {path.name}: {e}")
-            return default_type()
+        return self.io.read(path, default_type)
 
     def _io_save_json(self, path: Path, data: Any):
-        with self._lock:
-            try:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(data, f, indent=4, ensure_ascii=False)
-            except Exception as e:
-                self.logger.error(f"Falha crítica ao salvar {path.name}: {e}")
+        self.io.save(path, data)
 
     # --- IDENTIDADE E CONFIGURAÇÃO ---
     def get_identity(self) -> Dict:
-        if self._cache["identity"]:
-            return self._cache["identity"]
+        cached = self.cache.get("identity")
+        if cached:
+            return cached
+
         path = self.folders["config"] / "identity.json"
-        data = self._io_read_json(path)
+        data = self.io.read(path)
         if not data:
             data = {"name": "SamBot", "version": "3.0", "status": "online"}
-        self._cache["identity"] = data
+
+        self.cache.set("identity", data)
         return data
 
     def get_prompt(self, persona: str = "padrao") -> str:
         filename = f"{persona.replace('.txt', '')}.txt"
-        if filename in self._cache["prompts"]:
-            return self._cache["prompts"][filename]
+        cached = self.cache.get_prompt(filename)
+        if cached:
+            return cached
+
         path = self.folders["prompts"] / filename
 
         if not path.exists():
@@ -121,7 +107,7 @@ class JsonProvider(DatabaseProvider):
 
         try:
             content = path.read_text(encoding="utf-8").strip()
-            self._cache["prompts"][filename] = content
+            self.cache.set_prompt(filename, content)
             return content
         except Exception as e:
             self.logger.error(f"Erro ao carregar ficheiro de prompt: {e}")
@@ -133,36 +119,35 @@ class JsonProvider(DatabaseProvider):
 
     # --- CONHECIMENTO E NLP ---
     def get_knowledge(self, key: str) -> Any:
-        if key == "nlp_data" and self._cache["nlp"]:
-            return self._cache["nlp"]
-        if key == "expressoes_data" and self._cache["expressions"]:
-            return self._cache["expressions"]
+        if key == "nlp_data" and self.cache.get("nlp"):
+            return self.cache.get("nlp")
+        if key == "expressoes_data" and self.cache.get("expressions"):
+            return self.cache.get("expressions")
 
         path = self.folders["knowledge"] / f"{key.replace('.json', '')}.json"
-        data = self._io_read_json(path)
+        data = self.io.read(path)
 
         if "nlp" in key:
-            self._cache["nlp"] = data
+            self.cache.set("nlp", data)
         if "expressoes" in key:
-            self._cache["expressions"] = data
+            self.cache.set("expressions", data)
         return data
 
     def save_knowledge(self, key: str, data: Any):
         path = self.folders["knowledge"] / f"{key.replace('.json', '')}.json"
-        self._io_save_json(path, data)
+        self.io.save(path, data)
         if "nlp" in key:
-            self._cache["nlp"] = data
+            self.cache.set("nlp", data)
         if "expressoes" in key:
-            self._cache["expressions"] = data
+            self.cache.set("expressions", data)
 
     def get_expressions(self) -> Dict:
         return self.get_knowledge("expressoes_data")
 
-    # --- NOVO: SISTEMA DINÂMICO DE USUÁRIOS (XP, MOEDAS, ETC) ---
+    # --- SISTEMA DINÂMICO DE USUÁRIOS ---
     def get_user_data(self, user_id: str, key: str, default_value: Any = None) -> Any:
-        """Busca qualquer dado do usuário no arquivo central users.json"""
         path = self.folders["users"] / "users.json"
-        data = self._io_read_json(path)
+        data = self.io.read(path)
         user_str = str(user_id)
 
         if user_str not in data:
@@ -170,20 +155,18 @@ class JsonProvider(DatabaseProvider):
         return data[user_str].get(key, default_value)
 
     def set_user_data(self, user_id: str, key: str, value: Any):
-        """Salva qualquer dado do usuário no arquivo central users.json"""
         path = self.folders["users"] / "users.json"
-        data = self._io_read_json(path)
+        data = self.io.read(path)
         user_str = str(user_id)
 
         if user_str not in data:
             data[user_str] = {}
 
         data[user_str][key] = value
-        self._io_save_json(path, data)
+        self.io.save(path, data)
 
-    # --- LEGADO (Mantido para não quebrar o NightCycle agora) ---
+    # --- LEGADO ---
     def save_music_preference(self, user_id, genre_or_artist):
-        # Agora ele usa o sistema novo por baixo dos panos!
         current_likes = self.get_user_data(user_id, "music_likes", [])
         if genre_or_artist not in current_likes:
             current_likes.append(genre_or_artist)
@@ -200,30 +183,27 @@ class JsonProvider(DatabaseProvider):
 
     # --- PERSISTÊNCIA DE CANAIS ---
     def load_active_channels(self) -> Dict:
-        if self._cache["channels"]:
-            return self._cache["channels"]
+        cached = self.cache.get("channels")
+        if cached:
+            return cached
+
         path = self.folders["config"] / "channels.json"
         if not path.exists():
             path = self.folders["persistence"] / "channels.json"
-        data = self._io_read_json(path, default_type=dict)
-        self._cache["channels"] = data
+
+        data = self.io.read(path, default_type=dict)
+        self.cache.set("channels", data)
         return data
 
     def save_active_channels(self, data: Dict):
         if not isinstance(data, dict):
             return
         path = self.folders["config"] / "channels.json"
-        self._cache["channels"] = data
-        self._io_save_json(path, data)
+        self.cache.set("channels", data)
+        self.io.save(path, data)
 
     def reload_all(self):
-        self._cache = {
-            "identity": None,
-            "prompts": {},
-            "nlp": None,
-            "expressions": None,
-            "channels": None,
-        }
+        self.cache.reset()
         self.logger.info("♻️ DataManager: Cache limpo com sucesso.")
 
 
@@ -232,5 +212,4 @@ db_type = os.getenv("DB_TYPE", "json")
 if db_type == "json":
     data_manager = JsonProvider()
 else:
-    # Se no futuro houver SqliteProvider, ele entra aqui.
     data_manager = JsonProvider()
