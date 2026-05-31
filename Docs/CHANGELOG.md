@@ -1,5 +1,23 @@
 # Changelog
 
+## [v2.2.1] - 30 de maio de 2026
+
+**✨ Melhorias e Novidades**
+
+- **Novos Atalhos:** Adicionado o atalho `aleatorio` ao comando de embaralhar (`shuffle`), facilitando o uso para quem prefere comandos em português.
+
+- **Interface mais Clara:** O rodapé do comando `/fila` agora exibe com exatidão o status atual do loop, informando se está a repetir uma única música, a fila inteira ou se está desativado.
+
+**🐛 Correções de Bugs**
+
+- **Sistema de Repetição (Loop):** O comando `/loop` foi atualizado para utilizar os parâmetros corretos das versões recentes do Wavelink (`QueueMode.loop` e `QueueMode.loop_all`), eliminando erros de código.
+
+- **Baralhamento da Fila (Shuffle):** O comando `/aleatorio` agora utiliza o método nativo de embaralhar do player (`vc.queue.shuffle()`), substituindo a antiga tentativa de baralhar a fila como uma lista comum do Python que causava erros.
+
+- **Limpeza de Conflitos:** Removida a duplicata do comando `loop` no ficheiro `Controles.py` que estava a criar conflitos e a anular as correções.
+
+- **Adição à Fila (Compatibilidade):** Ajuste sugerido nos métodos de reprodução (`/play` e carregar playlists) para substituir o obsoleto `put_wait()` pelo atualizado `put()`, prevenindo que o bot congele ao adicionar novas faixas.
+
 ## [v2.2.0] - 24 de maio de 2026
 
 ### 🚀 Instalação e Infraestrutura

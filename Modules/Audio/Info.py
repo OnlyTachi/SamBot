@@ -53,11 +53,10 @@ class AudioInfo(commands.Cog):
 
         embed = discord.Embed(title="📋 Fila de Reprodução", color=0x2B2D31)
 
-        # Define o status do loop para o rodapé
         loop_status = "➡️ Normal"
-        if vc.queue.mode == wavelink.QueueMode.track:
+        if vc.queue.mode == wavelink.QueueMode.loop:
             loop_status = "🔂 Música"
-        elif vc.queue.mode == wavelink.QueueMode.loop:
+        elif vc.queue.mode == wavelink.QueueMode.loop_all:
             loop_status = "🔁 Fila"
 
         # Música atual
@@ -71,7 +70,6 @@ class AudioInfo(commands.Cog):
             if current.artwork:
                 embed.set_thumbnail(url=current.artwork)
 
-        # Próximas músicas
         if not vc.queue.is_empty:
             upcoming = list(vc.queue)[:10]
             queue_list = ""

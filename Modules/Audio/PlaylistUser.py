@@ -86,7 +86,7 @@ class PlaylistsUser(commands.Cog):
                 # Busca a música pela URL guardada para garantir compatibilidade
                 res = await wavelink.Playable.search(item["url"])
                 if res:
-                    await vc.queue.put_wait(res[0])
+                    await vc.queue.put(res[0])
                     added += 1
             except:
                 continue

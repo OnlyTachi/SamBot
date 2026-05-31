@@ -77,14 +77,20 @@ class AudioControles(commands.Cog):
 
     @commands.hybrid_command(
         name="shuffle",
-        aliases=["misturar", "embaralhar", "random", "sh"],
+        aliases=[
+            "misturar",
+            "embaralhar",
+            "random",
+            "sh",
+            "aleatorio",
+        ],
         description="Embaralha a ordem das músicas na fila.",
     )
     async def shuffle(self, ctx: commands.Context):
         """Reorganiza aleatoriamente todas as músicas que estão a aguardar na fila de reprodução."""
         vc: wavelink.Player = ctx.guild.voice_client
         if vc and not vc.queue.is_empty:
-            random.shuffle(vc.queue)
+            vc.queue.shuffle()
             await ctx.send("🔀 A fila foi embaralhada!")
         else:
             await ctx.send(
@@ -106,10 +112,10 @@ class AudioControles(commands.Cog):
 
         modo = modo.lower()
         if modo in ["queue", "fila", "all"]:
-            vc.queue.mode = wavelink.QueueMode.loop
+            vc.queue.mode = wavelink.QueueMode.loop_all
             txt = "🔁 Fila"
         elif modo in ["track", "musica", "single"]:
-            vc.queue.mode = wavelink.QueueMode.track
+            vc.queue.mode = wavelink.QueueMode.loop
             txt = "🔂 Música"
         else:
             vc.queue.mode = wavelink.QueueMode.normal

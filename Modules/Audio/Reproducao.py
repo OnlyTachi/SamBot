@@ -70,7 +70,7 @@ class AudioReproducao(commands.Cog):
             if isinstance(tracks, wavelink.Playlist):
                 added_count = 0
                 for track in tracks.tracks:
-                    await vc.queue.put_wait(track)
+                    vc.queue.put(track)
                     added_count += 1
                 await ctx.send(
                     f"✅ Playlist **{tracks.name}** carregada ({added_count} músicas)."
@@ -84,7 +84,7 @@ class AudioReproducao(commands.Cog):
                 else:
                     track = tracks[0]  # Fallback caso seja uma lista pura
 
-                await vc.queue.put_wait(track)
+                vc.queue.put(track)
 
                 plataforma = (
                     "Spotify"
