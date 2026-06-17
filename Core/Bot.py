@@ -62,6 +62,9 @@ class SamBot(commands.Bot):
         self._owner_id_manual = int(owner_id) if owner_id else None
         self.is_music_playing = False
 
+        self.stats = {"messages_read": 0, "commands_used": 0, "voice_time_minutes": 0}
+        self.stats_file = "logs/bot_stats.json"
+
         self.log = Logger()
         self.agent = None
 
@@ -78,18 +81,17 @@ class SamBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        """Método de inicialização assíncrona para carregar cogs e preparar o bot."""
         self.log.info("🔌 Iniciando Main Loop e carregando módulos...")
         await self.carregar_cogs()
 
         self.agent = self.get_cog("CerebroIA")
         if self.agent:
             self.log.info(
-                f"🧠 Cérebro IA (Agent) vinculado ao Core. Status: {getattr(self.agent, 'status', 'Pronto')}"
+                f"🧠 Cérebro IA (Agent) vinculado. Status: {getattr(self.agent, 'status', 'Pronto')}"
             )
         else:
             self.log.warning(
-                "⚠️ O módulo Brain/Agent.py não foi carregado. O bot está operando sem IA."
+                "⚠️ O módulo Brain/Agent.py não foi carregado. O bot operará sem IA."
             )
 
         self.log.info("🔄 Sincronizando árvore de comandos...")
@@ -102,10 +104,12 @@ class SamBot(commands.Bot):
         self.log.info("✅ Setup do hook concluído.")
 
     async def carregar_cogs(self):
-        """Carrega recursivamente os arquivos .py nas pastas Modules e Brain, filtrando utilitários."""
         self.log.info("📥 Carregando extensões (Cogs)...")
-
-        pastas_raizes = ["./Modules", "./Brain"]
+        pastas_raizes = [
+            "./Modules",
+            "./Brain",
+            "./Audio",
+        ]  # Incluí Audio para garantir que a refatoração carregue bem
         ignorar_pastas = [
             "Tools",
             "Memory",
@@ -120,19 +124,21 @@ class SamBot(commands.Bot):
         for pasta_raiz in pastas_raizes:
             if not os.path.exists(pasta_raiz):
                 continue
-
             for root, dirs, files in os.walk(pasta_raiz):
                 dirs[:] = [d for d in dirs if d not in ignorar_pastas]
-
                 for file in files:
-                    if file.endswith(".py") and file not in ignorar_arquivos:
+                    # Ignoramos arquivos que começam com _ (ex: _manager.py, _core.py) na nova arquitetura
+                    if (
+                        file.endswith(".py")
+                        and file not in ignorar_arquivos
+                        and not file.startswith("_")
+                    ):
                         caminho_relativo = os.path.relpath(
                             os.path.join(root, file), "."
                         )
                         nome_extensao = caminho_relativo.replace(os.sep, ".").replace(
                             ".py", ""
                         )
-
                         try:
                             await self.load_extension(nome_extensao)
                             self.log.info(f"🔹 Módulo carregado: {nome_extensao}")
@@ -142,9 +148,7 @@ class SamBot(commands.Bot):
                             self.log.error(f"❌ Falha ao carregar {nome_extensao}: {e}")
 
     async def run_diagnostics(self):
-        """Executa verificações de inicialização e saúde do sistema."""
         self.log.info("🏥 Diagnóstico pós-conexão...")
-
         lat = self.latency
         latency_msg = (
             f"{int(lat * 1000)}ms" if lat and not math.isnan(lat) else "Desconhecida"
@@ -171,40 +175,63 @@ class SamBot(commands.Bot):
             "Inteligência": ia_status,
             "Base de Dados": "Conectado" if data_manager else "Erro",
         }
-
         for check, status in checks.items():
             self.log.info(f"   - {check}: {status}")
-
         return True
 
     async def on_ready(self):
-        """Evento disparado ao estabelecer conexão."""
         self.log.info(f"🚀 Logado como: {self.user} (ID: {self.user.id})")
         self.log.info(f"🌐 Servidores ativos: {len(self.guilds)}")
 
         self.add_view(AppealStartView(self, 0, 0, "BAN"))
-
         await self.run_diagnostics()
 
         if not self.status_loop.is_running():
             self.status_loop.start()
+
+        # Inicia o laço que envia dados para o Launcher
+        if not self.save_stats_loop.is_running():
+            self.save_stats_loop.start()
 
         activity = discord.Activity(
             type=discord.ActivityType.listening, name="inicializando sistemas..."
         )
         await self.change_presence(status=discord.Status.dnd, activity=activity)
 
+    @tasks.loop(minutes=1)
+    async def save_stats_loop(self):
+        """Salva as estatísticas do bot a cada 1 minuto para o launcher conseguir ler."""
+        active_vcs = len(self.voice_clients)
+        self.stats["voice_time_minutes"] += active_vcs
+
+        uptime = discord.utils.utcnow() - self.start_time
+
+        data_to_save = {
+            "uptime": str(uptime).split(".")[
+                0
+            ],  # Formata para não mostrar milisegundos
+            "messages_read": self.stats["messages_read"],
+            "commands_used": self.stats["commands_used"],
+            "voice_time_minutes": self.stats["voice_time_minutes"],
+            "servers": len(self.guilds),
+            "users": sum(g.member_count for g in self.guilds if g.member_count),
+        }
+
+        try:
+            os.makedirs("logs", exist_ok=True)
+            with open(self.stats_file, "w", encoding="utf-8") as f:
+                json.dump(data_to_save, f, indent=4)
+        except Exception:
+            pass  # Ignora silenciosamente se o arquivo estiver em uso
+
     @tasks.loop(minutes=30)
     async def status_loop(self):
-        """Alterna a atividade do bot usando dados do DataManager."""
         if self.is_music_playing:
             return
-
         try:
             atividades_data = (
                 data_manager.get_knowledge("atividades") if data_manager else {}
             )
-
             frases_arquivo = []
             if atividades_data and isinstance(atividades_data, dict):
                 for categoria, lista in atividades_data.items():
@@ -218,11 +245,9 @@ class SamBot(commands.Bot):
             nova_atividade = discord.Activity(
                 type=discord.ActivityType.listening, name=escolha
             )
-
             await self.change_presence(
                 status=discord.Status.dnd, activity=nova_atividade
             )
-
             self.log.info(f"✅ Status atualizado com sucesso: Ouvindo '{escolha}'")
 
         except Exception as e:
@@ -234,13 +259,17 @@ class SamBot(commands.Bot):
         self.log.info("🕒 Loop de status de atividades iniciado.")
 
     async def on_message(self, message):
-        """Processa mensagens recebidas."""
         if message.author.bot:
             return
+
+        self.stats["messages_read"] += 1
         await self.process_commands(message)
 
+    async def on_command_completion(self, ctx):
+        """Evento disparado quando um comando termina com sucesso."""
+        self.stats["commands_used"] += 1
+
     async def on_command_error(self, ctx, error):
-        """Gerencia erros de comandos e sugere alternativas similares ou embeds explicativos."""
         if hasattr(ctx.command, "on_error"):
             return
 
@@ -287,29 +316,19 @@ class SamBot(commands.Bot):
                 or cmd.help
                 or "Nenhuma descrição detalhada fornecida para este comando."
             )
-
             lista_sinonimos = [f"{prefixo}{alias}" for alias in cmd.aliases]
             lista_sinonimos.append(f"/{cmd.qualified_name}")
             txt_sinonimos = ", ".join(lista_sinonimos)
 
             embed = discord.Embed(
                 title="📌 Como usar este comando?",
-                description=(
-                    f"**{prefixo}{cmd.qualified_name}**\n"
-                    f"{descricao}\n\n"
-                    f"🤔 **Uso Correto:**\n"
-                    f"`{prefixo}{cmd.qualified_name} {cmd.signature}`"
-                ),
+                description=f"**{prefixo}{cmd.qualified_name}**\n{descricao}\n\n🤔 **Uso Correto:**\n`{prefixo}{cmd.qualified_name} {cmd.signature}`",
                 color=0x9146FF,
                 timestamp=discord.utils.utcnow(),
             )
-
             embed.add_field(
-                name="🔍 Sinônimos",
-                value=f"```\n{txt_sinonimos}\n```",
-                inline=False,
+                name="🔍 Sinônimos", value=f"```\n{txt_sinonimos}\n```", inline=False
             )
-
             embed.set_footer(
                 text=f"{ctx.author.name} • {categoria}",
                 icon_url=ctx.author.display_avatar.url,

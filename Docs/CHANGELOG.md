@@ -1,5 +1,136 @@
 # Changelog
 
+## [v2.2.3] - 17 de junho de 2026
+
+### 🚀 Visão Geral do Sistema de Áudio (Reestruturação Híbrida)
+
+O sistema de áudio da SamBot foi estabilizado e atualizado para uma arquitetura orientada a subdomínios, unificando a velocidade do **Lavalink v4** (com a biblioteca **Wavelink**) à robustez do seu servidor de mídia pessoal **Navidrome**.
+
+O experimento com extração de áudio local nativa (`yt-dlp` e `FFmpeg`) foi descontinuado devido à alta latência e instabilidade, retornando ao ecossistema assíncrono de alto desempenho do Lavalink sob um fluxo inteligente de tomada de decisão.
+
+## ✨ Novidades e Nova Arquitetura de Busca
+
+### 🧠 Motor de Busca Inteligente (`_search_manager.py`)
+
+- **Introdução do SearchManager:** Criado um núcleo orquestrador assíncrono (`SearchManager`) que analisa dinamicamente a propriedade `MUSIC_SOURCE_MODE` do `.env`.
+- **Integração com API Subsonic (Navidrome):** Implementado o consumo seguro e criptografado da API do Navidrome através de tokens e salts dinâmicos em `MD5` (`_generate_auth_params`). A senha nunca transita limpa pela rede.
+- **Roteamento de Três Modos de Reprodução:**
+  - `ONLINE`: Ignora o armazenamento local e pesquisa faixas via YouTube/Lavalink.
+  - `LOCAL`: Realiza pesquisas exclusivas no Navidrome. Se a faixa não for encontrada, emite um aviso no chat sem gastar recursos da internet.
+  - `HIBRIDO` (Padrão): Tenta pescar o arquivo `.mp3`/`.flac` local na API do Navidrome. Se falhar, realiza um _fallback_ transparente e silencioso para a internet através do Wavelink.
+
+### 🎵 Comandos Híbridos Completos (`Player/commands.py`)
+
+- **Unificação dos Controles de Voz:** O comando `play` foi totalmente remodelado para suportar o retorno duplo (`Resultado_Do_Wavelink, Origem_Do_Audio`) do `SearchManager`.
+- **Identificação de Origens no Chat:** O bot agora adiciona rodapés e avisos informativos (`🗄️ Biblioteca Local (Navidrome)` ou `🌐 Internet (Fallback)`) para dar feedback visual aos usuários sobre a economia de banda de internet realizada no servidor.
+- **Comandos Completados:** Integrados nativamente como híbridos os comandos `/skip`, `/pause`, `/resume`, `/stop` e o painel gráfico de progressão temporal com barras de texto estilizadas no `/nowplaying`.
+
+### 🛠️ Correções de Erros (Bug Fixes)
+
+#### Tipo de União em Type Hints (TypeError: unsupported operand type(s) for |):
+
+- Corrigido o erro crítico que impedia o carregamento do Cog Modules.Audio.Player.commands.
+- O interpretador Python avaliava o tipo wavelink.Search como string devido ao ciclo de importações internas do Wavelink, gerando uma falha ao tentar aplicar o operador de união binária | ("string" | None).
+- Substituído pelo uso seguro e retrocompatível de typing.Optional e typing.Tuple.
+
+### 🚀 Novas Funcionalidades (Features)
+
+#### Diagnóstico de Conexão Subsonic/Navidrome (Ping Test):
+
+- Adicionada a função de teste de conectividade física e autenticação com o servidor local Navidrome usando o endpoint nativo ping.view da API Subsonic.
+
+- Exibição de relatórios amigáveis no terminal detalhando se a biblioteca local está sincronizada ou se há falhas de credenciais no .env.
+
+#### 🧹 Refatoração & Unificação
+
+**Consolidação do Launcher e Testes (\_core.py):**
+
+- Unificados o inicializador do Lavalink (Wavelink Core) e as rotinas de teste e diagnóstico de conexões de áudio no arquivo \_core.py.
+
+- Remoção completa de parâmetros depreciados e configurações obsoletas legadas.
+
+- Centralização de logs e informações de status de inicialização para facilitar a auditoria de problemas de rede.
+
+## [v2.2.2] - 30 de maio de 2026
+
+### 🚀 Visão Geral do Sistema de Áudio
+
+O sistema de áudio do SamBot foi totalmente reestruturado e refatorado para isolar responsabilidades. A dependência do servidor Java (**Lavalink**) e da biblioteca **Wavelink** foi completamente eliminada.
+
+O bot agora utiliza **reprodução local nativa** via `yt-dlp` e `FFmpegPCMAudio`, reduzindo drasticamente o consumo de memória do servidor. O gerenciamento de estado (filas) e a lógica de negócios (extração e armazenamento) foram desvinculados das interfaces de comandos (Cogs) do Discord, tornando o código altamente testável, escalável e isolado.
+
+---
+
+## ✨ Novidades e Nova Arquitetura de Pastas
+
+O módulo `Modules/Audio/*` agora está dividido estritamente nos domínios: `Player`, `Queue`, `Playlists` e `Utils`.
+
+### 🎵 Novo Motor de Áudio & Autenticação Inteligente
+
+- **Engine de Extração Local:** Processamento de áudio nativo rodando localmente através do `yt-dlp`.
+- **Autenticação Interceptada via Discord:** Implementação da classe `YTDLLogger` no motor do player para evitar erros `403 Forbidden` e bloqueios do YouTube. O controle de ambiente é feito via variável `BOT_AUTH_MODE`.
+- **Suporte a Cookies do Navegador:** Ideal para uso em ambiente local.
+- **Autenticação OAuth2 por Dispositivo:** Ideal para VPS/servidores sem interface gráfica. O bot intercepta o fluxo Device OAuth do YouTube e envia automaticamente uma mensagem formatada por DM para o desenvolvedor (`OWNER_ID`) com o código de pareamento temporário e o link de ativação (`google.com/device`).
+- **Mecanismo de Fallback:** Caso a DM do proprietário esteja fechada, o bot envia uma mensagem pública marcando o dono diretamente no chat onde o comando foi disparado.
+
+### 🧠 Gerenciador de Estado Independente (`Queue/_manager.py`)
+
+- Criada a classe `QueueManager` como um _singleton_ global. Qualquer arquivo do projeto pode acessar e modificar as filas de reprodução dos servidores sem depender do objeto `bot` ou de requisições diretas a Cogs.
+
+### 📊 Painel de Status, Logs & Métricas Compartilhadas
+
+- **Diagnósticos no Launcher (`launcher.py`):** Adicionado o Painel de Logs e Status (Opção 5) para monitorar arquivos locais (`txt`, `sambot_general.log` e `sambot_errors.log`) em tempo real, além de integração para fluxo contínuo (_stream_) de logs do Docker (`docker compose logs -f --tail=50`) e limpeza segura de cache.
+- **Mapeamento de Métricas Dinâmicas (`Core/Bot.py`):** Monitoramento passivo de mensagens lidas (`on_message`), comandos executados com sucesso e tempo total ativo em chamadas de voz (`voice_time_minutes`). Um loop assíncrono sincroniza e grava esses dados a cada 1 minuto no arquivo `logs/bot_stats.json`.
+
+### ⚙️ Assistente de Instalação Aperfeiçoado
+
+- **Instruções com Chave de Ajuda (`help_`):** Mapeamento detalhado para todas as variáveis do `.env.example`. Digitar `?` em qualquer pergunta do instalador exibe uma dica completa sobre a chave API. Correção de dependência circular/temporal com a inicialização prévia do dicionário `advanced_keys`.
+
+---
+
+## 🔄 Modificações e Refatorações
+
+- **Motor de Extração de Áudio (`Player/_core.py`):** O antigo `Core.py` foi enxugado. Ele agora contém exclusivamente a configuração do `yt-dlp` e a classe `YTDLSource`, atuando puramente nos bastidores.
+- **Comandos de Reprodução e Controle (`Player/commands.py`):** Os antigos `Reproducao.py` e `Controles.py` foram unificados. O comando `play` foi adaptado para usar o `discord.VoiceClient` nativo e o `FFmpeg`, detectando automaticamente URLs ou busca por texto puro (`ytsearch:`). A função recursiva `play_next` foi realocada para dentro desta classe Cog e adaptada para repassar o contexto (`ctx`).
+- **Controles de Áudio:** Comandos como `skip`, `stop`, `pause`, `volume` e `shuffle` foram totalmente reescritos para manipular a nova fila interna do `QueueManager` e os eventos nativos do Discord.
+- **Comandos de Informação (`Queue/info_commands.py`):** O antigo `Info.py` foi movido para o domínio da fila. Os comandos `nowplaying` e `queue` agora consomem os dados diretamente do `queue_manager` e exibem embeds atualizados para a nova estrutura do `yt-dlp`.
+- **Módulo de Playlists (`Playlists/commands.py` e `Playlists/manager.py`):** Os comandos do antigo `PlaylistUser.py` e a lógica de salvamento em JSON foram agrupados no mesmo domínio. A extração de metadados agora roda de forma assíncrona com `stream=False`. A transição de músicas da playlist para o bot consome o novo gerenciador de fila e repassa o contexto (`ctx`).
+- **Injeção de Dependências:** O carregamento recursivo no inicializador central `Bot.py` lê arquivos de extensão `commands.py` e `info_commands.py`, ignorando as lógicas isoladas que começam com `_` (como `_manager.py` e `_core.py`).
+
+---
+
+## 🗑️ Remoções
+
+- **Lavalink & Wavelink Extintos:** O servidor Java (`Lavalink.jar`), seus plugins e a biblioteca `wavelink` foram 100% removidos do projeto e das dependências.
+- **Acoplamento do Cog Principal:** Removida a necessidade de utilizar `self.bot.get_cog("AudioCore")` para gerenciar a fila ou processar músicas.
+- **Armazenamento de Filas no Cog:** O dicionário global de instâncias `self.queues` foi eliminado, deixando de forçar o `AudioCore` a ser o dono absoluto do estado de reprodução.
+- **Comando Loop (Temporário):** Desativado temporariamente. A função de repetição precisa ser reimplementada futuramente utilizando a nova lógica da fila interna do `QueueManager`.
+
+---
+
+## 📁 Estrutura de Arquivos Afetados
+
+```text
+├── launcher.py                    # Assistente, menu, logs e leitor de bot_stats.json
+├── Core/
+│   └── Bot.py                     # Captura de mensagens, comandos, call time e loop de escrita JSON
+├── Audio/
+│   ├── Player/
+│   │   ├── _core.py               # Configurações do yt-dlp, YTDLSource e o interceptador YTDLLogger
+│   │   └── commands.py            # Comandos de reprodução e controles nativos unificados (repassando ctx)
+│   ├── Queue/
+│   │   ├── _manager.py            # Gerenciador de estado global independente (Singleton)
+│   │   └── info_commands.py       # Comandos de exibição da fila e música atual (nowplaying/queue)
+│   └── Playlists/
+│       ├── manager.py             # Lógica de persistência em JSON de listas de reprodução
+│       └── commands.py            # Comandos de playlists adaptados para o QueueManager (repassando ctx)
+└── logs/
+    └── bot_stats.json             # Estado persistido de métricas compartilhadas (Gerado dinamicamente)
+
+```
+
+> ⚙️ **Impacto Técnico:** O código agora opera de forma desacoplada e modular. Caso seja necessário adicionar um banco de dados no futuro ou implementar testes unitários de lógica de filas, será possível interagir diretamente com o `QueueManager` e o `PlaylistManager` sem a necessidade de simular ou invocar interações da API do Discord.
+
 ## [v2.2.1] - 30 de maio de 2026
 
 **✨ Melhorias e Novidades**

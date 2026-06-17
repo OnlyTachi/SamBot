@@ -11,6 +11,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     nodejs \
     git \
+    ffmpeg \
+    libopus-dev \
+    libffi-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia o arquivo de requisitos e instala as dependências Python

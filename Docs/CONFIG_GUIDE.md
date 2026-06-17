@@ -11,9 +11,18 @@ OWNER_ID=seu_id_de_usuario
 BOT_PREFIX="+"
 
 # --- Lavalink / Música (Obrigatório para o módulo de áudio) ---
-LAVALINK_HOST=lavalink
-LAVALINK_PORT=2333
-LAVALINK_PASSWORD=youshallnotpass
+LAVALINK_HOST=lavalinkv4.serenetia.com
+LAVALINK_PORT=443
+LAVALINK_PASSWORD="[https://seretia.link/discord](https://seretia.link/discord)"
+
+# --- Configuração do Motor Híbrido de Áudio (Navidrome) ---
+# Modos disponíveis: HIBRIDO (busca local + internet) | LOCAL (apenas seu servidor) | ONLINE (apenas internet)
+MUSIC_SOURCE_MODE=ONLINE
+
+# Credenciais da API do Navidrome (Subsonic API)
+NAVIDROME_URL=http://IP_DO_SEU_SERVIDOR:4533
+NAVIDROME_USER=seu_usuario_aqui
+NAVIDROME_PASSWORD=sua_senha_aqui
 
 # --- Inteligência Artificial: Nuvem (Opcional) ---
 GEMINI_API_KEY=chave_principal
@@ -22,7 +31,7 @@ GEMINI_API_KEY_2=chave_reserva_2
 GEMINI_MODEL_NAME="gemini-2.0-flash" # Sugerido: flash pela velocidade
 
 # --- Inteligência Artificial: Local (Opcional) ---
-OLLAMA_LOCAL_URL="http://host.docker.internal:11434"
+OLLAMA_LOCAL_URL="[http://host.docker.internal:11434](http://host.docker.internal:11434)"
 MODEL_FAST_LOCAL="qwen2.5:1.5b"
 MODEL_EMBED_LOCAL="nomic-embed-text:latest"
 
@@ -48,7 +57,6 @@ BRAVE_SEARCH_API_KEY="sua_chave_brave"
 # --- IGDB API (Informações de Jogos) ---
 IGDB_CLIENT_ID="seu_client_id"
 IGDB_CLIENT_SECRET="seu_client_secret"
-
 ```
 
 ---
@@ -88,25 +96,25 @@ O bot monitora conversas para extrair informações relevantes sobre os usuário
 - **Como ensinar:** "Meu prato favorito é lasanha" ou "Eu trabalho como programador".
 - **Como recuperar:** "O que você sabe sobre mim?" ou "Qual meu hobby?".
 
-## ![alt text](./assets/rag.png)
-
-### 🎵 Comandos de Música
-
-O sistema utiliza **Wavelink** para garantir baixa latência e alta fidelidade.
-
-| Comando             | Ação                                         |
-| ------------------- | -------------------------------------------- |
-| `!play [link/nome]` | Adiciona música à fila (Suporta YT/Spotify). |
-| `!skip`             | Pula para a próxima faixa.                   |
-| `!queue`            | Exibe a lista de reprodução atual.           |
-| `!stop`             | Limpa a fila e desconecta o bot.             |
-
 ---
 
-## 🛠️ 4. Comandos de Administração
+### 🎵 Comandos de Música (Estrutura de Domínios)
 
-Comandos restritos ao `OWNER_ID` definido no `.env`:
+O sistema utiliza a biblioteca **Wavelink** integrada ao **Lavalink v4** e ao motor inteligente de busca.
 
-- **`!reload`**: Recarrega os Cogs (módulos) sem precisar reiniciar o processo do Python ou o container Docker.
+| Comando                  | Tipo        | Descrição                                                                                                           |
+| ------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| `+play [busca]`          | **Híbrido** | Pesquisa faixas na biblioteca local do Navidrome e faz _fallback_ no YouTube. Carrega links de playlists completas. |
+| `+skip`                  | **Híbrido** | Avança instantaneamente para a próxima música da fila.                                                              |
+| `+pause` / `+resume`     | **Híbrido** | Pausa a reprodução atual ou retoma o áudio de onde parou.                                                           |
+| `+stop` / `+leave`       | **Híbrido** | Limpa completamente a fila ativa de reprodução e desconecta o bot do canal.                                         |
+| `+queue`                 | **Híbrido** | Exibe as próximas 10 faixas agendadas e o status atual do loop.                                                     |
+| `+nowplaying`            | **Híbrido** | Gera um painel gráfico com barras de progresso temporal e metadados da música atual.                                |
+| `+volume [0-100]`        | **Híbrido** | Ajusta o ganho de áudio do player em tempo real.                                                                    |
+| `/filtro [efeito]`       | **Slash**   | Aplica equalizações avançadas (Nightcore, Vaporwave, Bassboost).                                                    |
+| `/seek [segundos]`       | **Slash**   | Avança ou retrocede para uma marcação de tempo específica da música.                                                |
+| `/remove [número]`       | **Slash**   | Remove cirurgicamente uma faixa da fila pelo seu número de índice.                                                  |
+| `/skipto [número]`       | **Slash**   | Salta para uma música específica da fila, descartando todas as faixas anteriores.                                   |
+| `/playlist [subcomando]` | **Slash**   | Gerencia listas pessoais através de subcomandos (`salvar`, `carregar`, `listar`, `apagar`) com Autocomplete.        |
 
 ---
