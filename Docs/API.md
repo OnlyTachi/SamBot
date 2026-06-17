@@ -11,14 +11,14 @@ O "cérebro" do bot utiliza uma arquitetura híbrida para garantir alta disponib
 - **ChromaDB:** Banco de dados vetorial local utilizado para armazenar e recuperar memórias de longo prazo e factos sobre os utilizadores.
 - **Ollama (Local):** Utilizado para rodar modelos como `Phi-3.5` ou `Qwen` localmente durante o Ciclo Noturno (`NightCycle`) para manutenção de dados.
 
-## 🎵 Áudio & Streaming
+## 🎵 Áudio, Streaming & Servidores de Mídia
 
-A SamBot utiliza uma infraestrutura de áudio profissional isolada para evitar latência e bloqueios de IP.
+A SamBot utiliza uma infraestrutura híbrida de áudio de baixa latência capaz de mesclar arquivos pessoal com streaming da internet.
 
-- **Lavalink (v4):** Servidor de processamento de áudio que gere as streams em tempo real.
-- **YouTube (via Plugin):** Integração através do `youtube-plugin` para Lavalink, permitindo a pesquisa e reprodução de vídeos e playlists.
-- **SoundCloud / Twitch / Bandcamp:** Suportados nativamente através das fontes do servidor Lavalink.
-- **Wavelink:** Biblioteca Python que faz a ponte entre o Discord e o servidor Lavalink.
+- **Lavalink (v4):** Servidor de processamento de áudio externo (rodando em porta segura SSL/TLS 443) que gerencia os fluxos de transmissão e decodificação em tempo real.
+- **Wavelink (v3/v4 Wrapper):** Biblioteca Python assíncrona utilizada para fazer a ponte de comunicação nativa entre o ecossistema do Discord.py e o nó do Lavalink.
+- **[Navidrome (Subsonic API):](Config/Navidrome.md)** Servidor de streaming local integrado diretamente ao bot. Permite que o `SearchManager` faça varreduras por chamadas HTTP assíncronas (`aiohttp`) na sua biblioteca de arquivos local de alta fidelidade antes de buscar dados na internet.
+- **YouTube / SoundCloud:** Suportados de forma integrada via Lavalink como provedores de fallback online caso a música não seja encontrada na biblioteca do Navidrome.
 
 ## 🎮 Jogos & Lojas
 

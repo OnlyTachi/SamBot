@@ -2,7 +2,7 @@
 .env
 Data/Config/*.json
 Data/Persistence/Tokens/
-Lavalink/application.yml
+application.yml
 
 # Dados de Utilizador e Memória (RAG)
 Data/Persistence/Users/*
