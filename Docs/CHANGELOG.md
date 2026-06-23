@@ -1,5 +1,104 @@
 # Changelog
 
+## [v2.2.4] - 23 de junho de 2026
+
+### 🧠 Atualizações Críticas no Cérebro & Pipeline Cognitivo
+
+O motor de inteligência e o pipeline de processamento central da SamBot receberam uma grande atualização focada em autonomia de intenções através do `nlp_data.json` e resiliência contra bloqueios de geração e filtros rígidos das APIs de LLM.
+
+#### 🔄 Integração Dinâmica com o `nlp_data.json` (Fallback do Roteador)
+
+- **Eliminação de Barreiras Estáticas:** Substituída a antiga lista engessada de `triggers` fixos dentro do `Pipeline.py` por uma leitura dinâmica e automatizada que unifica todos os gatilhos mapeados no `nlp_data.json` em tempo de execução.
+- **Roteamento Inteligente de Ferramentas:** Consultas sobre sinopses, mangás e animes (como as requisições para a `AnimeTool` via Jikan/Trace.moe) agora passam livremente pela triagem de intenções sem a necessidade de intervenção ou manutenção dupla no código Python.
+
+#### 🛡️ Blindagem contra o Erro de Recitação (Gemini `finish_reason: 8`)
+
+- **Tratamento de Filtros no `LLMFactory.py`:** Implementada uma validação defensiva no método de geração assíncrona para interceptar candidatos a respostas que venham vazios devido aos filtros de plágio e direitos autorais do Google (gerados quando dados brutos de ferramentas como sinopses oficiais são idênticos à internet).
+- **Proteção de Falha (Failover):** Caso o filtro de recitação seja disparado, o gerenciador de chaves limpa o estado, evita a quebra do robô (`response.text Quick Accessor Error`) e rotaciona o processamento para as chaves subsequentes ou para o contêiner de contingência local do Ollama.
+- **Diretriz de Parafrasagem Ativa:** Injetada uma instrução de proteção sistêmica no prompt de contexto geral (`full_sys`) ordenando à IA que nunca copie dados linha por linha das ferramentas de busca, forçando resumos autorais, limpos e carismáticos.
+
+#### 💸 Calibração de Ferramentas de Jogos (`GameTool` & `CheapShark`)
+
+- **Correção de Moeda:** Ajustada a priorização semântica do prompt para garantir que a LLM consuma e exiba os valores convertidos em Reais (BRL) calculados matematicamente pelo `CheapSharkService` e `CurrencyService`, abandonando a exibição padrão estática em dólares comuns da internet.
+
+---
+
+### 🚀 Visão Geral do Sistema de Áudio (Centralização & Desacoplamento)
+
+O ecossistema de áudio da SamBot passou por uma grande reestruturação arquitetural focada em desacoplamento e resiliência (arquitetura opcional). A pasta monolítica de comandos do player foi fragmentada em Cogs especializados por subdomínios, e a lógica de infraestrutura de múltiplos servidores e balanceamento híbrido foi completamente isolada no módulo `Lavalink`.
+
+---
+
+## ✨ Novidades e Nova Arquitetura de Pastas (Áudio)
+
+O módulo `Audio/Player/*` agora opera de forma modular, dividido estritamente em comandos de entrada, controles de fluxo e utilitários de equalização avançada.
+
+### 🧠 Motor de Busca & Roteamento Cirúrgico
+
+- **Ajuste de Roteamento Local:** Correção crítica no fluxo do `SearchManager` para forçar o parâmetro `node=node` explicitando o identificador `"LOCAL"` nas pesquisas geradas na Intranet. Isso impede que o Wavelink envie streams locais (`http://127.0.0.1/...`) por balanceamento global para nós na nuvem (Lavalink Online), eliminando erros de conexão externa do tipo _Host Unreachable_.
+
+### 🎵 Fragmentação de Comandos e Componentização (Cogs)
+
+- **`playCommand.py`:** Concentra exclusivamente a lógica pesada de pesquisa inteligente e injeção inicial de faixas únicas ou playlists inteiras na fila, consumindo de forma isolada os dados do `SearchManager`.
+- **`controlCommand.py`:** Centraliza o painel visual interativo (`PlayerControlView`) com botões efêmeros para gerenciamento de fluxo em canais de voz, além dos comandos `/skip`, `/pause`, `/resume` e `/stop`.
+- **`extraCommand.py`:** Agrupa ferramentas de manipulação temporal, volume e exibição fina de status, incluindo o comando `/nowplaying` (com a barra de progressão em texto estilizado), `/seek`, `/remove` e `/skipto`.
+
+### 🏥 Suíte de Inicialização Resiliente & Opcional
+
+- **Boot Isolado no Módulo:** A rotina de carregamento e ativação física dos nós (`setup_nodes`) foi transferida de forma definitiva do núcleo global do bot para o listener assíncrono `on_ready` dentro de `controlCommand.py`.
+- **Garantia de Tolerância a Falhas:** Caso o servidor Lavalink local esteja offline ou desconfigurado no arranque, os erros de rede e handshakes TCP falhos are tratados e isolados em um bloco _try/except_, impedindo o travamento da inicialização geral da aplicação.
+
+---
+
+## 🔄 Modificações e Refatorações na Infraestrutura (Docker)
+
+- **Orquestração de Boot Sequencial (`docker-compose.yml`):** Implementada a propriedade `depends_on` condicionada ao status de saúde (`service_healthy`) para o contêiner `sambot`. O bot agora aguarda em segundo plano até que o contêiner vizinho `lavalink_local` finalize completamente a inicialização do Java e esteja pronto para receber conexões.
+- **Teste de Saúde sem Autenticação (Healthcheck TCP):** Desenvolvido um validador de saúde de baixo nível baseado em sockets nativos do Linux (`/dev/tcp/127.0.0.1/2333`). Isso elimina testes baseados em requisições HTTP (`wget` / `curl`), contornando de forma elegante os bloqueios e logs de erros de credenciais ausentes (`Authorization missing`) causados pelo filtro de segurança nativo do Lavalink v4.
+- **Isolamento de Redes Internas:** Substituição de endereços de loopback estáticos (`127.0.0.1`) no arquivo `.env` pelo mapeamento DNS interno do Docker Compose (`LAVALINK_LOCAL_HOST=lavalink`), permitindo comunicações de rede perfeitas entre contêineres na mesma ponte (_bridge_).
+
+---
+
+## 🐛 Correções de Erros (Bug Fixes)
+
+#### Sincronização do Diagnóstico Subsonic (AttributeError):
+
+- **Correção:** Resolvida a falha que disparava uma exceção de atributo ao invocar a rotina de teste automático da biblioteca do Navidrome.
+- **Solução:** Reincorporado o método assíncrono `test_navidrome_connection()` diretamente dentro da nova estrutura orientada a objetos da classe `SearchManager` em `Lavalink/_search_manager.py`, reativando pings em tempo de boot via protocolo JSON.
+
+#### Tratamento de Strings de Falha Híbrida (`NOT_FOUND_LOCAL`):
+
+- **Correção:** Sincronizados os retornos literais de erro entre a busca e a interface. O comando `/play` agora checa adequadamente pela string de retorno atualizada `"NOT_FOUND_LOCAL"`, garantindo o envio correto do embed explicativo instruindo o usuário a ajustar o arquivo `.env` para o modo híbrido ou online.
+
+---
+
+## 🗑️ Remoções
+
+- **Arquivo Monolítico Extinto:** Remoção definitiva do arquivo legado `Audio/Player/commands.py`, eliminando duplicidades de código, heranças circulares e unificando as chamadas nas extensões fragmentadas.
+- **Parâmetros Obsoletos no `_search_manager.py`:** Retiradas as variáveis redundantes `api_version` e `client_name` do inicializador da busca, deixando-as fixas em suas respectivas rotinas de autenticação Subsonic.
+
+---
+
+## 📁 Estrutura de Arquivos Afetados
+
+```text
+├── docker-compose.yml             # Orquestração do healthcheck TCP e dependência de boot
+├── application.yml                # Configuração do Lavalink (Fontes locais ativas, HTTP true)
+├── Brain/
+│   ├── Core/
+│   │   └── Pipeline.py            # Roteamento dinâmico via nlp_data.json e diretriz de parafrasagem
+│   └── Providers/
+│       └── LLMFactory.py          # Interceptador defensivo de falhas de recitação (Erro Part/Finish Reason 8)
+├── Audio/
+│   ├── Lavalink/
+│   │   ├── _node_manager.py       # Inicializador dinâmico de nós locais e remotos
+│   │   └── _search_manager.py     # Injeção de ping.view e roteamento local corrigido para Navidrome
+│   └── Player/
+│       ├── playCommand.py         # Novo Cog isolado focado no comando play e carregamento de listas
+│       ├── controlCommand.py      # Novo Cog focado na PlayerControlView, listeners e controles diretos
+│       └── extraCommand.py        # Novo Cog focado em filtros, volume, barra de progresso e manipulação
+
+```
+
 ## [v2.2.3] - 17 de junho de 2026
 
 ### 🚀 Visão Geral do Sistema de Áudio (Reestruturação Híbrida)

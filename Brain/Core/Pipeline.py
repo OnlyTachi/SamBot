@@ -41,6 +41,7 @@ tentar_importar_tool(
 )
 tentar_importar_tool("vision", "Brain.Tools.Images.VisionTool", "VisionTool")
 tentar_importar_tool("music_recommend", "Brain.Tools.MusicRecTool", "MusicRecTool")
+tentar_importar_tool("anime", "Brain.Tools.Anime.AnimeTool", "AnimeTool")
 
 TOOLS_AVAILABLE = len(TOOL_CLASSES) > 0
 
@@ -119,19 +120,30 @@ class CognitionPipeline:
     async def _rotear_ferramentas(self, content: str) -> str:
         if not self.tools or not self.llm_factory:
             return ""
-        triggers = [
-            "clima",
-            "tempo",
-            "jogo",
-            "game",
-            "imagem",
-            "foto",
-            "pesquisa",
-            "busca",
-            "recomenda",
-            "musica",
-        ]
-        if not any(t in content.lower() for t in triggers):
+
+        nlp_config = self.data_manager.get_knowledge("nlp_data") or {}
+        intents = nlp_config.get("intents", {})
+
+        dynamic_triggers = []
+        for intent_name, intent_data in intents.items():
+            dynamic_triggers.extend(intent_data.get("triggers", []))
+
+        if not dynamic_triggers:
+            dynamic_triggers = [
+                "clima",
+                "tempo",
+                "jogo",
+                "game",
+                "imagem",
+                "foto",
+                "pesquisa",
+                "busca",
+                "recomenda",
+                "musica",
+                "anime",
+            ]
+
+        if not any(t in content.lower() for t in dynamic_triggers):
             return ""
 
         ferramentas_disponiveis = "', '".join(self.tools.keys())
@@ -170,6 +182,11 @@ class CognitionPipeline:
                             )
                         elif name == "weather":
                             res = await tool.get_weather(args)
+                        elif name == "anime":
+                            if args.startswith("http"):
+                                res = await tool.identify_anime_by_image(args)
+                            else:
+                                res = await tool.search_anime(args)
                         elif name == "music_recommend":
                             res = await tool.recommend_music(args)
                         elif name == "game_search":
@@ -274,6 +291,9 @@ class CognitionPipeline:
             sys_prompt_base = self._carregar_prompt(persona_name)
             full_sys = (
                 f"{sys_prompt_base}\n"
+                "DIRETRIZ DE JOGOS: Quando o usuário perguntar o preço de um jogo, você DEVE utilizar "
+                "os valores em Reais (R$) fornecidos pela ferramenta [GAMETOOL] no contexto abaixo. "
+                "Nunca use preços em dólares se houver valores em Reais disponíveis no relatório.\n"
                 f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
                 f"Conversando com: {user_name} (ID: {user_id})\n"
                 f"{rag}{tools}\n"

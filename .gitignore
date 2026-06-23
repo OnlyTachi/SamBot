@@ -24,3 +24,4 @@ cookies.txt
 
 # Docker
 .dockerignore
+Data/Users/users.json

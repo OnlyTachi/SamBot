@@ -217,6 +217,11 @@ class LLMFactory:
                 genai.configure(api_key=key)
                 model = self._criar_modelo(system_instruction=system_instruction)
                 response = await model.generate_content_async(prompt_parts)
+                if not response.candidates or not response.candidates[0].content.parts:
+                    self.log.warning(
+                        f"  Resposta do Gemini bloqueada ou vazia. Motivo: {response.candidates[0].finish_reason if response.candidates else 'Desconhecido'}"
+                    )
+                    continue  # Pula para a próxima chave ou força o fallback do Ollama
                 self.active_model = model
                 return response.text
             except google_exceptions.ResourceExhausted:
