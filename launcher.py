@@ -34,7 +34,7 @@ def print_header():
     print(r" \___ \ / _` | '_ ` _ \|  _ \ / _ \| __|")
     print(r"  ___) | (_| | | | | | | |_) | (_) | |_ ")
     print(r" |____/ \__,_|_| |_| |_|____/ \___/ \__|")
-    print(f"                                   v3.5{C_RESET}")
+    print(f"                                   v4.0{C_RESET}")
     print(f"{C_MAGENTA}>> Centro de Controle, Diagnóstico e Configuração <<{C_RESET}\n")
 
 
@@ -60,10 +60,8 @@ def read_env_file():
         with open(".env", "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                # Ignora linhas vazias e comentários
                 if line and not line.startswith("#") and "=" in line:
                     key, val = line.split("=", 1)
-                    # Limpa aspas se presentes
                     val = val.strip().strip('"').strip("'")
                     env_data[key.strip()] = val
     return env_data
@@ -87,7 +85,7 @@ def read_last_lines(filepath, num_lines=25):
 
 
 def ensure_dependencies_and_get_python():
-    """Verifica/instala dependências, criando venv se necessário (PEP 668). Retorna o comando python correto."""
+    """Verifica/instala dependências, criando venv se necessário (PEP 668)."""
     print(f"{C_YELLOW}[!] Verificando e instalando dependências...{C_RESET}")
     if not os.path.exists("requirements.txt"):
         print(
@@ -96,8 +94,6 @@ def ensure_dependencies_and_get_python():
         return get_python_cmd()
 
     base_python = get_python_cmd()
-
-    # Verifica se já existe um ambiente virtual
     venv_python = os.path.join(
         ".venv", "Scripts" if os.name == "nt" else "bin", "python"
     )
@@ -107,26 +103,21 @@ def ensure_dependencies_and_get_python():
     cmd = [active_python, "-m", "pip", "install", "-r", "requirements.txt"]
 
     try:
-        # Redirecionamos a saída para capturar o erro PEP 668 se ocorrer
         result = subprocess.run(cmd, capture_output=True, text=True)
-
         if result.returncode == 0:
             print(f"{C_GREEN}[V] Dependências verificadas com sucesso!{C_RESET}")
             return active_python
 
-        # Se falhou devido a ambiente gerenciado externamente
         if "externally-managed-environment" in result.stderr:
             print(
                 f"{C_YELLOW}[!] Ambiente gerenciado detectado (PEP 668). Criando .venv...{C_RESET}"
             )
             subprocess.run([base_python, "-m", "venv", ".venv"], check=True)
-
             print(
                 f"{C_YELLOW}[!] Ambiente criado. Instalando dependências no .venv...{C_RESET}"
             )
             cmd = [venv_python, "-m", "pip", "install", "-r", "requirements.txt"]
             subprocess.run(cmd, check=True)
-
             print(f"{C_GREEN}[V] Dependências instaladas no ambiente virtual!{C_RESET}")
             return venv_python
         else:
@@ -135,11 +126,8 @@ def ensure_dependencies_and_get_python():
             )
             return active_python
 
-    except subprocess.CalledProcessError:
-        print(f"{C_RED}[X] Falha crítica ao criar ou usar o ambiente virtual.{C_RESET}")
-        return active_python
     except Exception as e:
-        print(f"{C_RED}[X] Erro inesperado: {e}{C_RESET}")
+        print(f"{C_RED}[X] Erro inesperado nas dependências: {e}{C_RESET}")
         return active_python
 
 
@@ -164,7 +152,6 @@ def git_updater():
 
     print(f"{C_YELLOW}[!] Buscando atualizações no repositório remoto...{C_RESET}")
     subprocess.run(["git", "fetch"])
-
     status = subprocess.run(["git", "status", "-uno"], capture_output=True, text=True)
     print(f"\n{status.stdout}")
 
@@ -174,16 +161,13 @@ def git_updater():
             print(f"{C_GREEN}Baixando e aplicando atualização...{C_RESET}")
             subprocess.run(["git", "pull"])
             print(f"{C_GREEN}[V] Atualização concluída com sucesso!{C_RESET}")
-            print(
-                f"{C_YELLOW}Dica: Caso novas dependências tenham sido adicionadas, verifique-as ao iniciar o bot.{C_RESET}"
-            )
     elif "up to date" in status.stdout or "atualizado" in status.stdout:
         print(
             f"{C_GREEN}[V] O seu bot já está na versão mais recente do repositório!{C_RESET}"
         )
     else:
         print(
-            f"{C_YELLOW}[?] Status de repositório desconhecido ou você possui alterações locais pendentes.{C_RESET}"
+            f"{C_YELLOW}[?] Status de repositório desconhecido ou alterações locais pendentes.{C_RESET}"
         )
 
     input(f"\n{C_CYAN}Pressione ENTER para voltar ao menu...{C_RESET}")
@@ -209,7 +193,7 @@ def run_diagnostics():
     else:
         print(f"{C_RED}Não encontrado (Use o Assistente de Configuração){C_RESET}")
 
-    print("Lavalink Externo (lavalinkv4.serenetia.com:443): ", end="")
+    print("Lavalink Padrão (lavalinkv4.serenetia.com:443): ", end="")
     if ping_host("lavalinkv4.serenetia.com", 443):
         print(f"{C_GREEN}Acessível{C_RESET}")
     else:
@@ -232,7 +216,7 @@ def setup_wizard(first_time=False):
             f"\n{C_YELLOW}Parece que é sua primeira vez aqui! Vamos configurar o básico.{C_RESET}"
         )
         print(
-            f"({C_CYAN}Dica: Se não souber o que responder, digite ? e aperte Enter{C_RESET})\n"
+            f"({C_CYAN}Dica: Se não souber o que responder, digite ? e aprete Enter{C_RESET})\n"
         )
     else:
         print_header()
@@ -258,7 +242,7 @@ def setup_wizard(first_time=False):
             return
 
         print(
-            f"\n({C_CYAN}Dica: Digite '?' para ajuda ou aperte ENTER para manter o valor atual entre colchetes []{C_RESET})\n"
+            f"\n({C_CYAN}Dica: Digite '?' para ajuda ou aperte ENTER para manter o valor atual{C_RESET})\n"
         )
 
     def ask(key, prompt, help_text, default_fallback=""):
@@ -276,7 +260,6 @@ def setup_wizard(first_time=False):
             else:
                 return val
 
-    # Dicionário temporário para guardar as novas edições
     env_data = current_env.copy()
 
     # Configurações Principais
@@ -284,123 +267,182 @@ def setup_wizard(first_time=False):
     env_data["DISCORD_TOKEN"] = ask(
         "DISCORD_TOKEN",
         "🔑 Token do bot?",
-        "O token secreto do seu bot gerado no Discord Developer Portal (https://discord.com/developers/applications).",
+        "Token do bot gerado no Discord Developer Portal.",
     )
     env_data["OWNER_ID"] = ask(
-        "OWNER_ID",
-        "👑 ID do Dono (Owner ID)?",
-        "Seu ID numérico do Discord para obter permissões administrativas máximas de dono no bot.",
+        "OWNER_ID", "👑 ID do Dono (Owner ID)?", "Seu ID numérico do Discord."
     )
     env_data["BOT_PREFIX"] = ask(
-        "BOT_PREFIX",
-        "⚡ Prefixo do Bot?",
-        "Símbolo para comandos de texto convencionais (ex: +).",
-        "+",
+        "BOT_PREFIX", "⚡ Prefixo do Bot?", "Símbolo para comandos de texto.", "+"
     )
 
-    # Configurações do Servidor de Áudio Lavalink
-    print(f"\n{C_MAGENTA}--- Configuração de Áudio (Lavalink) ---{C_RESET}")
-    env_data["LAVALINK_HOST"] = ask(
-        "LAVALINK_HOST",
-        "📻 Host do Lavalink?",
-        "O endereço do servidor de áudio Lavalink.",
-        "lavalinkv4.serenetia.com",
-    )
-    env_data["LAVALINK_PORT"] = ask(
-        "LAVALINK_PORT",
-        "🔌 Porta do Lavalink?",
-        "A porta de comunicação do servidor (geralmente 443 para conexões seguras SSL).",
-        "443",
-    )
-    env_data["LAVALINK_PASSWORD"] = ask(
-        "LAVALINK_PASSWORD",
-        "🔒 Senha do Lavalink?",
-        "Senha de autenticação de sua instância Lavalink.",
-        "https://seretia.link/discord",
-    )
-
-    # Configurações de Mídia / Navidrome
-    print(f"\n{C_MAGENTA}--- Configuração do Navidrome (Mídia Local) ---{C_RESET}")
+    # Fluxo de Música e Servidores Lavalink
+    print(f"\n{C_MAGENTA}--- Fluxo de Música & Lavalink ---{C_RESET}")
     env_data["MUSIC_SOURCE_MODE"] = ask(
         "MUSIC_SOURCE_MODE",
         "🔀 Modo de Busca (HIBRIDO, LOCAL, ONLINE)?",
-        "Como o bot deve buscar músicas. HIBRIDO pesquisa no servidor local e faz fallback na internet.",
-        "HIBRIDO",
+        "HIBRIDO busca local e internet; LOCAL apenas rede interna; ONLINE apenas web.",
+        "ONLINE",
     )
+
+    env_data["LAVALINK_LOCAL_HOST"] = ask(
+        "LAVALINK_LOCAL_HOST",
+        "📻 Host Lavalink Local?",
+        "IP ou host do Lavalink local.",
+        "127.0.0.1",
+    )
+    env_data["LAVALINK_LOCAL_PORT"] = ask(
+        "LAVALINK_LOCAL_PORT",
+        "🔌 Porta Lavalink Local?",
+        "Porta do servidor local.",
+        "2333",
+    )
+    env_data["LAVALINK_LOCAL_PASSWORD"] = ask(
+        "LAVALINK_LOCAL_PASSWORD",
+        "🔒 Senha Lavalink Local?",
+        "Senha do servidor local.",
+        "youshallnotpass",
+    )
+
+    env_data["LAVALINK_ONLINE_HOSTS"] = ask(
+        "LAVALINK_ONLINE_HOSTS",
+        "🌐 Hosts Lavalink Online?",
+        "Lista de servidores remotos separados por vírgula.",
+        "lavalinkv4.serenetia.com",
+    )
+    env_data["LAVALINK_ONLINE_PORTS"] = ask(
+        "LAVALINK_ONLINE_PORTS",
+        "🔌 Portas Lavalink Online?",
+        "Portas correspondentes separadas por vírgula.",
+        "443",
+    )
+    env_data["LAVALINK_ONLINE_PASSWORDS"] = ask(
+        "LAVALINK_ONLINE_PASSWORDS",
+        "🔒 Senhas Lavalink Online?",
+        "Senhas correspondentes separadas por vírgula.",
+        "https://seretia.link/discord",
+    )
+
+    # Mídia Local (Navidrome e Jellyfin)
+    print(f"\n{C_MAGENTA}--- Configuração de Bibliotecas de Mídia ---{C_RESET}")
     env_data["NAVIDROME_URL"] = ask(
         "NAVIDROME_URL",
-        "🌐 URL do Navidrome?",
-        "A URL completa da sua instância Navidrome (Ex: http://192.168.1.100:4533).",
+        "🎵 URL do Navidrome?",
+        "URL completa da sua instância Navidrome.",
         "",
     )
     env_data["NAVIDROME_USER"] = ask(
-        "NAVIDROME_USER",
-        "👤 Usuário do Navidrome?",
-        "Seu nome de usuário cadastrado no servidor Navidrome.",
-        "admin",
+        "NAVIDROME_USER", "👤 Usuário Navidrome?", "Seu usuário no Navidrome.", ""
     )
     env_data["NAVIDROME_PASSWORD"] = ask(
-        "NAVIDROME_PASSWORD",
-        "🔑 Senha do Navidrome?",
-        "A senha correspondente ao usuário do Navidrome configurado.",
+        "NAVIDROME_PASSWORD", "🔑 Senha Navidrome?", "Sua senha do Navidrome.", ""
+    )
+
+    env_data["JELLYFIN_URL"] = ask(
+        "JELLYFIN_URL", "🍿 URL do Jellyfin?", "URL da sua instância Jellyfin.", ""
+    )
+    env_data["JELLYFIN_API_KEY"] = ask(
+        "JELLYFIN_API_KEY",
+        "🔑 Token API Jellyfin?",
+        "Chave de acesso gerada no Jellyfin.",
         "",
     )
 
     # Integrações Avançadas Opcionais
-    print(f"\n{C_MAGENTA}--- Integrações Avançadas (Opcionais) ---{C_RESET}")
+    print(f"\n{C_MAGENTA}--- Integrações Avançadas e APIs (Opcionais) ---{C_RESET}")
     do_advanced = (
         input(
-            f"Deseja configurar integrações avançadas de APIs (IA, Jogos, Buscas)? (s/n) [{C_YELLOW}n{C_RESET}]: "
+            f"Deseja configurar chaves extras de APIs e Inteligência Artificial? (s/n) [{C_YELLOW}n{C_RESET}]: "
         )
         .strip()
         .lower()
     )
 
     if do_advanced == "s":
-        print(f"\n{C_YELLOW}🧠 INTELIGÊNCIA ARTIFICIAL{C_RESET}")
+        print(f"\n{C_YELLOW}🧠 INTELES (IA & LLM){C_RESET}")
+        env_data["GEMINI_MODEL_NAME"] = ask(
+            "GEMINI_MODEL_NAME",
+            "🤖 Modelo Gemini?",
+            "Ex: gemini-2.0-flash",
+            "gemini-2.0-flash",
+        )
         env_data["GEMINI_API_KEY_1"] = ask(
             "GEMINI_API_KEY_1",
-            "Chave da API do Google Gemini?",
-            "Sua chave gratuita criada no Google AI Studio (https://aistudio.google.com/) para habilitar IA.",
+            "🔑 Gemini Chave 1?",
+            "Chave principal do Google AI Studio.",
+        )
+        env_data["GEMINI_API_KEY_2"] = ask(
+            "GEMINI_API_KEY_2",
+            "🔑 Gemini Chave 2?",
+            "Chave secundária de backup (Opcional).",
         )
 
-        print(f"\n{C_YELLOW}🎮 GAMES E LOJAS{C_RESET}")
+        env_data["GROQ_API_KEY"] = ask(
+            "GROQ_API_KEY", "⚡ Groq API Key?", "Chave do painel Groq."
+        )
+        env_data["GROQ_MODEL"] = ask(
+            "GROQ_MODEL",
+            "🤖 Modelo Groq?",
+            "Modelo a ser usado na Groq.",
+            "llama-3.1-8b-instant",
+        )
+
+        print(f"\n{C_YELLOW}🏠 OLLAMA (Modelos Locais/Tailscale){C_RESET}")
+        env_data["OLLAMA_REMOTE_URL"] = ask(
+            "OLLAMA_REMOTE_URL",
+            "🌐 URL Ollama Remoto?",
+            "Endereço do Ollama remoto via Tailscale/Rede.",
+            "",
+        )
+        env_data["MODEL_SMART_REMOTE"] = ask(
+            "MODEL_SMART_REMOTE",
+            "🤖 Modelo Remoto?",
+            "Ex: phi3.5:latest",
+            "phi3.5:latest",
+        )
+        env_data["OLLAMA_LOCAL_URL"] = ask(
+            "OLLAMA_LOCAL_URL",
+            "💻 URL Ollama Local?",
+            "Endereço local do Ollama.",
+            "http://host.docker.internal:11434",
+        )
+        env_data["MODEL_FAST_LOCAL"] = ask(
+            "MODEL_FAST_LOCAL",
+            "🤖 Modelo Local Rápido?",
+            "Ex: qwen2.5:1.5b",
+            "qwen2.5:1.5b",
+        )
+
+        print(f"\n{C_YELLOW}🎮 JOGOS, MÍDIA E BUSCA{C_RESET}")
         env_data["STEAM_API_KEY"] = ask(
-            "STEAM_API_KEY",
-            "Steam API Key?",
-            "Sua chave de desenvolvedor Steam para permitir consultas de jogos (https://steamcommunity.com/dev/apikey).",
+            "STEAM_API_KEY", "Steam API Key?", "Chave de desenvolvedor da Steam."
         )
         env_data["IGDB_CLIENT_ID"] = ask(
-            "IGDB_CLIENT_ID",
-            "IGDB Client ID (Twitch)?",
-            "O Client ID da Twitch Developers para buscas integradas de games.",
+            "IGDB_CLIENT_ID", "IGDB Client ID?", "Client ID da Twitch Developers."
         )
         env_data["IGDB_CLIENT_SECRET"] = ask(
-            "IGDB_CLIENT_SECRET",
-            "IGDB Client Secret (Twitch)?",
-            "O Client Secret gerado no console de desenvolvedor da Twitch.",
+            "IGDB_CLIENT_SECRET", "IGDB Client Secret?", "Client Secret da Twitch."
         )
-
-        print(f"\n{C_YELLOW}🔍 BUSCA WEB E IMAGENS{C_RESET}")
         env_data["GOOGLE_SEARCH_API_KEY"] = ask(
             "GOOGLE_SEARCH_API_KEY",
-            "Google Custom Search API Key?",
-            "Sua chave de API do Google Cloud Platform para habilitar buscas na web.",
+            "Google Search API Key?",
+            "Chave de busca customizada do Google.",
         )
         env_data["GOOGLE_SEARCH_CX"] = ask(
             "GOOGLE_SEARCH_CX",
-            "Google Search Engine ID (CX)?",
-            "O ID do mecanismo de busca programável personalizado do Google.",
+            "Google CX ID?",
+            "ID do mecanismo de pesquisa programável.",
         )
         env_data["BRAVE_SEARCH_API_KEY"] = ask(
             "BRAVE_SEARCH_API_KEY",
             "Brave Search API Key?",
-            "Sua chave da API do Brave Search utilizada como mecanismo alternativo de busca.",
+            "Chave alternativa do Brave Search.",
         )
         env_data["PIXABAY_API_KEY"] = ask(
-            "PIXABAY_API_KEY",
-            "Pixabay API Key?",
-            "Sua chave da API Pixabay para envio de imagens temáticas no chat.",
+            "PIXABAY_API_KEY", "Pixabay API Key?", "Chave do Pixabay para imagens."
+        )
+        env_data["KLIPY_API_KEY"] = ask(
+            "KLIPY_API_KEY", "Klipy API Key?", "Chave de integração do Klipy."
         )
 
     print(f"\n{C_YELLOW}Salvando arquivo .env...{C_RESET}")
@@ -433,7 +475,6 @@ def run_logs_menu():
             )
             print(read_last_lines("logs/sambot_general.log", num_lines=30))
             input(f"\nPressione {C_YELLOW}ENTER{C_RESET} para retornar...")
-
         elif choice == "2":
             clear_screen()
             print(
@@ -441,7 +482,6 @@ def run_logs_menu():
             )
             print(read_last_lines("logs/sambot_errors.log", num_lines=30))
             input(f"\nPressione {C_YELLOW}ENTER{C_RESET} para retornar...")
-
         elif choice == "3":
             confirm = (
                 input(
@@ -466,7 +506,6 @@ def run_logs_menu():
                         f"{C_RED}❌ Falha ao tentar resetar os arquivos: {e}{C_RESET}"
                     )
                 time.sleep(2)
-
         elif choice == "4":
             clear_screen()
             print(f"{C_CYAN}╔══════════════════════════════════════════╗")
@@ -496,24 +535,14 @@ def run_logs_menu():
                         f"  {C_GREEN}🎙️  Minutos Ativos em Chamada:{C_RESET} {stats.get('voice_time_minutes', 0)} min"
                     )
                 except Exception as e:
-                    print(
-                        f"{C_RED}❌ Falha na leitura do arquivo JSON de estatísticas: {e}{C_RESET}"
-                    )
+                    print(f"{C_RED}❌ Falha na leitura das estatísticas: {e}{C_RESET}")
             else:
                 print(
                     f"{C_YELLOW}ℹ️ O arquivo de métricas ainda não foi gerado pelo Bot.{C_RESET}"
                 )
-                print(
-                    "   (Ligue o bot por alguns instantes para que as estatísticas sejam salvas)."
-                )
-
             input(f"\nPressione {C_YELLOW}ENTER{C_RESET} para retornar...")
-
         elif choice == "0":
             break
-        else:
-            print(f"{C_RED}Opção inválida!{C_RESET}")
-            time.sleep(1)
 
 
 def docker_menu():
@@ -552,9 +581,6 @@ def docker_menu():
             )
         elif choice == "0":
             break
-        else:
-            print(f"{C_RED}Opção inválida!{C_RESET}")
-            time.sleep(1)
 
 
 def start_menu():
@@ -579,15 +605,11 @@ def start_menu():
             print(f"\n{C_GREEN}Iniciando via Docker Compose...{C_RESET}")
             subprocess.run(["docker", "compose", "up", "-d"])
             print(f"\n{C_GREEN}[V] Bot iniciado em segundo plano!{C_RESET}")
-            print(
-                f"{C_YELLOW}Dica: Utilize a opção do Painel Docker no menu principal para ver os logs.{C_RESET}"
-            )
             input(f"\n{C_CYAN}Pressione ENTER para voltar ao menu...{C_RESET}")
             break
         elif choice == "2":
             print(f"\n{C_MAGENTA}--- Preparando Ambiente Nativo ---{C_RESET}")
             python_exec = ensure_dependencies_and_get_python()
-
             print(
                 f"\n{C_GREEN}Iniciando SamBot nativamente... (Pressione Ctrl+C para encerrar){C_RESET}"
             )
@@ -603,9 +625,6 @@ def start_menu():
             break
         elif choice == "0":
             break
-        else:
-            print(f"{C_RED}Opção inválida!{C_RESET}")
-            time.sleep(1)
 
 
 def clean_cache():
@@ -625,13 +644,11 @@ def clean_cache():
 
 def main_menu():
     """Menu principal centralizador."""
-    # Detecta automaticamente se o arquivo de configuração não existe na primeira execução
     if not os.path.exists(".env"):
         setup_wizard(first_time=True)
 
     while True:
         print_header()
-
         env_status = (
             f"{C_GREEN}Configurado{C_RESET}"
             if os.path.exists(".env")
