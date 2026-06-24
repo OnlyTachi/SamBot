@@ -1,4 +1,3 @@
-
 # 📑 Guia Técnico: Infraestrutura Local e Arquitetura SamBot
 
 Este documento fornece uma visão consolidada da camada de processamento local do projeto **SamBot**. Ele detalha como o **Ollama** atua como o motor de inteligência, integrando uma rede híbrida de hardware para equilibrar performance, economia de recursos e privacidade.
@@ -11,9 +10,9 @@ A SamBot utiliza uma abordagem de **IA Híbrida**. As tarefas são distribuídas
 
 ### Por que esta arquitetura?
 
-* **Privacidade e Custo:** O processamento local via Ollama reduz a dependência de APIs pagas e mantém dados sensíveis fora da nuvem.
-* **Failover Inteligente:** Capacidade de alternar entre modelos locais e o Gemini (nuvem) caso algum nó da rede fique offline.
-* **Otimização de Hardware:** Distribuição de carga conforme a complexidade da tarefa.
+- **Privacidade e Custo:** O processamento local via Ollama reduz a dependência de APIs pagas e mantém dados sensíveis fora da nuvem.
+- **Failover Inteligente:** Capacidade de alternar entre modelos locais e o Gemini (nuvem) caso algum nó da rede fique offline.
+- **Otimização de Hardware:** Distribuição de carga conforme a complexidade da tarefa.
 
 ---
 
@@ -21,17 +20,17 @@ A SamBot utiliza uma abordagem de **IA Híbrida**. As tarefas são distribuídas
 
 ### 🚀 Nó de Alta Performance (Workstation Principal)
 
-* **SO:** Linux Mint
-* **CPU:** Intel Xeon E3-1270
-* **RAM:** 24GB RAM
-* **GPU:** AMD Radeon RX 580 (8GB VRAM)
-* **Função:** Motor principal de processamento de LLMs pesados com aceleração ROCm.
+- **SO:** Linux Mint
+- **CPU:** Intel Xeon E3-1270
+- **RAM:** 24GB RAM
+- **GPU:** AMD Radeon RX 580 (8GB VRAM)
+- **Função:** Motor principal de processamento de LLMs pesados com aceleração ROCm.
 
 ### 🔋 Nó de Baixa Potência (Servidor)
 
-* **SO:** Ubuntu Server
-* **Dispositivo:** Acer ES1-573 (i3 6006u, 8GB RAM)
-* **Função:** Host do bot, containers Docker e modelos ultra-leves para comandos rápidos.
+- **SO:** Ubuntu Server
+- **Dispositivo:** Acer ES1-573 (i3 6006u, 8GB RAM)
+- **Função:** Host do bot, containers Docker e modelos ultra-leves para comandos rápidos.
 
 ---
 
@@ -39,11 +38,11 @@ A SamBot utiliza uma abordagem de **IA Híbrida**. As tarefas são distribuídas
 
 O SamBot utiliza três modelos específicos para diferentes propósitos:
 
-| Modelo | Função | Localização | Vantagem |
-| --- | --- | --- | --- |
-| **Phi-3.5** | Lógica e Raciocínio | Workstation (Mint) | Alta precisão e velocidade via GPU. |
-| **Qwen-2.5 1.5B** | Comandos Rápidos | Servidor (Ubuntu) | Extremamente leve, evita latência. |
-| **Nomic-Embed-Text** | Memória (Embeddings) | Workstation/Server | Vetorização para o ChromaDB (RAG). |
+| Modelo               | Função               | Localização        | Vantagem                            |
+| -------------------- | -------------------- | ------------------ | ----------------------------------- |
+| **Phi-3.5**          | Lógica e Raciocínio  | Workstation (Mint) | Alta precisão e velocidade via GPU. |
+| **Qwen-2.5 1.5B**    | Comandos Rápidos     | Servidor (Ubuntu)  | Extremamente leve, evita latência.  |
+| **Nomic-Embed-Text** | Memória (Embeddings) | Workstation/Server | Vetorização para o ChromaDB (RAG).  |
 
 ---
 
@@ -55,11 +54,13 @@ No Linux, o Ollama utiliza o **ROCm** para acessar o poder da GPU AMD, o que é 
 
 1. **Instalar drivers ROCm:** Certifique-se de que os drivers de vídeo e suporte ROCm estão instalados no Mint.
 2. **Instalar Ollama:**
+
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
 3. **Baixar Modelos:**
+
 ```bash
 ollama run phi3.5:latest
 ollama pull nomic-embed-text:latest
@@ -67,21 +68,21 @@ ollama pull nomic-embed-text:latest
 
 > **Verificação:** Use `rocm-smi` ou verifique os logs do Ollama para confirmar a detecção da RX 580.
 
-*Obs: Isso varia de placa e SO*
+_Obs: Isso varia de placa e SO_
+
 ### ⚙️ Configuração no Ubuntu Server (Acer ES1)
 
 1. **Instalar Ollama:**
+
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
 ```
 
-
 2. **Baixar Modelo Leve:**
+
 ```bash
 ollama run qwen2.5:1.5b
 ```
-
-
 
 ---
 
@@ -92,19 +93,20 @@ Para que o SamBot no servidor Ubuntu consiga "falar" com o Ollama no PC Mint de 
 ### Passo a Passo da Conexão:
 
 1. **Habilitar Acesso Externo (Nó Mint):**
-É necessário configurar o Ollama para aceitar conexões fora do localhost. No Linux, edite o serviço do systemd:
-* Adicione a variável de ambiente: `OLLAMA_HOST=0.0.0.0`
+   É necessário configurar o Ollama para aceitar conexões fora do localhost. No Linux, edite o serviço do systemd:
 
+- Adicione a variável de ambiente: `OLLAMA_HOST=0.0.0.0`
 
-2. **Configuração no arquivo `.env` do SamBot:**
-O bot deve apontar para o IP interno gerado pelo Tailscale para a workstation.
+2. **Configuração no arquivo `.env` da SamBot:**
+   O bot deve apontar para o IP interno gerado pelo Tailscale para a workstation.
+
 ```env
 # IP do Tailscale da Workstation Linux Mint
-OLLAMA_REMOTE_URL="http://100.x.y.z:11434" 
+OLLAMA_REMOTE_URL="http://100.x.y.z:11434"
 
 ```
-### Extra usando docker (meu caso)
 
+### Extra usando docker (meu caso)
 
 ## 1. Subindo o Container com Acesso Externo
 
@@ -139,9 +141,9 @@ docker run -d \
 
 ## 2. Entendendo os Parâmetros
 
-* **`-p 11434:11434`**: Mapeia a porta interna do container para a porta física da sua máquina.
-* **`-e OLLAMA_HOST=0.0.0.0`**: Esta é a chave. Ao definir como `0.0.0.0`, você diz ao Ollama para aceitar conexões de qualquer interface de rede, não apenas de dentro do container.
-* **`-v ollama:/root/.ollama`**: Garante que os modelos que você baixar não sejam apagados se o container for reiniciado.
+- **`-p 11434:11434`**: Mapeia a porta interna do container para a porta física da sua máquina.
+- **`-e OLLAMA_HOST=0.0.0.0`**: Esta é a chave. Ao definir como `0.0.0.0`, você diz ao Ollama para aceitar conexões de qualquer interface de rede, não apenas de dentro do container.
+- **`-v ollama:/root/.ollama`**: Garante que os modelos que você baixar não sejam apagados se o container for reiniciado.
 
 ## 3. Configuração de CORS (Opcional, mas importante)
 
@@ -181,7 +183,6 @@ services:
 
 volumes:
   ollama_data:
-
 ```
 
 ### Como aplicar?
@@ -192,7 +193,6 @@ volumes:
 ---
 
 **Dica para sua rede Mesh:** Na SamBot, agora você pode apontar o `OLLAMA_REMOTE_URL` para o IP do Tailscale da máquina onde este container está rodando, seguido da porta `:11434`.
-
 
 ---
 

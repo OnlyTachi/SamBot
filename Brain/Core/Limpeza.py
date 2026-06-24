@@ -1,141 +1,126 @@
+# Brain/Core/Limpeza.py
 import re
-import unicodedata
+import logging
 from typing import Optional, Dict, Any
-# vassoura mágica para limpeza e normalização de comandos de usuário.. talvez útil para chatbots e assistentes virtuais.
+
+try:
+    import spacy
+    from rapidfuzz import process, fuzz
+
+    SPACY_AVAILABLE = True
+except ImportError:
+    SPACY_AVAILABLE = False
+    logging.warning(
+        "⚠️ Bibliotecas 'spacy' ou 'rapidfuzz' ausentes. O NLP rodará em modo degradado."
+    )
+
+
 class LimpezaManager:
     """
-    Gestor de Intenções.
-    Inclui: Remoção de emojis, correção de gírias, deduplicação de comandos
-    e normalização linguística profunda.
+    Gestor de Intenções Híbrido.
+    Inclui: Remoção de emojis, correção de gírias e o Motor NLP (spaCy + RapidFuzz).
     """
 
     def __init__(self):
-        # Dicionário de correções rápidas (Gírias/Erros comuns)
+        self.logger = logging.getLogger("SamBot.Limpeza")
+
         self.slang_map = {
-            r'\bvc\b': 'voce',
-            r'\bvcs\b': 'voces',
-            r'\bpra\b': 'para',
-            r'\bpro\b': 'para o',
-            r'\bt[aá]\b': 'esta',
-            r'\bt[oô]\b': 'estou',
-            r'\beq\b': 'e que',
-            r'\bobg\b': 'obrigado',
-            r'\bq\b': 'que',
-            r'\bn\b': 'nao'
+            r"\bvc\b": "voce",
+            r"\bvcs\b": "voces",
+            r"\bpra\b": "para",
+            r"\bpro\b": "para o",
+            r"\bt[aá]\b": "esta",
+            r"\bt[oô]\b": "estou",
+            r"\beq\b": "e que",
+            r"\bobg\b": "obrigado",
+            r"\bq\b": "que",
+            r"\bn\b": "nao",
         }
 
-        # Configuração de Intenções
-        self._intents_config = {
-            "clima": [
-                r'clima\s+(?:em|no|na)?\s*(.+)',
-                r'tempo\s+(?:em|no|na)?\s*(.+)',
-                r'previsao\s+(?:do\s+tempo)?\s*(?:para)?\s*(.+)',
-                r'vai\s+chover\s+(?:em|no|na)?\s*(.+)'
-            ],
-            "jogos": [
-                r'quanto\s+custa\s+(.+)',
-                r'preco\s+(?:do|de)?\s*(.+)',
-                r'vale\s+a\s+pena\s+comprar\s+(.+)',
-                r'informacoes\s+sobre\s+o\s+jogo\s+(.+)'
-            ],
-            "busca": [
-                r'quem\s+e\s+(.+)',
-                r'o\s+que\s+e\s+(.+)',
-                r'pesquise\s+(?:sobre)?\s*(.+)',
-                r'google\s+(.+)'
-            ]
-        }
+        self.emoji_pattern = re.compile(r"[\U00010000-\U0010ffff]", flags=re.UNICODE)
+        self.duplicate_pattern = re.compile(r"(\b\w+\b|(?!!)\W)\s+\1", re.IGNORECASE)
 
-        # Compilação de padrões
-        self.patterns = {
-            intent: [re.compile(p, re.IGNORECASE) for p in regex_list]
-            for intent, regex_list in self._intents_config.items()
-        }
-        
-        # Regex para Emojis e Símbolos Especiais (Unicode range)
-        self.emoji_pattern = re.compile(r'[\U00010000-\U0010ffff]', flags=re.UNICODE)
-        # Regex para repetições de palavras ou símbolos (ex: !! ou "ola ola")
-        self.duplicate_pattern = re.compile(r'(\b\w+\b|(?!!)\W)\s+\1', re.IGNORECASE)
+        # Inicializa o motor NLP local
+        if SPACY_AVAILABLE:
+            try:
+                self.nlp = spacy.load("pt_core_news_sm", disable=["ner", "parser"])
+            except OSError:
+                self.logger.warning(
+                    "Modelo 'pt_core_news_sm' não encontrado. Use: python -m spacy download pt_core_news_sm"
+                )
+                self.nlp = None
+        else:
+            self.nlp = None
 
     def _remove_emojis(self, text: str) -> str:
-        """Remove ícones e emojis da string."""
-        return self.emoji_pattern.sub(r'', text)
+        return self.emoji_pattern.sub(r"", text)
 
     def _fix_slang(self, text: str) -> str:
-        """Corrige gírias e abreviações comuns."""
         for pattern, replacement in self.slang_map.items():
             text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
         return text
 
     def _remove_duplicates(self, text: str) -> str:
-        """Remove comandos ou palavras duplicadas acidentalmente (ex: !bot !bot)."""
-        # Aplica a limpeza de duplicatas consecutivas
         last_text = ""
         while last_text != text:
             last_text = text
-            text = self.duplicate_pattern.sub(r'\1', text)
+            text = self.duplicate_pattern.sub(r"\1", text)
         return text
 
-    def _normalize_text(self, text: str) -> str:
-        """Processo completo de higienização e normalização."""
-        if not text: return ""
-        
-        # 1. Remover Emojis
-        text = self._remove_emojis(text)
-        
-        # 2. Remover duplicatas (ex: "!!", "clima clima")
-        text = self._remove_duplicates(text)
-        
-        # 3. Corrigir gírias (vc -> voce)
-        text = self._fix_slang(text)
-        
-        # 4. Normalização Unicode (remover acentos)
-        text = "".join(
-            c for c in unicodedata.normalize('NFD', text)
-            if unicodedata.category(c) != 'Mn'
-        )
-        
-        return text.lower().strip()
+    def _normalize_with_spacy(self, text: str) -> str:
+        """Usa o spaCy para extrair lemas, ignorando pontuações."""
+        if not text:
+            return ""
 
-    def _clean_query(self, query: str) -> str:
-        """Limpeza final do termo extraído."""
-        return query.strip("?.! ,")
+        # Limpeza básica (emoji, duplicatas, gírias) antes do spaCy
+        text = self._remove_emojis(text)
+        text = self._remove_duplicates(text)
+        text = self._fix_slang(text)
+        text = text.lower().strip()
+
+        if not self.nlp:
+            return text  # Fallback se o spaCy não carregar
+
+        doc = self.nlp(text)
+        tokens_limpos = [
+            token.lemma_ for token in doc if not token.is_punct and not token.is_space
+        ]
+        return " ".join(tokens_limpos)
+
+    def identify_intent_hybrid(
+        self, content: str, intents_config: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Camada 0: Mapeia intenções com casamento elástico e lematização."""
+        normalized = self._normalize_with_spacy(content)
+        mejor_intencao = "conversa"
+        maior_score = 0
+        termo_extraido = None
+
+        if SPACY_AVAILABLE and self.nlp:
+            for intent, data in intents_config.items():
+                triggers = data.get("triggers", [])
+                if not triggers:
+                    continue
+
+                match = process.extractOne(
+                    normalized, triggers, scorer=fuzz.token_set_ratio
+                )
+                if match:
+                    gatilho_encontrado, score, _ = match
+
+                    if score > 85 and score > maior_score:
+                        maior_score = score
+                        mejor_intencao = intent
+                        termo_extraido = normalized.replace(
+                            gatilho_encontrado, ""
+                        ).strip()
+        return {
+            "intent": mejor_intencao,
+            "query": termo_extraido,
+            "score_confianca": maior_score,
+            "normalized": normalized,
+            "original": content,
+        }
 
     def identify(self, content: str) -> Dict[str, Any]:
-        """Identifica a intenção após limpeza profunda."""
-        normalized = self._normalize_text(content)
-        
-        for intent, regex_list in self.patterns.items():
-            for pattern in regex_list:
-                match = pattern.search(normalized)
-                if match:
-                    extracted = self._clean_query(match.group(1))
-                    
-                    if intent == "busca" and len(extracted) < 3:
-                        continue
-                        
-                    return {
-                        "intent": intent,
-                        "query": extracted,
-                        "normalized": normalized,
-                        "original": content
-                    }
-
-        return {"intent": "conversa", "query": None, "normalized": normalized, "original": content}
-
-# --- Teste da Inteligência ---
-if __name__ == "__main__":
-    manager = LimpezaManager()
-    testes = [
-        "!! clima em Lisboa ☀️☀️",
-        "vc sabe o preco pro Elden Ring??",
-        "pesquise sobre sobre o que e o que e IA",
-        "pra onde vai o tempo em em Lisboa"
-    ]
-
-    for t in testes:
-        res = manager.identify(t)
-        print(f"Original: {t}")
-        print(f"Limpado:  {res['normalized']}")
-        print(f"Intenção: {res['intent']} | Termo: {res['query']}")
-        print("-" * 30)
+        return self.identify_intent_hybrid(content, {})

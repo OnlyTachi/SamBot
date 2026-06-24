@@ -10,7 +10,7 @@ from datetime import datetime
 import time
 
 # Ferramentas e Subdomínios
-from Brain.Providers.LLMFactory import LLMFactory
+from Brain.Providers.LLMFactory import llm_factory
 from Brain.Memory.DataManager import data_manager
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Memory.LongTerm._learning import AprendizadoAtivo
@@ -42,6 +42,8 @@ tentar_importar_tool(
 tentar_importar_tool("vision", "Brain.Tools.Images.VisionTool", "VisionTool")
 tentar_importar_tool("music_recommend", "Brain.Tools.MusicRecTool", "MusicRecTool")
 tentar_importar_tool("anime", "Brain.Tools.Anime.AnimeTool", "AnimeTool")
+tentar_importar_tool("jellyfin", "Brain.Tools.JellyfinTool", "JellyfinTool")
+tentar_importar_tool("pokemon", "Brain.Tools.PokemonTool", "PokemonTool")
 
 TOOLS_AVAILABLE = len(TOOL_CLASSES) > 0
 
@@ -56,7 +58,8 @@ class CognitionPipeline:
         self.bot = bot
         self.logger = logger
 
-        self.llm_factory = LLMFactory() if LLMFactory else None
+        self.llm_factory = llm_factory
+        self.ai_chain = self.llm_factory.get_default_principal_chain()
         self.vector_store = vector_store
         self.data_manager = data_manager
 
@@ -124,12 +127,19 @@ class CognitionPipeline:
         nlp_config = self.data_manager.get_knowledge("nlp_data") or {}
         intents = nlp_config.get("intents", {})
 
-        dynamic_triggers = []
-        for intent_name, intent_data in intents.items():
-            dynamic_triggers.extend(intent_data.get("triggers", []))
+        analise_intencao = self.limpeza.identify_intent_hybrid(content, intents)
+        intencao_detectada = analise_intencao.get("intent")
+        score = analise_intencao.get("score_confianca", 0)
 
-        if not dynamic_triggers:
-            dynamic_triggers = [
+        intencoes_estaticas = [
+            "identity_check",
+            "general_greetings",
+            "farewells",
+            "conversa",
+        ]
+
+        if intencao_detectada in intencoes_estaticas or score < 60:
+            palavras_chave_gerais = [
                 "clima",
                 "tempo",
                 "jogo",
@@ -138,23 +148,42 @@ class CognitionPipeline:
                 "foto",
                 "pesquisa",
                 "busca",
-                "recomenda",
                 "musica",
                 "anime",
+                "pokemon",
+                "pokémon",
+                "status",
+                "item",
             ]
-
-        if not any(t in content.lower() for t in dynamic_triggers):
-            return ""
+            if not any(t in content.lower() for t in palavras_chave_gerais):
+                return ""  # Ignora o roteador se realmente for papo furado
 
         ferramentas_disponiveis = "', '".join(self.tools.keys())
         router_instruction = (
-            "Responda APENAS JSON (Lista de Objetos).\n"
-            f"Ferramentas: {ferramentas_disponiveis}.\n"
-            'Ex: [{"tool": "weather", "args": "Lisboa"}]'
+            "Você é o Roteador de Ferramentas central. Sua única função é analisar a mensagem do usuário e decidir se ela precisa de uma das ferramentas ativas listadas abaixo.\n\n"
+            "=== REGRAS DE SAÍDA CRÍTICAS ===\n"
+            "1. Responda ESTRITAMENTE com um array JSON válido contendo um objeto com as chaves 'tool' e 'args'.\n"
+            "2. NÃO contextualize, NÃO converse, NÃO envie saudações, NÃO use blocos de código markdown (como ```json).\n"
+            "3. Se NENHUMA ferramenta for estritamente necessária, retorne um array vazio: []\n\n"
+            "=== FERRAMENTAS DISPONÍVEIS ===\n"
+            f"As ferramentas integradas e seus respectivos argumentos esperados são: '{ferramentas_disponiveis}'.\n\n"
+            "=== DIRETRIZES DE MAPEAMENTO ===\n"
+            "- Se o usuário perguntar sobre o clima/temperatura -> tool: 'weather', args: [nome da cidade]\n"
+            "- Se o usuário perguntar o preço de um jogo -> tool: 'game_search', args: [nome do jogo]\n"
+            "- Se o usuário pedir para buscar informações/status de um Pokémon ou item de jogo -> tool: 'pokemon', args: [nome ou ID do pokémon/item]\n"
+            "- Se o usuário pedir para pesquisar algo geral na internet -> tool: 'web_search', args: [termo de busca]\n"
+            "- Se o usuário pedir para recomendar uma música -> tool: 'music_recommend', args: [artista ou gênero]\n"
+            "- Se o usuário perguntar sobre episódios ou buscar um anime -> tool: 'anime', args: [nome do anime]\n"
+            "- Se o usuário quiser ver o catálogo do servidor de mídia local -> tool: 'jellyfin', args: [termo ou 'novidades']\n\n"
+            "=== EXEMPLOS DE SAÍDA COMPORTAMENTAL ===\n"
+            'Usuário: \'Quais os status do Pikachu?\' -> Saída: [{"tool": "pokemon", "args": "pikachu"}]\n'
+            'Usuário: \'Quanto tá custando o GTA V?\' -> Saída: [{"tool": "game_search", "args": "gta v"}]\n'
+            'Usuário: \'Como está o tempo em São Paulo?\' -> Saída: [{"tool": "weather", "args": "sao paulo"}]\n'
+            "Usuário: 'Olá, tudo bem?' -> Saída: []"
         )
 
         try:
-            decisao_raw = await self.llm_factory.generate_response(
+            decisao_raw = await self.ai_chain.generate_response(
                 prompt_parts=[f"Usuário: {content}"],
                 system_instruction=router_instruction,
             )
@@ -164,6 +193,9 @@ class CognitionPipeline:
 
             actions = json.loads(json_str)
             if isinstance(actions, dict):
+                self.logger.info(
+                    f"  [Roteador] Intenção gerada pelo modelo de IA: {actions}"
+                )
                 actions = [actions]
 
             results = []
@@ -171,6 +203,9 @@ class CognitionPipeline:
                 name = action.get("tool")
                 args = str(action.get("args", ""))
                 if name in self.tools:
+                    self.logger.info(
+                        f"  [Roteador] Executando ferramenta ativa: '{name}' | Argumento: '{args}'"
+                    )
                     tool = self.tools[name]
                     res = ""
                     try:
@@ -191,17 +226,37 @@ class CognitionPipeline:
                             res = await tool.recommend_music(args)
                         elif name == "game_search":
                             res = await tool.search_game(args)
+                        elif name == "jellyfin":
+                            res = await tool.search_content(args)
                         elif name == "web_search":
                             res = (
                                 await tool.buscar_na_cascata(args)
                                 if hasattr(tool, "buscar_na_cascata")
                                 else await tool.search(args)
                             )
+                        elif name == "pokemon":
+                            res = await tool.executar(action, args)
+                        self.logger.info(
+                            f"  [Roteador] Retorno da ferramenta '{name}' obtido com sucesso."
+                        )
                         results.append(f"\n[{name.upper()}]: {res}")
                     except Exception as e:
-                        self.logger.error(f"Erro na tool {name}: {e}")
+                        self.logger.error(
+                            f"❌ Erro ao executar a ferramenta '{name}' com os argumentos '{args}': {e}",
+                            exc_info=True,
+                        )
             return "".join(results) + "\n"
+
+        except json.JSONDecodeError:
+            self.logger.warning(
+                f"🤖 A IA gerou um JSON inválido no roteamento de ferramentas. Resposta recebida: '{decisao_raw}'"
+            )
+            return ""
         except Exception as e:
+            self.logger.error(
+                f"❌ Erro crítico no ecossistema de ferramentas do Pipeline: {e}",
+                exc_info=True,
+            )
             return ""
 
     async def _processar_anexos(self, message: discord.Message):
@@ -220,9 +275,24 @@ class CognitionPipeline:
                     parts.append(
                         {"mime_type": att.content_type or "image/jpeg", "data": data}
                     )
-                except:
-                    pass
+                except Exception as e:
+                    self.logger.warning(
+                        f"⚠️ Não foi possível ler o anexo '{att.filename}' de {message.author.name}: {e}"
+                    )
         return parts
+
+    async def executar_camada(self, contexto):
+        try:
+            resposta = await self.driver_atual.gerar_resposta(contexto)
+            return resposta
+
+        except Exception as e:
+            logger.error(
+                f"Falha na execução do driver {type(self.driver_atual).__name__}. Ativando failover. Erro: {e}",
+                exc_info=True,
+            )
+
+            return await self.acionar_failover(contexto)
 
     async def _enviar_resposta(self, message: discord.Message, texto: str):
         if not texto:
@@ -253,9 +323,52 @@ class CognitionPipeline:
         if not self.llm_factory:
             return
 
+    async def _interceptar_resposta_estatica(
+        self, clean_text: str, intents_config: dict
+    ) -> str:
+        """Camada 0: Analisa a mensagem e devolve uma resposta estática caso seja de baixa relevância."""
+        if not hasattr(self.limpeza, "identify_intent_hybrid"):
+            return None
+
+        resultado = self.limpeza.identify_intent_hybrid(clean_text, intents_config)
+        intent = resultado.get("intent")
+        score = resultado.get("score_confianca", 0)
+
+        if intent in ["identity_check", "general_greetings"] and score > 80:
+            responses = intents_config.get(intent, {}).get("responses", [])
+            if responses:
+                return random.choice(responses)
+        return None
+
+    async def processar_cognicao(
+        self, message: discord.Message, clean_text: str, persona_name: str = None
+    ):
+        start = time.time()
+        if not self.llm_factory:
+            return
+
         try:
             user_id = str(message.author.id)
             user_name = message.author.display_name
+
+            # 0. Interceptação de Resposta Estática
+            nlp_data = self.data_manager.get_knowledge("nlp_data") or {}
+            intents_config = nlp_data.get("intents", {})
+
+            resposta_pronta = await self._interceptar_resposta_estatica(
+                clean_text, intents_config
+            )
+
+            if resposta_pronta:
+                self.logger.info(
+                    "⚡ [Camada 0] Mensagem interceptada estaticamente. Custo: 0 tokens."
+                )
+
+                if hasattr(self.historico, "add_message"):
+                    self.historico.add_message(user_id, "user", clean_text)
+                    self.historico.add_message(user_id, "model", resposta_pronta)
+
+                return await self._enviar_resposta(message, resposta_pronta)
 
             # 1. Autoconhecimento
             if hasattr(
@@ -266,7 +379,7 @@ class CognitionPipeline:
                     if hasattr(self.auto_conhecimento, "get_identity_prompt")
                     else "Diga quem você é."
                 )
-                resp = await self.llm_factory.generate_response(clean_text, prompt_id)
+                resp = await self.ai_chain.generate_response(clean_text, prompt_id)
                 return await self._enviar_resposta(message, resp)
 
             # 2. Pipeline de Dados
@@ -291,9 +404,11 @@ class CognitionPipeline:
             sys_prompt_base = self._carregar_prompt(persona_name)
             full_sys = (
                 f"{sys_prompt_base}\n"
-                "DIRETRIZ DE JOGOS: Quando o usuário perguntar o preço de um jogo, você DEVE utilizar "
-                "os valores em Reais (R$) fornecidos pela ferramenta [GAMETOOL] no contexto abaixo. "
-                "Nunca use preços em dólares se houver valores em Reais disponíveis no relatório.\n"
+                "=== REGRA DE OURO DO SISTEMA ===\n"
+                "Você possui ferramentas acopladas que injetam dados em tempo real no seu contexto dentro de blocos como [POKEMON], [GAMETOOL], [WEATHER], etc.\n"
+                "Sempre que houver dados disponíveis nesses blocos, você DEVE priorizá-los e utilizá-los obrigatoriamente. "
+                "Nunca use seu conhecimento prévio ou invente dados se a ferramenta forneceu um relatório técnico. "
+                "Confie cegamente nas ferramentas abaixo.\n\n"
                 f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
                 f"Conversando com: {user_name} (ID: {user_id})\n"
                 f"{rag}{tools}\n"
@@ -309,7 +424,7 @@ class CognitionPipeline:
                 if not clean_text:
                     parts.append("Analise estas imagens.")
 
-            resposta = await self.llm_factory.generate_response(
+            resposta = await self.ai_chain.generate_response(
                 prompt_parts=parts, system_instruction=full_sys
             )
 

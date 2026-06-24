@@ -154,7 +154,7 @@ O experimento com extração de áudio local nativa (`yt-dlp` e `FFmpeg`) foi de
 
 ### 🚀 Visão Geral do Sistema de Áudio
 
-O sistema de áudio do SamBot foi totalmente reestruturado e refatorado para isolar responsabilidades. A dependência do servidor Java (**Lavalink**) e da biblioteca **Wavelink** foi completamente eliminada.
+O sistema de áudio da SamBot foi totalmente reestruturado e refatorado para isolar responsabilidades. A dependência do servidor Java (**Lavalink**) e da biblioteca **Wavelink** foi completamente eliminada.
 
 O bot agora utiliza **reprodução local nativa** via `yt-dlp` e `FFmpegPCMAudio`, reduzindo drasticamente o consumo de memória do servidor. O gerenciamento de estado (filas) e a lógica de negócios (extração e armazenamento) foram desvinculados das interfaces de comandos (Cogs) do Discord, tornando o código altamente testável, escalável e isolado.
 

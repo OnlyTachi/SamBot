@@ -34,7 +34,7 @@ class AprendizadoAtivo:
                 "Ex: 'Eu amo pizza' -> 'Gosta de pizza'"
             )
 
-            extracao = await self.llm_factory.generate_response(
+            extracao = await self.ai_chain.generate_response(
                 prompt_parts=[f"Usuário {user_name} disse: '{clean_text}'"],
                 system_instruction=system_prompt,
             )

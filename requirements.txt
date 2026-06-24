@@ -18,3 +18,4 @@ colorlog
 davey
 spacy
 rapidfuzz
+groq

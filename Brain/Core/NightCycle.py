@@ -1,28 +1,28 @@
 import logging
 import random
 from datetime import datetime
-from ..Providers.LLMFactory import LLMFactory
-from Brain.Memory.LongTerm.VectorStore import vector_store
+
 from Brain.Memory.DataManager import data_manager
+from Brain.Memory.LongTerm.VectorStore import vector_store
+from Brain.Providers.LLMFactory import llm_factory
 
 
 class NightCycle:
     """
     Gerencia a rotina de manutenção noturna do robô.
-    Agora também orquestra a flutuação do mercado e dividendos.
+    Orquestra a flutuação do mercado, dividendos e a sumarização de logs através da Cadeia Auxiliar.
     """
 
     def __init__(self):
         self.logger = logging.getLogger("SamBot.NightCycle")
-        self.llm_factory = LLMFactory.get_instance()
+
+        self.aux_chain = llm_factory.get_default_auxiliary_chain()
 
     async def run_maintenance(self, chat_logs: list):
         self.logger.info("🌙 Iniciando ciclo noturno...")
 
-        # 1. PROCESSAR DINÂMICA DO MERCADO (Ações e FIIs)
         await self._update_market_calculations()
 
-        # 2. SUMARIZAÇÃO DE LOGS
         if chat_logs:
             await self._process_chat_summaries(chat_logs)
         else:
@@ -38,25 +38,17 @@ class NightCycle:
         if not ativos:
             return
 
-        # --- Parte A: Flutuação de Preços ---
         for ticker, info in ativos.items():
-            # Volatilidade baseada no tipo e na configuração do JSON
             if info["tipo"] == "Ação":
-                # Ações oscilam mais (ex: -7% a +8%)
                 volatilidade = 0.08 if info.get("volatilidade") == "alta" else 0.04
             else:
-                # FIIs são mais estáveis (ex: -2% a +2%)
                 volatilidade = 0.02
 
-            variacao = 1 + random.uniform(
-                -volatilidade, volatilidade + 0.01
-            )  # Leve viés de alta
+            variacao = 1 + random.uniform(-volatilidade, volatilidade + 0.01)
             info["preco_atual"] = round(info["preco_atual"] * variacao, 2)
 
-        # Salva os novos preços no mercado.json
         data_manager.save_knowledge("mercado", ativos)
 
-        # --- Parte B: Pagamento de Dividendos ---
         users_path = data_manager.folders["users"] / "users.json"
         todos_usuarios = data_manager._io_read_json(users_path)
 
@@ -68,7 +60,6 @@ class NightCycle:
             total_dividendos_recebidos = 0
             for ticker, posse in portfolio.items():
                 if ticker in ativos and ativos[ticker]["tipo"] == "FII":
-                    # Paga o dividendo por cada cota possuída
                     valor_div = ativos[ticker].get("dividendo_estimado", 0)
                     total_dividendos_recebidos += valor_div * posse["quantidade"]
 
@@ -82,8 +73,7 @@ class NightCycle:
         data_manager._io_save_json(users_path, todos_usuarios)
 
     async def _process_chat_summaries(self, chat_logs):
-        """Lógica original de extração de fatos e memória vetorial."""
-
+        """Lógica de extração de fatos e atualização da memória vetorial usando a Cadeia Auxiliar."""
         logs_text = "\n".join(chat_logs[:100])
 
         prompt_resumo = (
@@ -98,14 +88,19 @@ class NightCycle:
 
         try:
             self.logger.info(
-                f"⏳ Sumarizando {len(chat_logs)} interações (Cascata: Phi-3.5 > Qwen)..."
+                f"⏳ Sumarizando {len(chat_logs)} interações através da Cadeia Auxiliar (Failover de segundo plano)..."
             )
 
-            fatos_extraidos = await self.llm_factory.generate_summary(prompt_resumo)
+            if not self.aux_chain.is_ready:
+                await self.aux_chain.setup_chain()
 
-            if not fatos_extraidos or "Erro:" in fatos_extraidos:
+            fatos_extraidos = await self.aux_chain.generate_response(
+                prompt_parts=[logs_text], system_instruction=prompt_resumo
+            )
+
+            if not fatos_extraidos or "Todos os motores de IA" in fatos_extraidos:
                 self.logger.error(
-                    "🚫 Falha ao gerar resumo noturno: Provedores offline."
+                    "🚫 Falha ao gerar resumo noturno: Provedores da cadeia offline."
                 )
                 return
 
@@ -133,6 +128,8 @@ class NightCycle:
                                 self.logger.info(
                                     f"💾 Preferência musical atualizada para {user_id}: {tags}"
                                 )
+                                # Adiciona à lista que irá para o banco vetorial
+                                fatos_filtrados.append(linha)
                     except Exception as parse_error:
                         self.logger.warning(
                             f"⚠️ Erro ao processar linha de fato: {linha} | Erro: {parse_error}"
@@ -156,7 +153,7 @@ class NightCycle:
                 )
             else:
                 self.logger.info(
-                    "🗑️ Resumo muito curto ou irrelevante. Descartando indexação."
+                    "🗑️ Resumo muito curto ou sem novos fatos estruturados. Descartando indexação."
                 )
 
         except Exception as e:
