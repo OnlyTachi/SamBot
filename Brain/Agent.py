@@ -88,8 +88,20 @@ class CerebroIA(commands.Cog):
                         if isinstance(res, dict)
                         else clean_text
                     )
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(
+                        f"Erro crítico ao processar mensagem no canal {message.channel.id}: {e},",
+                        exc_info=True,
+                    )
+
+                    try:
+                        await message.channel.send(
+                            "⚠️ Desculpe, ocorreu um erro interno ao processar seu comando."
+                        )
+                    except Exception:
+                        logger.error(
+                            "Não foi possível enviar a mensagem de erro para o canal do Discord."
+                        )
 
                 # Delega a cognição pesada para o Pipeline
                 await self.pipeline.processar_cognicao(message, input_text, persona)
@@ -106,8 +118,10 @@ class CerebroIA(commands.Cog):
         ]
         try:
             await user.send(f"**SamBot Memória:** {random.choice(frases)}")
-        except:
-            pass
+        except Exception as e:
+            logger.error(
+                f"⚠️ Não foi possível enviar DM de memória para o usuario {user.name} (ID: {user.id}). Erro: {e}"
+            )
 
     async def run(self, message):
         await self.on_message(message)

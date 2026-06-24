@@ -1,4 +1,21 @@
 services:
+  lavalink:
+    image: fredboat/lavalink:master
+    container_name: lavalink_local
+    restart: unless-stopped
+    ports:
+      - "2333:2333"
+    volumes:
+      - ./application.yml:/opt/Lavalink/application.yml
+    environment:
+      - _JAVA_OPTIONS=-Xmx512M
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/2333' || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
   sambot:
     build: .
     container_name: sambot
@@ -7,3 +24,6 @@ services:
     env_file:
       - .env
     restart: always
+    depends_on:
+      lavalink:
+        condition: service_healthy

@@ -7,19 +7,18 @@ ENV PYTHONUNBUFFERED=1
 
 # Define o diretório de trabalho no container
 WORKDIR /app
-# Instala dependências do sistema necessárias
+
+# Instala apenas as dependências do sistema estritamente necessárias para compilação de pacotes Python
 RUN apt-get update && apt-get install -y \
-    nodejs \
     git \
-    ffmpeg \
-    libopus-dev \
     libffi-dev \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copia o arquivo de requisitos e instala as dependências Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    python -m spacy download pt_core_news_sm
 
 # Copia todo o código fonte para o container
 COPY . .

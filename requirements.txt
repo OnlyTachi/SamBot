@@ -16,3 +16,6 @@ beautifulsoup4
 chromadb
 colorlog
 davey
+spacy
+rapidfuzz
+groq
