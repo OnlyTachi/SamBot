@@ -11,9 +11,7 @@ class PokemonTool:
     BASE_URL = "https://pokeapi.co/api/v2"
 
     def __init__(self):
-        self.headers = {
-            "User-Agent": "SamBot/3.0 (Discord Bot, Cybersecurity/Edu Project)"
-        }
+        self.headers = {"User-Agent": "SamBot/3.0 (Discord Bot, Edu Project)"}
 
     async def _fetch(self, endpoint: str) -> Optional[Dict[str, Any]]:
         """Método auxiliar interno para requisições GET assíncronas."""

@@ -1,5 +1,86 @@
 # Changelog
 
+## [2.2.5] - 03 de junho de 2026
+
+### 🧠 Cérebro & Roteamento (TLM Router)
+
+- **Mudança de Paradigma para Roteamento por Embeddings (Semantic Router):**
+- Substituição da inferência de linguagem via LLM (Qwen/Ollama) por cálculo direto de similaridade vetorial via cosseno (`sentence-transformers/all-MiniLM-L6-v2`).
+
+- Latência de decisão reduzida de **~800ms** para **< 15ms** por mensagem.
+- Liberação total de RAM/VRAM local ao eliminar a necessidade de manter modelos SLM de texto rodando continuamente no Ollama.
+
+- **Gatilhos Dinâmicos via DataManager:**
+- Criação do arquivo `Data/Knowledge/router_triggers.json` para mapeamento dinâmico de gatilhos e palavras-chave sem necessidade de reinar no código.
+
+- Implementação da função `recarregar_gatilhos()` para atualização em tempo real do espaço vetorial do roteador.
+
+- **Limpeza e Slot Filling:**
+- Implementação de ordenação por tamanho de gatilho para remoção precisa de prefixos/expressões de busca antes de repassar os argumentos às ferramentas.
+
+---
+
+### 🛒 Módulo Unificado de Compras (`Brain/Tools/Shopping/`)
+
+**`ProductSearch.py` (Busca e Comparador de Ofertas):**
+
+- Integração com a API pública do Mercado Livre para consulta instantânea de frete e preços.
+
+- Suporte ao **SerpApi / Google Shopping** para agregação de grandes e-commerces (Amazon, Magalu, Kabum).
+
+- Scraper leve via `httpx` + `selectolax` para varredura de ofertas e temperatura da comunidade do **Pelando**.
+
+**`CupomFinder.py` (Buscador de Cupons):**
+
+- Extração automatizada de cupons promocionais ativos por loja com tratamento do ecossistema Astro Island.
+
+**`ShoppingList.py` (Gestor de Listas de Compras):**
+
+- Persistência de listas de compras personalizadas por usuário diretamente no `users.json` via `DataManager`.
+
+- Recurso de orçamentação automática que pesquisa todas as ofertas atuais para cada item salvo de uma vez.
+
+**`PriceTracker.py` (Monitoramento Silencioso de Preços):**
+
+- Rotina de verificação noturna em segundo plano integrada ao `NightCycle.py` para alertar usuários via DM caso um item atinja o preço-alvo definido.
+
+---
+
+### 📂 Reorganização do Módulo de Pesquisa (`Brain/Tools/Research/`)
+
+- Unificação dos utilitários de pesquisa e mídia no diretório dedicado `Research/`:
+- `BuscaTools.py` $\rightarrow$ `Research/WebSearch.py`
+
+- `Images/VisionTool.py` $\rightarrow$ `Research/VisionTool.py`
+
+- `Images/SearchImages.py` $\rightarrow$ `Research/SearchImages.py`
+
+---
+
+### 🎬 Otimização e Cache do Jellyfin (`JellyfinTool.py`)
+
+**Sincronização Local do Catálogo:**
+
+- Troca das requisições web síncronas por um cache local estruturado em JSON armazenado em `Data/Knowledge/jellyfin_catalog.json`.
+
+- Mapeamento completo de filmes (com ano e sinopse) e agrupamento estratégico de séries por **temporadas e contagem de episódios** para economizar tokens.
+
+**Automação Noturna:**
+
+- Atualização automática do catálogo inserida no ciclo de manutenção noturno do `NightCycle.py`.
+
+---
+
+### 📝 Formatação e Pipeline (`Pipeline.py`)
+
+**Injeção de Prompts e Regras Visuais:**
+
+- Atualização das diretrizes do System Prompt (`full_sys`) para exibição limpa de preços em negrito, emojis temáticos por categoria e destaque de códigos promocionais com blocos de código markdown.
+
+**Proteção de Links:**
+
+- Mapeamento para preservação estrita de links gerados pelas ferramentas sem alteração por parte das LLMs principais.
+
 ## [v2.2.4] - 23 de junho de 2026
 
 ### 🧠 Atualizações Críticas no Cérebro & Pipeline Cognitivo

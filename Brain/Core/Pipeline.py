@@ -18,6 +18,7 @@ from Brain.Memory.ShortTerm.Context import HistoricoManager
 from Brain.Memory.ShortTerm._expressions import ExpressoesManager
 from Brain.Memory.SelfKnowledge.Identity import AutoConhecimentoManager
 from Brain.Core.Limpeza import LimpezaManager
+from Brain.Core.Router.TLMRouter import TLMRouter
 
 logger = logging.getLogger("SamBot.Pipeline")
 
@@ -35,15 +36,27 @@ def tentar_importar_tool(nome, modulo, classe):
 
 tentar_importar_tool("weather", "Brain.Tools.WeatherTool", "WeatherTool")
 tentar_importar_tool("game_search", "Brain.Tools.Games.GameTool", "GameTool")
-tentar_importar_tool("web_search", "Brain.Tools.BuscaTools", "BuscaTool")
-tentar_importar_tool(
-    "image_search", "Brain.Tools.Images.SearchImages", "ImageSearchTool"
-)
-tentar_importar_tool("vision", "Brain.Tools.Images.VisionTool", "VisionTool")
 tentar_importar_tool("music_recommend", "Brain.Tools.MusicRecTool", "MusicRecTool")
 tentar_importar_tool("anime", "Brain.Tools.Anime.AnimeTool", "AnimeTool")
 tentar_importar_tool("jellyfin", "Brain.Tools.JellyfinTool", "JellyfinTool")
 tentar_importar_tool("pokemon", "Brain.Tools.PokemonTool", "PokemonTool")
+tentar_importar_tool("web_search", "Brain.Tools.Research.WebSearch", "BuscaTool")
+tentar_importar_tool(
+    "image_search", "Brain.Tools.Research.SearchImages", "ImageSearchTool"
+)
+tentar_importar_tool("vision", "Brain.Tools.Research.VisionTool", "VisionTool")
+tentar_importar_tool(
+    "product_search", "Brain.Tools.Shopping.ProductSearch", "ProductSearchTool"
+)
+tentar_importar_tool(
+    "coupon_finder", "Brain.Tools.Shopping.CouponFinder", "CouponFinder"
+)
+tentar_importar_tool(
+    "link_shortener", "Brain.Tools.Shopping.LinkShortener", "LinkShortener"
+)
+tentar_importar_tool(
+    "shopping_list", "Brain.Tools.Shopping.ShoppingList", "ShoppingListManager"
+)
 
 TOOLS_AVAILABLE = len(TOOL_CLASSES) > 0
 
@@ -69,6 +82,7 @@ class CognitionPipeline:
         self.expressoes = ExpressoesManager()
         self.auto_conhecimento = AutoConhecimentoManager
         self.limpeza = LimpezaManager()
+        self.router = TLMRouter()
 
         self.identity = self.data_manager.get_identity()
 
@@ -121,143 +135,66 @@ class CognitionPipeline:
             return ""
 
     async def _rotear_ferramentas(self, content: str) -> str:
-        if not self.tools or not self.llm_factory:
+        if not self.tools:
             return ""
 
-        nlp_config = self.data_manager.get_knowledge("nlp_data") or {}
-        intents = nlp_config.get("intents", {})
+        ferramentas_ativas = list(self.tools.keys())
+        actions = await self.router.executar(content, ferramentas_ativas)
 
-        analise_intencao = self.limpeza.identify_intent_hybrid(content, intents)
-        intencao_detectada = analise_intencao.get("intent")
-        score = analise_intencao.get("score_confianca", 0)
+        if not actions or not isinstance(actions, list):
+            return ""
 
-        intencoes_estaticas = [
-            "identity_check",
-            "general_greetings",
-            "farewells",
-            "conversa",
-        ]
+        results = []
+        for action in actions:
+            name = action.get("tool")
+            args = str(action.get("args", ""))
 
-        if intencao_detectada in intencoes_estaticas or score < 60:
-            palavras_chave_gerais = [
-                "clima",
-                "tempo",
-                "jogo",
-                "game",
-                "imagem",
-                "foto",
-                "pesquisa",
-                "busca",
-                "musica",
-                "anime",
-                "pokemon",
-                "pokémon",
-                "status",
-                "item",
-            ]
-            if not any(t in content.lower() for t in palavras_chave_gerais):
-                return ""  # Ignora o roteador se realmente for papo furado
-
-        ferramentas_disponiveis = "', '".join(self.tools.keys())
-        router_instruction = (
-            "Você é o Roteador de Ferramentas central. Sua única função é analisar a mensagem do usuário e decidir se ela precisa de uma das ferramentas ativas listadas abaixo.\n\n"
-            "=== REGRAS DE SAÍDA CRÍTICAS ===\n"
-            "1. Responda ESTRITAMENTE com um array JSON válido contendo um objeto com as chaves 'tool' e 'args'.\n"
-            "2. NÃO contextualize, NÃO converse, NÃO envie saudações, NÃO use blocos de código markdown (como ```json).\n"
-            "3. Se NENHUMA ferramenta for estritamente necessária, retorne um array vazio: []\n\n"
-            "=== FERRAMENTAS DISPONÍVEIS ===\n"
-            f"As ferramentas integradas e seus respectivos argumentos esperados são: '{ferramentas_disponiveis}'.\n\n"
-            "=== DIRETRIZES DE MAPEAMENTO ===\n"
-            "- Se o usuário perguntar sobre o clima/temperatura -> tool: 'weather', args: [nome da cidade]\n"
-            "- Se o usuário perguntar o preço de um jogo -> tool: 'game_search', args: [nome do jogo]\n"
-            "- Se o usuário pedir para buscar informações/status de um Pokémon ou item de jogo -> tool: 'pokemon', args: [nome ou ID do pokémon/item]\n"
-            "- Se o usuário pedir para pesquisar algo geral na internet -> tool: 'web_search', args: [termo de busca]\n"
-            "- Se o usuário pedir para recomendar uma música -> tool: 'music_recommend', args: [artista ou gênero]\n"
-            "- Se o usuário perguntar sobre episódios ou buscar um anime -> tool: 'anime', args: [nome do anime]\n"
-            "- Se o usuário quiser ver o catálogo do servidor de mídia local -> tool: 'jellyfin', args: [termo ou 'novidades']\n\n"
-            "=== EXEMPLOS DE SAÍDA COMPORTAMENTAL ===\n"
-            'Usuário: \'Quais os status do Pikachu?\' -> Saída: [{"tool": "pokemon", "args": "pikachu"}]\n'
-            'Usuário: \'Quanto tá custando o GTA V?\' -> Saída: [{"tool": "game_search", "args": "gta v"}]\n'
-            'Usuário: \'Como está o tempo em São Paulo?\' -> Saída: [{"tool": "weather", "args": "sao paulo"}]\n'
-            "Usuário: 'Olá, tudo bem?' -> Saída: []"
-        )
-
-        try:
-            decisao_raw = await self.ai_chain.generate_response(
-                prompt_parts=[f"Usuário: {content}"],
-                system_instruction=router_instruction,
-            )
-            json_str = decisao_raw.replace("```json", "").replace("```", "").strip()
-            if not json_str or json_str == "[]" or "{" not in json_str:
-                return ""
-
-            actions = json.loads(json_str)
-            if isinstance(actions, dict):
+            if name in self.tools:
                 self.logger.info(
-                    f"  [Roteador] Intenção gerada pelo modelo de IA: {actions}"
+                    f"  [Ferramenta] Executando: '{name}' | Argumentos: '{args}'"
                 )
-                actions = [actions]
+                tool = self.tools[name]
+                res = ""
 
-            results = []
-            for action in actions:
-                name = action.get("tool")
-                args = str(action.get("args", ""))
-                if name in self.tools:
-                    self.logger.info(
-                        f"  [Roteador] Executando ferramenta ativa: '{name}' | Argumento: '{args}'"
-                    )
-                    tool = self.tools[name]
-                    res = ""
-                    try:
-                        if name == "image_search":
-                            res = (
-                                await tool.search(args)
-                                if hasattr(tool, "search")
-                                else tool.obter_imagem(args)
-                            )
-                        elif name == "weather":
-                            res = await tool.get_weather(args)
-                        elif name == "anime":
-                            if args.startswith("http"):
-                                res = await tool.identify_anime_by_image(args)
-                            else:
-                                res = await tool.search_anime(args)
-                        elif name == "music_recommend":
-                            res = await tool.recommend_music(args)
-                        elif name == "game_search":
-                            res = await tool.search_game(args)
-                        elif name == "jellyfin":
-                            res = await tool.search_content(args)
-                        elif name == "web_search":
-                            res = (
-                                await tool.buscar_na_cascata(args)
-                                if hasattr(tool, "buscar_na_cascata")
-                                else await tool.search(args)
-                            )
-                        elif name == "pokemon":
-                            res = await tool.executar(action, args)
-                        self.logger.info(
-                            f"  [Roteador] Retorno da ferramenta '{name}' obtido com sucesso."
+                try:
+                    if name == "image_search":
+                        res = (
+                            await tool.search(args)
+                            if hasattr(tool, "search")
+                            else tool.obter_imagem(args)
                         )
+                    elif name == "weather":
+                        res = await tool.get_weather(args)
+                    elif name == "anime":
+                        if args.startswith("http"):
+                            res = await tool.identify_anime_by_image(args)
+                        else:
+                            res = await tool.search_anime(args)
+                    elif name == "music_recommend":
+                        res = await tool.recommend_music(args)
+                    elif name == "game_search":
+                        res = await tool.search_game(args)
+                    elif name == "jellyfin":
+                        res = await tool.search_content(args)
+                    elif name == "web_search":
+                        res = (
+                            await tool.buscar_na_cascata(args)
+                            if hasattr(tool, "buscar_na_cascata")
+                            else await tool.search(args)
+                        )
+                    elif name == "pokemon":
+                        res = await tool.executar(
+                            action.get("action_type", "buscar_pokemon"), args
+                        )
+
+                    if res:
                         results.append(f"\n[{name.upper()}]: {res}")
-                    except Exception as e:
-                        self.logger.error(
-                            f"❌ Erro ao executar a ferramenta '{name}' com os argumentos '{args}': {e}",
-                            exc_info=True,
-                        )
-            return "".join(results) + "\n"
+                except Exception as e:
+                    self.logger.error(
+                        f"  Erro ao executar a ferramenta '{name}': {e}", exc_info=True
+                    )
 
-        except json.JSONDecodeError:
-            self.logger.warning(
-                f"🤖 A IA gerou um JSON inválido no roteamento de ferramentas. Resposta recebida: '{decisao_raw}'"
-            )
-            return ""
-        except Exception as e:
-            self.logger.error(
-                f"❌ Erro crítico no ecossistema de ferramentas do Pipeline: {e}",
-                exc_info=True,
-            )
-            return ""
+        return "".join(results) + "\n" if results else ""
 
     async def _processar_anexos(self, message: discord.Message):
         if self.vision_tool and self.vision_tool.is_image_message(message):
@@ -404,17 +341,21 @@ class CognitionPipeline:
             sys_prompt_base = self._carregar_prompt(persona_name)
             full_sys = (
                 f"{sys_prompt_base}\n"
-                "=== REGRA DE OURO DO SISTEMA ===\n"
-                "Você possui ferramentas acopladas que injetam dados em tempo real no seu contexto dentro de blocos como [POKEMON], [GAMETOOL], [WEATHER], etc.\n"
-                "Sempre que houver dados disponíveis nesses blocos, você DEVE priorizá-los e utilizá-los obrigatoriamente. "
-                "Nunca use seu conhecimento prévio ou invente dados se a ferramenta forneceu um relatório técnico. "
-                "Confie cegamente nas ferramentas abaixo.\n\n"
+                "=== REGRA DO SISTEMA ===\n"
+                "Você possui ferramentas acopladas que injetam dados em tempo real no seu contexto dentro de blocos como [PRODUCT_SEARCH], [COUPON_FINDER], [WEATHER], etc.\n"
+                "Sempre que houver dados disponíveis nesses blocos, você DEVE priorizá-los e utilizá-los obrigatoriamente.\n"
+                "Nunca use seu conhecimento prévio ou invente dados se a ferramenta forneceu um relatório técnico.\n\n"
+                "=== DIRETRIZES DE FORMATAÇÃO ===\n"
+                "- Ao exibir produtos e ofertas, mantenha o formato limpo e escaneável.\n"
+                "- Utilize negrito EXCLUSIVAMENTE para preços (ex: **R$ 150,00**) e nomes de lojas.\n"
+                "- Utilize emojis para organizar as categorias (🛒 Produto, 🏷️ Loja, 🎟️ Cupom, 📦 Frete).\n"
+                "- NUNCA altere ou quebre os links fornecidos pelas ferramentas, exiba-os exatamente como recebidos.\n"
+                "- Se a ferramenta de cupons ([COUPON_FINDER]) retornar códigos, destaque-os usando crases (ex: `CUPOM20`).\n\n"
                 f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
                 f"Conversando com: {user_name} (ID: {user_id})\n"
                 f"{rag}{tools}\n"
                 f"Histórico Recente:\n{hist_str}"
             )
-
             if fato_novo:
                 full_sys += f"\n[SISTEMA]: Você acabou de aprender isto agora: '{fato_novo}'. Comente brevemente!"
 

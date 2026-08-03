@@ -5,6 +5,8 @@ from datetime import datetime
 from Brain.Memory.DataManager import data_manager
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Providers.LLMFactory import llm_factory
+from Brain.Tools.Shopping.PriceTracker import PriceTracker
+from Brain.Tools.JellyfinTool import JellyfinTool
 
 
 class NightCycle:
@@ -22,6 +24,14 @@ class NightCycle:
         self.logger.info("🌙 Iniciando ciclo noturno...")
 
         await self._update_market_calculations()
+        tracker = PriceTracker()
+        alertas = await tracker.verificar_alertas_noturnos()
+
+        try:
+            jellyfin = JellyfinTool()
+            await jellyfin.sync_catalog()
+        except Exception as e:
+            self.logger.error(f"Erro ao atualizar o cache noturno do Jellyfin: {e}")
 
         if chat_logs:
             await self._process_chat_summaries(chat_logs)
@@ -29,6 +39,7 @@ class NightCycle:
             self.logger.info("💤 Nenhuma atividade recente para processar.")
 
         self.logger.info("☀️ Ciclo de manutenção finalizado.")
+        return alertas
 
     async def _update_market_calculations(self):
         """Atualiza preços dos ativos e paga dividendos de FIIs."""

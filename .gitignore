@@ -9,6 +9,9 @@ Data/Persistence/Users/*
 Data/Persistence/VectorDB/
 Data/Persistence/playlists.json
 Data/Persistence/channels.json
+Data/Knowledge/users.json
+Data/Users/users.json
+Data/Knowledge/jellyfin_catalog.json
 
 # Python e Ambiente
 __pycache__/
@@ -24,4 +27,3 @@ cookies.txt
 
 # Docker
 .dockerignore
-Data/Users/users.json

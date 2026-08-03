@@ -12,7 +12,7 @@ _Curiosidade: O nome "SamBot" foi inspiração de uma pessoa muito querida para 
 
 [Guia de Configuração](CONFIG_GUIDE.md) - Como configurar as chaves de API e o ficheiro .env.
 
-[Infraestrutura](INFRA.md) - Detalhes sobre o uso do Tailscale e Ubuntu Server.
+[Infraestrutura](INFRA.md) - Detalhes sobre meu o uso do Tailscale e Ubuntu Server.
 
 [Atualizações](CHANGELOG.md) - Informações sobre mudanças e atualizações
 
@@ -49,8 +49,6 @@ A espinha dorsal da rede é o **Tailscale**, que permite:
 - **Workstation:** E3-1270 | 24GB RAM | RX580 rodando Ollama via Tailscale.
 - **Futuro:** Planejamento para migração para um servidor dedicado (Xeon E5 2470).
 
----
-
 ## ✨ Principais Funcionalidades
 
 ### 🧠 Inteligência & Memória
@@ -74,22 +72,6 @@ O bot decide autonomamente quando utilizar ferramentas externas para:
 - **Busca Web:** Pesquisas na internet para dados atualizados.
 - **Busca Imagem:** Pesquisa imagens na internet.
 
----
-
-## 🧱 Tech Stack
-
-| Componente           | Tecnologia Utilizada               |
-| -------------------- | ---------------------------------- |
-| **Linguagem**        | Python 3.11                        |
-| **Core Framework**   | Discord.py 2.0+                    |
-| **Rede**             | Tailscale (Mesh VPN)               |
-| **IA (Cloud/Local)** | Google Gemini 1.5/2.0 + Ollama     |
-| **Vector DB**        | ChromaDB (Persistência de Memória) |
-| **Container**        | Docker & Docker Compose            |
-| **Áudio**            | Wavelink (Lavalink Wrapper)        |
-
----
-
 ## 🚀 Instalação Rápida
 
 A SamBot agora possui um **Painel Assistente Interativo**, projetado para que você não precise editar códigos ou arquivos de ambiente manualmente!
@@ -108,8 +90,6 @@ cd SamBot
   _(Nota: Você precisa ter o Python 3 instalado no sistema)_
 
 3. **Siga as instruções na tela:** O menu guiará você passo a passo (com dicas de ajuda ao digitar `?`) para criar seu arquivo `.env`, adicionar suas chaves opcionais e decidir se deseja iniciar o bot nativamente ou de forma conteinerizada (Docker).
-
----
 
 ## ⚠️ Nota sobre o Estado do Projeto
 

@@ -57,6 +57,10 @@ BRAVE_SEARCH_API_KEY="sua_chave_brave"
 # --- IGDB API (Informações de Jogos) ---
 IGDB_CLIENT_ID="seu_client_id"
 IGDB_CLIENT_SECRET="seu_client_secret"
+
+# --- SerpApi Key (Google Shopping) ---
+SERPAPI_KEY="sua_chave_serpapi"
+
 ```
 
 ---

@@ -17,8 +17,8 @@ A SamBot utiliza uma infraestrutura híbrida de áudio de baixa latência capaz 
 
 - **Lavalink (v4):** Servidor de processamento de áudio externo (rodando em porta segura SSL/TLS 443) que gerencia os fluxos de transmissão e decodificação em tempo real.
 - **Wavelink (v3/v4 Wrapper):** Biblioteca Python assíncrona utilizada para fazer a ponte de comunicação nativa entre o ecossistema do Discord.py e o nó do Lavalink.
-- **[Navidrome (Subsonic API):](Config/Navidrome.md)** Servidor de streaming local integrado diretamente ao bot. Permite que o `SearchManager` faça varreduras por chamadas HTTP assíncronas (`aiohttp`) na sua biblioteca de arquivos local de alta fidelidade antes de buscar dados na internet.
-- **YouTube / SoundCloud:** Suportados de forma integrada via Lavalink como provedores de fallback online caso a música não seja encontrada na biblioteca do Navidrome.
+- **[Navidrome (Subsonic API):](/Docs/Config/Audios/Navidrome.md)** Servidor de streaming local integrado diretamente ao bot. Permite que o `SearchManager` faça varreduras por chamadas HTTP assíncronas (`aiohttp`) na sua biblioteca de arquivos local de alta fidelidade antes de buscar dados na internet.
+- **[YouTube/SoundCloud:](./Config/Music.md)** Suportados de forma integrada via Lavalink como provedores de fallback online caso a música não seja encontrada na biblioteca do Navidrome.
 
 ## 🎮 Jogos & Lojas
 

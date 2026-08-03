@@ -144,6 +144,10 @@ class JsonProvider(DatabaseProvider):
     def get_expressions(self) -> Dict:
         return self.get_knowledge("expressoes_data")
 
+    def get_router_triggers(self) -> Dict[str, List[str]]:
+        """Carrega e retorna o mapeamento de gatilhos do roteador."""
+        return self.get_knowledge("router_triggers") or {}
+
     # --- SISTEMA DINÂMICO DE USUÁRIOS ---
     def get_user_data(self, user_id: str, key: str, default_value: Any = None) -> Any:
         path = self.folders["users"] / "users.json"

@@ -216,7 +216,7 @@ def setup_wizard(first_time=False):
             f"\n{C_YELLOW}Parece que é sua primeira vez aqui! Vamos configurar o básico.{C_RESET}"
         )
         print(
-            f"({C_CYAN}Dica: Se não souber o que responder, digite ? e aprete Enter{C_RESET})\n"
+            f"({C_CYAN}Dica: Se não souber o que responder, digite ? e aperte Enter{C_RESET})\n"
         )
     else:
         print_header()
@@ -345,6 +345,12 @@ def setup_wizard(first_time=False):
         "JELLYFIN_API_KEY",
         "🔑 Token API Jellyfin?",
         "Chave de acesso gerada no Jellyfin.",
+        "",
+    )
+    env_data["SERAPI_KEY"] = ask(
+        "SERAPI_KEY",
+        "🛒 SerpApi Key (Google Shopping)?",
+        "Chave de acesso para buscas de produtos no Google Shopping.",
         "",
     )
 

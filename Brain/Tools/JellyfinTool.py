@@ -1,8 +1,9 @@
-# Brain/Tools/JellyfinTool.py
 import aiohttp
 import os
 import random
 import logging
+import asyncio
+from Brain.Memory.DataManager import data_manager
 
 
 class JellyfinTool:
@@ -12,30 +13,91 @@ class JellyfinTool:
         self.api_key = os.getenv("JELLYFIN_API_KEY")
         self.headers = {"X-Emby-Token": self.api_key, "Accept": "application/json"}
         self.is_configured = bool(self.base_url and self.api_key)
+        self.cache_key = "jellyfin_catalog"
 
         if not self.is_configured:
             self.logger.warning(
                 "JellyfinTool não configurado. Verifique JELLYFIN_URL e JELLYFIN_API_KEY no .env."
             )
 
-    async def _fetch(self, endpoint: str, params: dict = None) -> list:
+    async def _fetch(self, endpoint: str, params: dict = None) -> dict:
         url = f"{self.base_url}{endpoint}"
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    url, headers=self.headers, params=params, timeout=10
+                    url, headers=self.headers, params=params, timeout=15
                 ) as resp:
                     if resp.status == 200:
                         return await resp.json()
                     self.logger.error(f"Erro na API do Jellyfin: Status {resp.status}")
         except Exception as e:
             self.logger.error(f"Falha de conexão com o Jellyfin: {e}")
-        return []
+        return {}
+
+    async def sync_catalog(self):
+        """Busca todo o catálogo da API e salva um mapa estruturado em JSON no DataManager."""
+        if not self.is_configured:
+            return False
+
+        self.logger.info("  [Jellyfin] Sincronizando catálogo para o cache local...")
+        catalog = {"filmes": [], "series": {}}
+
+        params_movies = {
+            "IncludeItemTypes": "Movie",
+            "Recursive": "true",
+            "Fields": "ProductionYear,Overview",
+        }
+        data_movies = await self._fetch("/Items", params=params_movies)
+
+        if data_movies:
+            for item in data_movies.get("Items", []):
+                nome = item.get("Name", "Desconhecido")
+                ano = item.get("ProductionYear", "")
+                sinopse = item.get("Overview", "Sem sinopse.")[:100] + "..."
+                titulo_final = f"{nome} ({ano})" if ano else nome
+                catalog["filmes"].append({"titulo": titulo_final, "sinopse": sinopse})
+
+        params_episodes = {
+            "IncludeItemTypes": "Episode",
+            "Recursive": "true",
+            "Fields": "SeriesName,SeasonName",
+        }
+        data_episodes = await self._fetch("/Items", params=params_episodes)
+
+        if data_episodes:
+            for ep in data_episodes.get("Items", []):
+                serie = ep.get("SeriesName")
+                if not serie:
+                    continue
+
+                temporada = ep.get("SeasonName", "Especiais")
+
+                if serie not in catalog["series"]:
+                    catalog["series"][serie] = {}
+
+                if temporada not in catalog["series"][serie]:
+                    catalog["series"][serie][temporada] = 0
+
+                catalog["series"][serie][temporada] += 1
+
+        # 3. Salvar no Banco de Dados JSON (Data/Knowledge/jellyfin_catalog.json)
+        data_manager.save_knowledge(self.cache_key, catalog)
+        self.logger.info("  [Jellyfin] Cache atualizado e salvo com sucesso!")
+        return True
 
     async def search_content(self, query: str) -> str:
-        """Busca filmes ou séries correspondentes ao termo digitado pelo usuário com busca elástica."""
+        """Pesquisa instantânea usando o JSON local salvo no DataManager."""
         if not self.is_configured:
             return "Serviço Jellyfin não configurado."
+
+        catalog = data_manager.get_knowledge(self.cache_key)
+
+        if not catalog:
+            self.logger.info("Cache não encontrado. Gerando no primeiro uso...")
+            await self.sync_catalog()
+            catalog = data_manager.get_knowledge(self.cache_key)
+            if not catalog:
+                return "Não foi possível acessar o catálogo do Jellyfin no momento."
 
         query_clean = (
             query.lower()
@@ -44,79 +106,33 @@ class JellyfinTool:
             .replace("serie", "")
             .strip()
         )
+        resultados = []
 
-        params = {
-            "IncludeItemTypes": "Movie,Series",
-            "Recursive": "true",
-            "Fields": "Overview,ProductionYear",  # Puxa o ano junto
-        }
+        # Busca em Filmes
+        for filme in catalog.get("filmes", []):
+            titulo = filme["titulo"].lower()
+            if query_clean in titulo:
+                resultados.append(
+                    f"🎬 **{filme['titulo']}**\n  *Sinopse:* {filme['sinopse']}"
+                )
 
-        data = await self._fetch("/Items", params=params)
-        items = data.get("Items", []) if isinstance(data, dict) else []
+        # Busca em Séries
+        for serie_nome, temporadas in catalog.get("series", {}).items():
+            if query_clean in serie_nome.lower():
+                detalhes_temps = [
+                    f"{temp} ({qtd} eps)" for temp, qtd in temporadas.items()
+                ]
+                resumo_serie = f"📺 **{serie_nome}**\n  *Estrutura:* " + ", ".join(
+                    detalhes_temps
+                )
+                resultados.append(resumo_serie)
 
-        if not items:
-            return f"Não encontrei nenhum filme ou série no catálogo do Jellyfin."
+        if not resultados:
+            return f"Não encontrei '{query}' salvo no servidor."
 
-        resultados_filtrados = []
-        for item in items:
-            name_lower = item.get("Name", "").lower()
-            original_title_lower = item.get(
-                "OriginalTitle", ""
-            ).lower()  # Garante busca se o nome estiver em inglês
+        report = f"🍿 **Resultados no servidor para '{query}':**\n\n"
+        # Limita a 5 resultados para não estourar os tokens da Sam (pode aumentar caso use modelo maior)
+        for res in resultados[:5]:
+            report += f"{res}\n\n"
 
-            if query_clean in name_lower or name_lower in query_clean:
-                resultados_filtrados.append(item)
-            elif len(query_clean) >= 3 and (
-                query_clean[:-1] in name_lower or name_lower in query_clean[:-1]
-            ):
-                resultados_filtrados.append(item)
-
-        if not resultados_filtrados:
-            return (
-                f"Não encontrei nenhum filme ou série com o nome '{query}' no Jellyfin."
-            )
-
-        report = f"  **Resultados encontrados no Jellyfin para: {query}**\n"
-        for item in resultados_filtrados[:3]:  # Limita aos 3 primeiros resultados
-            tipo = "Filme" if item.get("Type") == "Movie" else "Série"
-            ano = (
-                f" ({item.get('ProductionYear')})" if item.get("ProductionYear") else ""
-            )
-            sinopse = item.get("Overview", "Sem sinopse disponível.")
-            if len(sinopse) > 200:
-                sinopse = sinopse[:200] + "..."
-            report += (
-                f"- **{item.get('Name')}{ano}** [{tipo}]\n  *Sinopse:* {sinopse}\n"
-            )
-
-        return report
-
-    async def recommend_trends(self, args: str = "") -> str:
-        """Recomenda itens aleatórios ou recentemente adicionados."""
-        if not self.is_configured:
-            return "Serviço Jellyfin não configurado."
-
-        params = {
-            "IncludeItemTypes": "Movie,Series",
-            "Recursive": "true",
-            "SortBy": "DateCreated",
-            "SortOrder": "Descending",
-            "Limit": "20",
-        }
-
-        data = await self._fetch("/Items", params=params)
-        items = data.get("Items", []) if isinstance(data, dict) else []
-
-        if not items:
-            return "Não há conteúdo disponível no momento para recomendar."
-
-        sampled = random.sample(items, min(3, len(items)))
-
-        report = "🎬 **Sugestões de Conteúdo no Jellyfin:**\nAqui estão algumas novidades do servidor que você pode gostar:\n"
-        for item in sampled:
-            tipo = "Filme" if item.get("Type") == "Movie" else "Série"
-            ano = (
-                f" ({item.get('ProductionYear')})" if item.get("ProductionYear") else ""
-            )
-            report += f"- 🍿 **{item.get('Name')}{ano}** ({tipo})\n"
-        return report
+        return report.strip()
