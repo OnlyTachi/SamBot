@@ -3,10 +3,13 @@ import logging
 from dotenv import load_dotenv
 
 # Importação dos Clients e do Orquestrador
-from Brain.Providers.LLMChainOrchestrator import LLMChainOrchestrator
 from Brain.Providers.Clients.GeminiProvider import GeminiDriver
 from Brain.Providers.Clients.GroqProvider import GroqDriver
 from Brain.Providers.Clients.OllamaProvider import OllamaDriver
+from Brain.Providers.Clients.DeepSeekProvider import DeepSeekDriver
+from Brain.Providers.Clients.OpenRouterProvider import OpenRouterDriver
+from Brain.Providers.Clients.MistralProvider import MistralDriver
+from Brain.Providers.LLMChainOrchestrator import LLMChainOrchestrator
 
 # --- Configuração Segura de Logs ---
 try:
@@ -22,59 +25,33 @@ load_dotenv()
 
 
 class LLMFactory:
-    """
-    Fábrica inteligente da SamBot.
-    Centraliza a criação de instâncias isoladas ou cadeias (combos) de IA.
-    """
-
-    _instance = None
-
     def __init__(self):
         self.log = logger_instance
-        self.gemini_driver = GeminiDriver(self.log)
-        self.groq_driver = GroqDriver(self.log)
-        self.ollama_driver = OllamaDriver(self.log)
+        self.available_drivers = {
+            "gemini": GeminiDriver(self.log),
+            "groq": GroqDriver(self.log),
+            "ollama": OllamaDriver(self.log),
+            "deepseek": DeepSeekDriver(self.log),
+            "openrouter": OpenRouterDriver(self.log),
+            "mistral": MistralDriver(self.log),
+        }
 
-    @classmethod
-    def get_instance(cls):
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
+    def _get_active_providers_from_env(self) -> list:
+        raw_order = os.getenv("LLM_CHAIN_ORDER", "gemini,groq,ollama")
+        provider_names = [p.strip().lower() for p in raw_order.split(",") if p.strip()]
 
-    def create_chain(self, name: str, provider_types: list) -> LLMChainOrchestrator:
-        """
-        Gera uma cadeia customizada baseada em uma lista de strings.
-        Ex: factory.create_chain("MinhaCadeia", ["gemini", "groq"])
-        """
-        selected_providers = []
+        ordered_providers = []
+        for name in provider_names:
+            driver = self.available_drivers.get(name)
+            if driver:
+                ordered_providers.append(driver)
 
-        for p_type in provider_types:
-            p_type_lower = p_type.lower()
-            if p_type_lower == "gemini":
-                selected_providers.append(self.gemini_driver)
-            elif p_type_lower == "groq":
-                selected_providers.append(self.groq_driver)
-            elif p_type_lower == "ollama":
-                selected_providers.append(self.ollama_driver)
-
-        return LLMChainOrchestrator(
-            name=name, providers=selected_providers, log_instance=self.log
-        )
+        return ordered_providers
 
     def get_default_principal_chain(self) -> LLMChainOrchestrator:
-        """Retorna a cadeia padrão (Camada 1 -> 1.5 -> 2 -> 3) da SamBot."""
+        providers = self._get_active_providers_from_env()
         return LLMChainOrchestrator(
-            name="Principal",
-            providers=[self.gemini_driver, self.groq_driver, self.ollama_driver],
-            log_instance=self.log,
-        )
-
-    def get_default_auxiliary_chain(self) -> LLMChainOrchestrator:
-        """Retorna uma cadeia mais barata/rápida para tarefas secundárias (ignora o Gemini)."""
-        return LLMChainOrchestrator(
-            name="Auxiliar",
-            providers=[self.groq_driver, self.ollama_driver],
-            log_instance=self.log,
+            name="Principal", providers=providers, log_instance=self.log
         )
 
 

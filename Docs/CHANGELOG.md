@@ -1,5 +1,41 @@
 # Changelog
 
+## [2.2.6-1] - 04 de junho de 2026
+
+### **DeepSeek Driver (`Brain/Providers/Clients/DeepSeekProvider.py`)**
+
+- **Integração:** Adicionado driver cliente para a API da DeepSeek com suporte aos modelos `deepseek-chat` e `deepseek-reasoner` (R1).
+- **Compatibilidade:** Implementado com base na biblioteca `openai` aproveitando a compatibilidade Nativa via `base_url` (`[https://api.deepseek.com](https://api.deepseek.com)`).
+- **Configuração:** Leitura da chave `DEEPSEEK_API_KEY` e do modelo `DEEPSEEK_MODEL` a partir do ambiente `.env`.
+
+### **OpenRouter Driver (`Brain/Providers/Clients/OpenRouterProvider.py`)**
+
+- **Integração:** Adicionado driver agregador OpenRouter, permitindo acesso a múltiplos modelos (Claude, GPT-4o, Llama 3.3, etc.).
+- **Modelos Free:** Suporte padrão inicial para o modelo gratuito `meta-llama/llama-3.3-70b-instruct:free`.
+- **Headers Personalizados:** Incluído suporte a cabeçalhos `HTTP-Referer` e `X-Title` exigidos pela OpenRouter.
+
+### **Mistral AI Driver (`Brain/Providers/Clients/MistralProvider.py`)**
+
+- **Integração:** Adicionado cliente para os modelos da Mistral AI via biblioteca SDK `mistralai`.
+- **Embeddings:** Implementado suporte nativo para geração de vetores de busca utilizando o modelo `mistral-embed`.
+- **Configuração:** Suporte a `MISTRAL_API_KEY` e modelo `mistral-small-latest` por padrão.
+
+* **Orquestração Dinâmica via `.env`:** Adicionada a variável `LLM_CHAIN_ORDER` para definir dinamicamente a ordem de preferência e _failover_ dos provedores sem a necessidade de alterar código Python.
+* **Novos Provedores Adicionados:** Criados e integrados os drivers de conexão para **DeepSeek** (`DeepSeekDriver`), **OpenRouter** (`OpenRouterDriver`) e **Mistral AI** (`MistralDriver`).
+* **Detecção Automática de Chaves Ativas:** A `LLMFactory` agora filtra e carrega apenas os provedores com chaves Válidas/Presentes no ambiente `.env`.
+
+### **Melhorias e Otimizações**
+
+- **Refatoração da `LLMFactory`:** Dicionário centralizado de instâncias de drivers para facilitar a inclusão de novas APIs e carregamento dinâmico.
+- **Validação em Cascata (`setup_chain`):** Manutenção do teste individual de conectividade durante a inicialização, descartando autonomamente motores sem credenciais válidas ou offline.
+- **Tratamento Anti-Rate Limit no Gemini:** Mantido o sistema de rotação de chaves com tempo de castigo (blacklist temporária) de 60 segundos ao atingir erro `429` (ResourceExhausted).
+- **Poda do Histórico no Groq:** Mantido o filtro automático para reduzir o _prompt_ do sistema quando superior a 3.500 palavras, evitando erros de limite de contexto (_TPM_).
+
+### **Correções e Estabilidade**
+
+- **Fallback Automático de Embeddings:** Fallback gracioso para embeddings locais via Ollama (`nomic-embed-text`) caso as chamadas de nuvem falhem.
+- **Ollama Dual-Mode:** Tratamento aprimorado para fallback automático entre instâncias _remota_ e _local_ (Docker/host).
+
 ## [2.2.6] - 04 de junho de 2026
 
 ### 🚀 Novidades & Adições
