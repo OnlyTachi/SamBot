@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import wavelink
+import random
 import datetime
 
 
@@ -64,6 +65,35 @@ class ExtraCommands(commands.Cog):
             )
 
         await ctx.send(embed=embed)
+
+    @commands.hybrid_command(
+        name="shuffle",
+        aliases=["random", "embaralhar", "misturar"],
+        description="Embaralha aleatoriamente as músicas que estão na fila.",
+    )
+    async def shuffle(self, ctx: commands.Context):
+        player: wavelink.Player = ctx.voice_client
+
+        if not player or player.queue.is_empty:
+            return await ctx.send(
+                "  A fila de reprodução está vazia para ser embaralhada.",
+                ephemeral=True,
+            )
+
+        if player.queue.count < 2:
+            return await ctx.send(
+                "  É necessário ter pelo menos 2 músicas na fila para embaralhar.",
+                ephemeral=True,
+            )
+
+        queue_list = list(player.queue)
+        random.shuffle(queue_list)
+
+        player.queue.clear()
+        for track in queue_list:
+            player.queue.put(track)
+
+        await ctx.send("🔀 A fila foi embaralhada com sucesso!")
 
     @commands.hybrid_command(
         name="volume", aliases=["vol"], description="Ajusta o volume do bot."

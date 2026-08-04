@@ -167,6 +167,11 @@ class ControlCommands(commands.Cog):
         if not player:
             return
 
+        if not player.queue.is_empty:
+            next_track = player.queue.get()
+            await player.play(next_track)
+            return
+
         if player.queue.is_empty and player.queue.mode == wavelink.QueueMode.normal:
             await self.bot.change_presence(status=discord.Status.online)
             if hasattr(player, "now_playing_message") and player.now_playing_message:

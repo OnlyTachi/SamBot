@@ -28,8 +28,9 @@ class PlayCommands(commands.Cog):
         if not player:
             try:
                 player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+                player.autoplay = wavelink.AutoPlay.enabled
             except Exception as e:
-                return await ctx.send(f"❌ Erro ao conectar no canal: {e}")
+                return await ctx.send(f"  Erro ao conectar no canal: {e}")
 
         player.reply_channel = ctx.channel
         await ctx.defer()
@@ -63,13 +64,13 @@ class PlayCommands(commands.Cog):
             else:
                 track = tracks[0]
                 txt_origem = (
-                    "🗄️ Biblioteca Local" if "NAVIDROME" in origem else "Internet"
+                    "  Biblioteca Local" if "NAVIDROME" in origem else "Internet"
                 )
 
                 if player.playing:
                     player.queue.put(track)
                     embed = discord.Embed(
-                        description=f"📝 **[{track.title}]({track.uri})** adicionada à fila (Posição: {player.queue.count}).",
+                        description=f"  **[{track.title}]({track.uri})** adicionada à fila (Posição: {player.queue.count}).",
                         color=discord.Color.orange(),
                     )
                     embed.set_footer(text=f"Fonte: {txt_origem}")
@@ -77,7 +78,7 @@ class PlayCommands(commands.Cog):
                 else:
                     await player.play(track)
                     await ctx.send(
-                        f"🔍 Carregando sua música vinda da {txt_origem}...",
+                        f"  Carregando sua música vinda da {txt_origem}...",
                         delete_after=3,
                     )
 
