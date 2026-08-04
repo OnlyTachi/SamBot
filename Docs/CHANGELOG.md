@@ -1,21 +1,51 @@
 # Changelog
 
+## [2.2.6] - 04 de junho de 2026
+
+### 🚀 Novidades & Adições
+
+- **Roteamento Semântico Nativo (`TLMRouter`):** Adicionada integração local com o Ollama (`all-minilm:latest`) para rotear intenções via vetores de similaridade de cosseno com alta precisão. Voce pode alterar o modelo semantico livremente. (`MODEL_TLM_LOCAL="modelo-escolha"`)
+- **Flag de Diagnóstico Dinâmica (`DEBUG_MODE`):** Criada a chave `DEBUG_MODE` no `.env` para alternar entre logs de diagnóstico detalhados de scores/rotas no terminal e o modo silencioso de produção.
+- **Mapeamento Inteligente de Slugs & Apelidos:** Adicionado suporte a sinônimos de lojas (`magalu` ➔ `magazine-luiza`, `mercadolivre` ➔ `mercado-livre`, `ali` ➔ `aliexpress`) para alinhamento com as URLs oficiais do Pelando.
+- **Redirecionamento Automático (Fallback de Cupons):** Implementado fallback transparente para busca textual geral (`/busca/cupom+loja`) caso a loja consultada não possua página fixa estruturada.
+
+---
+
+### 🛠️ Correções & Otimizações
+
+### **Raspagem de Cupons & Produtos (`CupomFinder` / `ProductSearch`):**
+
+- Corrigido o envio de cabeçalhos de navegação moderna (`User-Agent`, `Sec-Ch-Ua`, `Origin`, `Referer`) resolvendo erros de bloqueio de WAF e conexões canceladas (Status `0`).
+
+### **Isolamento de Argumentos (`_extrair_args`):**
+
+Refatorada a extração de argumentos com expressões regulares com limites de palavras (`\b`), impedindo a mutilação acidental de termos e removendo preposições residuais ("para a", "de", "no").
+
+### **Orquestração de Pipeline (`CognitionPipeline`):**
+
+- Padronizada a execução dos métodos `buscar_cupons(args)` e `search(args)` no Pipeline, garantindo a injeção dos relatórios formatados em linguagem natural no contexto da LLM.
+
+- **Balanceamento e Failover das IAs:** Otimizado o ciclo de tentativas e castigo de chaves com Rate Limit no `GeminiProvider`, garantindo failover instantâneo para o Groq (`llama-3.3-70b-versatile`) sem estourar o tempo de resposta do Discord.
+
 ## [2.2.5] - 03 de junho de 2026
 
 ### 🧠 Cérebro & Roteamento (TLM Router)
 
-- **Mudança de Paradigma para Roteamento por Embeddings (Semantic Router):**
+### **Mudança de Paradigma para Roteamento por Embeddings (Semantic Router):**
+
 - Substituição da inferência de linguagem via LLM (Qwen/Ollama) por cálculo direto de similaridade vetorial via cosseno (`sentence-transformers/all-MiniLM-L6-v2`).
 
 - Latência de decisão reduzida de **~800ms** para **< 15ms** por mensagem.
 - Liberação total de RAM/VRAM local ao eliminar a necessidade de manter modelos SLM de texto rodando continuamente no Ollama.
 
-- **Gatilhos Dinâmicos via DataManager:**
+### **Gatilhos Dinâmicos via DataManager:**
+
 - Criação do arquivo `Data/Knowledge/router_triggers.json` para mapeamento dinâmico de gatilhos e palavras-chave sem necessidade de reinar no código.
 
 - Implementação da função `recarregar_gatilhos()` para atualização em tempo real do espaço vetorial do roteador.
 
-- **Limpeza e Slot Filling:**
+### **Limpeza e Slot Filling:**
+
 - Implementação de ordenação por tamanho de gatilho para remoção precisa de prefixos/expressões de busca antes de repassar os argumentos às ferramentas.
 
 ---

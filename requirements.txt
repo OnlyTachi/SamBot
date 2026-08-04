@@ -21,4 +21,4 @@ rapidfuzz
 groq
 selectolax
 semantic-router 
-sentence-transformers
+h2

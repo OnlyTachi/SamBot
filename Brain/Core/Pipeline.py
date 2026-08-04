@@ -21,6 +21,15 @@ from Brain.Core.Limpeza import LimpezaManager
 from Brain.Core.Router.TLMRouter import TLMRouter
 
 logger = logging.getLogger("SamBot.Pipeline")
+logger.propagate = False
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | Pipeline        | %(message)s",
+        "%Y-%m-%d %H:%M:%S",
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 # 1. Carregamento Modular de Ferramentas
 TOOL_CLASSES = {}
@@ -48,12 +57,7 @@ tentar_importar_tool("vision", "Brain.Tools.Research.VisionTool", "VisionTool")
 tentar_importar_tool(
     "product_search", "Brain.Tools.Shopping.ProductSearch", "ProductSearchTool"
 )
-tentar_importar_tool(
-    "coupon_finder", "Brain.Tools.Shopping.CouponFinder", "CouponFinder"
-)
-tentar_importar_tool(
-    "link_shortener", "Brain.Tools.Shopping.LinkShortener", "LinkShortener"
-)
+tentar_importar_tool("cupom_finder", "Brain.Tools.Shopping.CupomFinder", "CupomFinder")
 tentar_importar_tool(
     "shopping_list", "Brain.Tools.Shopping.ShoppingList", "ShoppingListManager"
 )
@@ -134,7 +138,7 @@ class CognitionPipeline:
             self.logger.warning(f"⚠️ Aviso RAG: {e}")
             return ""
 
-    async def _rotear_ferramentas(self, content: str) -> str:
+    async def _rotear_ferramentas(self, content: str, message: discord.Message) -> str:
         if not self.tools:
             return ""
 
@@ -185,6 +189,16 @@ class CognitionPipeline:
                     elif name == "pokemon":
                         res = await tool.executar(
                             action.get("action_type", "buscar_pokemon"), args
+                        )
+                    elif name == "cupom_finder":
+                        res = await tool.buscar_cupons(args)
+                    elif name == "product_search":
+                        res = await tool.search(args)
+                    elif name == "shopping_list":
+                        res = (
+                            await tool.orcar_lista(message.author.id)
+                            if "orçar" in args or "lista" in args
+                            else tool.listar_itens(message.author.id)
                         )
 
                     if res:
@@ -323,8 +337,7 @@ class CognitionPipeline:
             anexos = await self._processar_anexos(message)
             fato_novo = await self.aprendizado.aprender_fatos(message, clean_text)
             rag = await self._consultar_memoria_longa(clean_text)
-            tools = await self._rotear_ferramentas(clean_text)
-
+            tools = await self._rotear_ferramentas(clean_text, message)
             # Histórico
             hist_str = ""
             if hasattr(self.historico, "get_context"):
@@ -341,16 +354,14 @@ class CognitionPipeline:
             sys_prompt_base = self._carregar_prompt(persona_name)
             full_sys = (
                 f"{sys_prompt_base}\n"
-                "=== REGRA DO SISTEMA ===\n"
-                "Você possui ferramentas acopladas que injetam dados em tempo real no seu contexto dentro de blocos como [PRODUCT_SEARCH], [COUPON_FINDER], [WEATHER], etc.\n"
-                "Sempre que houver dados disponíveis nesses blocos, você DEVE priorizá-los e utilizá-los obrigatoriamente.\n"
-                "Nunca use seu conhecimento prévio ou invente dados se a ferramenta forneceu um relatório técnico.\n\n"
-                "=== DIRETRIZES DE FORMATAÇÃO ===\n"
-                "- Ao exibir produtos e ofertas, mantenha o formato limpo e escaneável.\n"
-                "- Utilize negrito EXCLUSIVAMENTE para preços (ex: **R$ 150,00**) e nomes de lojas.\n"
-                "- Utilize emojis para organizar as categorias (🛒 Produto, 🏷️ Loja, 🎟️ Cupom, 📦 Frete).\n"
-                "- NUNCA altere ou quebre os links fornecidos pelas ferramentas, exiba-os exatamente como recebidos.\n"
-                "- Se a ferramenta de cupons ([COUPON_FINDER]) retornar códigos, destaque-os usando crases (ex: `CUPOM20`).\n\n"
+                "=== REGRAS ABSOLUTAS DE RESPOSTA ===\n"
+                "1. NUNCA gere ou mostre código JSON, blocos em colchetes como [PRODUCT_SEARCH], [CUPOM_FINDER] ou comandos do sistema no chat.\n"
+                "2. Os relatórios de busca e cupons JÁ FORAM EXECUTADOS e estão injetados no final deste contexto.\n"
+                "3. Responda DIRETAMENTE ao usuário em linguagem natural amigável, formatando os produtos e cupons em tópicos limpos.\n\n"
+                "=== GUIA DE FORMATAÇÃO ===\n"
+                "- Negrito EXCLUSIVAMENTE para preços (ex: **R$ 150,00**) e nomes de lojas/produtos.\n"
+                "- Use crases apenas para códigos de cupom (ex: `CUPOM20`).\n"
+                "- NUNCA altere os links originais fornecidos nos relatórios abaixo.\n\n"
                 f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
                 f"Conversando com: {user_name} (ID: {user_id})\n"
                 f"{rag}{tools}\n"

@@ -14,32 +14,9 @@ try:
 
     logger_instance = Logger.get_logger("LLMFactory")
 except ImportError:
+    import logging
 
-    class Logger:
-        def __init__(self):
-            self.logger = logging.getLogger("SamBot.LLM")
-            if not self.logger.handlers:
-                handler = logging.StreamHandler()
-                formatter = logging.Formatter(
-                    "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-                )
-                handler.setFormatter(formatter)
-                self.logger.addHandler(handler)
-                self.logger.setLevel(logging.INFO)
-
-        def info(self, msg):
-            self.logger.info(msg)
-
-        def error(self, msg):
-            self.logger.error(msg)
-
-        def critical(self, msg):
-            self.logger.critical(msg)
-
-        def warning(self, msg):
-            self.logger.warning(msg)
-
-    logger_instance = Logger()
+    logger_instance = logging.getLogger("SamBot.LLM")
 
 load_dotenv()
 

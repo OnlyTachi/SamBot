@@ -152,7 +152,7 @@ class GeminiDriver(BaseLLMProvider):
 
                 # Timeout estrito de 2.5 segundos para não deixar a requisição mofando
                 response = await asyncio.wait_for(
-                    model.generate_content_async(prompt_parts), timeout=2.5
+                    model.generate_content_async(prompt_parts), timeout=1.5
                 )
 
                 if not response.candidates or not response.candidates[0].content.parts:

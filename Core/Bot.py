@@ -54,9 +54,9 @@ class SamBot(commands.Bot):
             with open("config.json", "r", encoding="utf-8") as f:
                 self.config_info = json.load(f)
         except FileNotFoundError:
-            self.config_info = {"version": "2.0.5", "name": "SamBot"}
+            self.config_info = {"version": "3.1.0", "name": "SamBot"}
 
-        self.version = self.config_info.get("version", "2.0.5")
+        self.version = self.config_info.get("version", "3.1.0")
         self.start_time = discord.utils.utcnow()
         owner_id = os.getenv("OWNER_ID")
         self._owner_id_manual = int(owner_id) if owner_id else None

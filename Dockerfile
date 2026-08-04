@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y \
 
 # Copia o arquivo de requisitos e instala as dependências Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt && \
+RUN   pip install -r requirements.txt && \
     python -m spacy download pt_core_news_sm
 
 # Copia todo o código fonte para o container
