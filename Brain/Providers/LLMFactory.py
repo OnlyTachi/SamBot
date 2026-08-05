@@ -55,4 +55,4 @@ class LLMFactory:
         )
 
 
-llm_factory = LLMFactory.get_instance()
+llm_factory = LLMFactory()

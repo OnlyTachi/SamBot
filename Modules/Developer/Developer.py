@@ -5,7 +5,8 @@ import asyncio
 import uuid
 
 # Imports dos módulos internos
-from Brain.Providers.LLMFactory import LLMFactory
+# CORREÇÃO 1: Importa a fábrica e a instância diretamente
+from Brain.Providers.LLMFactory import LLMFactory, llm_factory
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Core.NightCycle import NightCycle
 
@@ -19,7 +20,10 @@ class Developer(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger("SamBot.Developer")
-        self.factory = LLMFactory.get_instance()
+        # CORREÇÃO 2: Instanciação direta em vez de calling get_instance()
+        self.factory = llm_factory
+        # Cria a cadeia principal para testes de LLM
+        self.chain = self.factory.get_default_principal_chain()
         self.emoji = "💻"
 
     @commands.command(name="infra", aliases=["status_llm"])
@@ -30,14 +34,15 @@ class Developer(commands.Cog):
             title="🔧 Infraestrutura de IA", color=discord.Color.dark_grey()
         )
 
+        drivers = [
+            f"`{driver.__class__.__name__}`"
+            for driver in self.factory.available_drivers.values()
+        ]
+        drivers_str = ", ".join(drivers) if drivers else "Nenhum carregado"
+
         embed.add_field(
-            name="🖥️ Remote (Nuvem/API)",
-            value=f"Modelo: `{self.factory.model_name}`\nEmbed: `{self.factory.embed_model_cloud}`",
-            inline=False,
-        )
-        embed.add_field(
-            name="💻 Local (Ollama/CPU)",
-            value=f"URL: `{self.factory.local_url}`\nFast: `{self.factory.local_model}`\nEmbed: `{self.factory.embed_model_local}`",
+            name="🤖 Drivers Disponíveis",
+            value=drivers_str,
             inline=False,
         )
         await ctx.send(embed=embed)
@@ -47,11 +52,12 @@ class Developer(commands.Cog):
     async def test_generation(
         self, ctx, *, prompt: str = "Responda curto: Você está online?"
     ):
-        """Testa a geração de texto (Prioridade: Gemini > Remote > Local)."""
+        """Testa a geração de texto via cadeia orquestrada."""
         msg = await ctx.send("🔄 **Testando pipeline de IA...**")
         try:
             start_time = asyncio.get_event_loop().time()
-            response = await self.factory.generate_response(
+            # CORREÇÃO 3: Utiliza a geração de resposta a partir da cadeia orquestrada
+            response = await self.chain.generate_response(
                 prompt, "Responda de forma técnica e curta."
             )
             elapsed = round(asyncio.get_event_loop().time() - start_time, 2)
@@ -69,7 +75,7 @@ class Developer(commands.Cog):
     @commands.command(name="memtest")
     @commands.is_owner()
     async def test_memory_system(self, ctx, *, text: str = "Teste de banco vetorial."):
-        """Testa Embedding (Gemini Cloud + Nomic Local) e ChromaDB."""
+        """Testa Embedding e ChromaDB."""
         msg = await ctx.send("💾 **Testando VectorStore (Failover Ativo)...**")
         try:
             test_id = f"test_{str(uuid.uuid4())[:8]}"
@@ -84,7 +90,6 @@ class Developer(commands.Cog):
             await msg.edit(content="💾 **Dados guardados.** Tentando recuperar...")
             await asyncio.sleep(1.5)
 
-            # CORREÇÃO: Adicionado o await
             retrieved = await vector_store.query_relevant(
                 "fatos_usuario", "O que o admin esta fazendo?", n_results=1
             )

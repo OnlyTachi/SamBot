@@ -11,7 +11,7 @@ from Brain.Memory.DataManager import data_manager
 class AutoConhecimento:
     def __init__(self):
         self.logger = logging.getLogger("SamBot.AutoConhecimento")
-        self.llm = LLMFactory.get_instance()
+        self.llm = llm_factory
         self.busca_tool = BuscaTool()
         self.data_manager = data_manager
 
