@@ -1,5 +1,44 @@
 # Changelog
 
+### [2.2.7] - 06 de junho de 2026
+
+#### Descontinuações (Deprecated / Removed)
+
+- **Remoção do Modo `HIBRIDO`:** O modo de busca de áudio `HIBRIDO` foi oficialmente descontinuado e removido do suporte da aplicação.
+- **Simplificação das Opções de Áudio:** O arquivo de configuração (`.env`) agora aceita estritamente os modos `MUSIC_SOURCE_MODE=ONLINE` ou `MUSIC_SOURCE_MODE=LOCAL`.
+
+#### ✨ Novidades e Melhorias (Added & Changed)
+
+- **Sistema de Failover & Castigo de Nodes (`ONLINE`):** Implementada rotação automática de servidores Lavalink online com sistema de _cooldown_ de 1 hora para Nodes que apresentarem falhas de conexão ou timeouts.
+- **Isolamento de Erros:** Captura e tratamento amigável de exceções do Wavelink. Falhas de conexão agora exibem avisos claros no Discord em vez de logs de erro genéricos.
+- **Suporte Expandido a Portas SSL/TLS:** Suporte automático para múltiplas portas HTTPS/WSS (443, 8443, 2053, 2083, 2096) no carregador de Nodes.
+- **Correção de Atribuição no Wavelink 3.x:** Atualizada a propriedade de `AutoPlay` para `AutoPlayMode` garantindo compatibilidade com versões recentes do ecossistema.
+
+## 💡 Por que o Modo Híbrido foi Descontinuado?
+
+A descontinuação do modo híbrido foi uma decisão arquitetural focada em **estabilidade, usabilidade e facilidade de manutenção open-source**. Abaixo estão os motivos principais:
+
+### 1. Incompatibilidade com o Ciclo de Vida de Áudio (Wavelink / Lavalink)
+
+No ecossistema do Lavalink (v4) com a biblioteca Wavelink (v3), quando o bot entra em um canal de voz, a sessão de áudio e a fila de reprodução (`queue`) ficam fisicamente atreladas ao servidor (Node) que efetuou a conexão inicial.
+
+Tentativas de buscar uma faixa em um Node Online e enviá-la para ser tocada no Node Local acionavam falhas de decodificação no servidor (`IllegalStateException: Failed to decode track / Error 500`), pois um Node sem suporte nativo ou sem plugins configurados para determinada fonte não consegue ler os metadados de mídia repassados por outro servidor.
+
+### 2. Picos de Latência ao Alternar de Conexão na Call
+
+Para fazer uma transição de música vinda do Navidrome (local) para uma música do YouTube/Soundcloud (online) em uma fila mista, o bot precisaria se desconectar e se reconectar a um Node diferente a cada faixa. Isso causava:
+
+- Engasgos e pequenos _delays_ entre a transição de mídias.
+- Risco de perda de pacotes e dessincronização no evento de voz do Discord.
+- Instabilidade no estado global do _Player_.
+
+### 3. Facilidade para o Usuário Final (Zero Burocracia)
+
+A existência de um modo híbrido exigia configurações complexas e paralelas de ambiente, o que dificultava o deploy para quem clonava o repositório no GitHub. Separar as responsabilidades resolve esse problema:
+
+- **Modo `ONLINE`:** Ideal para quem deseja apenas ligar o bot e tocar áudio da internet usando os servidores públicos configurados, sem precisar hospedar infraestrutura local.
+- **Modo `LOCAL`:** Perfeito para quem busca privacidade total e reprodução direta de sua biblioteca do Navidrome usando seu próprio servidor Lavalink.
+
 ## [2.2.6-1] - 04 de junho de 2026
 
 ### **DeepSeek Driver (`Brain/Providers/Clients/DeepSeekProvider.py`)**

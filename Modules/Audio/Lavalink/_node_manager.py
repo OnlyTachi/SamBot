@@ -7,14 +7,13 @@ logger = logging.getLogger("SamBot.LavalinkNodes")
 
 async def setup_nodes(bot):
     """
-    Inicializa e gerencia múltiplos servidores Lavalink.
+    Inicializa e gerencia os servidores Lavalink de acordo com o modo escolhido.
     """
     nodes = []
-
     music_mode = os.getenv("MUSIC_SOURCE_MODE", "ONLINE").strip().upper()
-    logger.info(f"🔀 Modo de busca musical ativo: {music_mode}")
+    logger.info(f"Modo de busca musical ativo: {music_mode}")
 
-    if music_mode in ["HIBRIDO", "LOCAL"]:
+    if music_mode == "LOCAL":
         local_host = os.getenv("LAVALINK_LOCAL_HOST", "")
         local_port = os.getenv("LAVALINK_LOCAL_PORT", "2333")
         local_pass = os.getenv("LAVALINK_LOCAL_PASSWORD", "youshallnotpass")
@@ -22,14 +21,14 @@ async def setup_nodes(bot):
         if local_host:
             nodes.append(
                 wavelink.Node(
-                    identifier="LOCAL",
+                    identifier="LOCAL_1",
                     uri=f"http://{local_host}:{local_port}",
                     password=local_pass,
                 )
             )
-            logger.info(f"🎧 Node Local ({local_host}) engatilhado.")
+            logger.info(f"🏠 Node Local ({local_host}) engatilhado.")
 
-    if music_mode in ["HIBRIDO", "ONLINE"]:
+    elif music_mode == "ONLINE":
         online_hosts = os.getenv("LAVALINK_ONLINE_HOSTS", "")
         online_ports = os.getenv("LAVALINK_ONLINE_PORTS", "")
         online_passwords = os.getenv("LAVALINK_ONLINE_PASSWORDS", "")
@@ -47,11 +46,12 @@ async def setup_nodes(bot):
                 else ["youshallnotpass"] * len(hosts)
             )
 
+            ssl_ports = ["443", "8443", "2053", "2083", "2096"]  # Portas comuns de SSL
+
             for i, host in enumerate(hosts):
                 port = ports[i] if i < len(ports) else ports[0]
                 pwd = passwords[i] if i < len(passwords) else passwords[0]
-
-                protocol = "https" if port == "443" else "http"
+                protocol = "https" if port in ssl_ports else "http"
 
                 nodes.append(
                     wavelink.Node(
@@ -64,7 +64,7 @@ async def setup_nodes(bot):
 
     if not nodes:
         logger.error(
-            "🚨 Nenhum servidor Lavalink configurado para o modo atual! O módulo de música não vai funcionar."
+            "❌ Nenhum servidor Lavalink configurado para o modo atual! O módulo de música não vai funcionar."
         )
         return
 

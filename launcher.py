@@ -34,7 +34,7 @@ def print_header():
     print(r" \___ \ / _` | '_ ` _ \|  _ \ / _ \| __|")
     print(r"  ___) | (_| | | | | | | |_) | (_) | |_ ")
     print(r" |____/ \__,_|_| |_| |_|____/ \___/ \__|")
-    print(f"                                   v4.0{C_RESET}")
+    print(f"                                   v5.0{C_RESET}")
     print(f"{C_MAGENTA}>> Centro de Controle, Diagnóstico e Configuração <<{C_RESET}\n")
 
 
@@ -280,8 +280,8 @@ def setup_wizard(first_time=False):
     print(f"\n{C_MAGENTA}--- Fluxo de Música & Lavalink ---{C_RESET}")
     env_data["MUSIC_SOURCE_MODE"] = ask(
         "MUSIC_SOURCE_MODE",
-        "🔀 Modo de Busca (HIBRIDO, LOCAL, ONLINE)?",
-        "HIBRIDO busca local e internet; LOCAL apenas rede interna; ONLINE apenas web.",
+        "🔀 Modo de Busca (LOCAL, ONLINE)?",
+        "LOCAL apenas rede interna; ONLINE apenas web.",
         "ONLINE",
     )
 

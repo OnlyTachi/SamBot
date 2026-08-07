@@ -6,7 +6,7 @@ import uuid
 
 # Imports dos módulos internos
 # CORREÇÃO 1: Importa a fábrica e a instância diretamente
-from Brain.Providers.LLMFactory import LLMFactory, llm_factory
+from Brain.Providers.LLMFactory import llm_factory, llm_factory
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Core.NightCycle import NightCycle
 

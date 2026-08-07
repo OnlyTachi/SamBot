@@ -14,7 +14,7 @@ from Modules.Admin.Mods._appeals import AppealStartView
 
 try:
     # Importa a instância já inicializada para diagnósticos
-    from Brain.Providers.LLMFactory import LLMFactory, llm_factory
+    from Brain.Providers.LLMFactory import llm_factory, llm_factory
 except ImportError:
     LLMFactory = None
     llm_factory = None

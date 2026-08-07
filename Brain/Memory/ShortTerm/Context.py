@@ -1,5 +1,5 @@
 import discord
-from Brain.Providers.LLMFactory import LLMFactory
+from Brain.Providers.LLMFactory import llm_factory
 
 
 class HistoricoManager:

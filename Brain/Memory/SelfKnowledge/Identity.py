@@ -3,7 +3,7 @@ import logging
 import json
 
 # Ferramentas e Providers
-from Brain.Providers.LLMFactory import LLMFactory
+from Brain.Providers.LLMFactory import llm_factory
 from Brain.Tools.Research.WebSearch import BuscaTool
 from Brain.Memory.DataManager import data_manager
 

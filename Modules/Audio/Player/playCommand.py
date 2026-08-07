@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord import app_commands
 import wavelink
 import logging
-
 from ..Lavalink._search_manager import search_manager
 
 logger = logging.getLogger("SamBot.PlayCommands")
@@ -17,7 +16,7 @@ class PlayCommands(commands.Cog):
     @commands.hybrid_command(
         name="play", aliases=["p", "tocar"], description="Pesquisa e toca música."
     )
-    @app_commands.describe(busca="Nome da música ou link (YouTube/Spotify/SoundCloud).")
+    @app_commands.describe(busca="Nome da música ou link.")
     async def play(self, ctx: commands.Context, *, busca: str):
         if not ctx.author.voice:
             return await ctx.send(
@@ -25,12 +24,19 @@ class PlayCommands(commands.Cog):
             )
 
         player: wavelink.Player = ctx.voice_client
+
         if not player:
             try:
                 player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
-                player.autoplay = wavelink.AutoPlay.enabled
+                if hasattr(wavelink, "AutoPlayMode"):
+                    player.autoplay = wavelink.AutoPlayMode.enabled
+                elif hasattr(wavelink, "AutoPlay"):
+                    player.autoplay = wavelink.AutoPlay.enabled
             except Exception as e:
-                return await ctx.send(f"  Erro ao conectar no canal: {e}")
+                logger.error(f"Erro ao conectar ao canal de voz: {e}")
+                return await ctx.send(
+                    "Não consegui me conectar. Verifique se o servidor de áudio está online."
+                )
 
         player.reply_channel = ctx.channel
         await ctx.defer()
@@ -41,7 +47,11 @@ class PlayCommands(commands.Cog):
             if not tracks:
                 if origem == "NOT_FOUND_LOCAL":
                     return await ctx.send(
-                        "❌ O bot está configurado em modo `LOCAL` e esta música não existe no Navidrome. Caso tenha errado na configuração, tente mudar o modo para `ONLINE` ou `HIBRIDO` no arquivo .env."
+                        "Eu estou configurada apenas para musica local, e não encontrei nada com essa busca. Tente outro termo ou verifique se a música está na sua biblioteca local."
+                    )
+                elif origem in ["ALL_ONLINE_OFFLINE", "ALL_OFFLINE"]:
+                    return await ctx.send(
+                        "Sinto muito, Todos os servidores de música estão offline no momento. Tente novamente mais tarde :("
                     )
                 return await ctx.send("❌ Nenhuma música encontrada com essa busca.")
 
@@ -50,27 +60,24 @@ class PlayCommands(commands.Cog):
                 for track in tracks.tracks:
                     player.queue.put(track)
                     added += 1
-
                 if not player.playing:
                     await player.play(player.queue.get())
-
                 embed = discord.Embed(
-                    description=f"✅ Carregados **{added}** músicas da playlist **{tracks.name}** na fila.",
+                    description=f"✅ Carregadas **{added}** músicas da playlist **{tracks.name}** na fila.",
                     color=discord.Color.green(),
                 )
                 await ctx.send(embed=embed)
 
-            # Fluxo para tratar uma música única
             else:
                 track = tracks[0]
                 txt_origem = (
-                    "  Biblioteca Local" if "NAVIDROME" in origem else "Internet"
+                    "🎵 Biblioteca Local" if "NAVIDROME" in origem else "🌐 Internet"
                 )
 
                 if player.playing:
                     player.queue.put(track)
                     embed = discord.Embed(
-                        description=f"  **[{track.title}]({track.uri})** adicionada à fila (Posição: {player.queue.count}).",
+                        description=f"📌 **[{track.title}]({track.uri})** adicionada à fila (Posição: {player.queue.count}).",
                         color=discord.Color.orange(),
                     )
                     embed.set_footer(text=f"Fonte: {txt_origem}")
@@ -78,13 +85,12 @@ class PlayCommands(commands.Cog):
                 else:
                     await player.play(track)
                     await ctx.send(
-                        f"  Carregando sua música vinda da {txt_origem}...",
-                        delete_after=3,
+                        f"🎶 Carregando sua música ({txt_origem})...", delete_after=3
                     )
 
         except Exception as e:
             logger.error(f"Erro no comando play: {e}")
-            await ctx.send(f"❌ Erro inesperado ao buscar a música. Verifique os logs.")
+            await ctx.send("❌ Ocorreu um erro ao tentar processar a música.")
 
 
 async def setup(bot):
