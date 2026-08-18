@@ -6,6 +6,9 @@ import aiohttp
 import wavelink
 from datetime import datetime, timedelta
 from typing import Optional, Tuple
+from Core.ConfigLoader import AppConfig
+
+from Brain.Core.NetworkManager import NetworkManager
 
 logger = logging.getLogger("SamBot.SearchManager")
 
@@ -16,10 +19,10 @@ class SearchManager:
     """
 
     def __init__(self):
-        self.mode = os.getenv("MUSIC_SOURCE_MODE", "ONLINE").upper()
-        self.navi_url = os.getenv("NAVIDROME_URL", "").rstrip("/")
-        self.navi_user = os.getenv("NAVIDROME_USER", "")
-        self.navi_password = os.getenv("NAVIDROME_PASSWORD", "")
+        self.mode = AppConfig.get("MUSIC_SOURCE_MODE", "ONLINE").upper()
+        self.navi_url = AppConfig.get("NAVIDROME_URL", "").rstrip("/")
+        self.navi_user = AppConfig.get("NAVIDROME_USER", "")
+        self.navi_password = AppConfig.get("NAVIDROME_PASSWORD", "")
         self.node_cooldowns = {}
 
     def _auth_params(self):
@@ -36,11 +39,16 @@ class SearchManager:
         }
 
     def mark_node_offline(self, node_id: str):
-        """Coloca um Node de castigo por 1 hora."""
+        """Coloca um Node de castigo e o remove temporariamente do Pool do Wavelink."""
         unban_time = datetime.now() + timedelta(hours=1)
         self.node_cooldowns[node_id] = unban_time
+
+        if node_id in wavelink.Pool.nodes:
+            node = wavelink.Pool.nodes[node_id]
+            self.bot.loop.create_task(node.close())
+
         logger.warning(
-            f"Node '{node_id}' falhou e entrou em CASTIGO por 1 hora (ativo novamente às {unban_time.strftime('%H:%M:%S')})."
+            f"Node '{node_id}' falhou e foi isolado temporariamente por 1 hora (reativação às {unban_time.strftime('%H:%M:%S')})."
         )
 
     def is_node_available(self, node_id: str) -> bool:
@@ -70,17 +78,17 @@ class SearchManager:
             return False
         url = f"{self.navi_url}/rest/ping.view"
         params = self._auth_params()
+        session = NetworkManager.get_aio_session()
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params, timeout=5) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        status = data.get("subsonic-response", {}).get("status")
-                        if status == "ok":
-                            logger.info(
-                                "  Conexão com Navidrome (Subsonic API) estabelecida com sucesso!"
-                            )
-                            return True
+            async with session.get(url, params=params, timeout=5) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    status = data.get("subsonic-response", {}).get("status")
+                    if status == "ok":
+                        logger.info(
+                            "  Conexão com Navidrome (Subsonic API) estabelecida com sucesso!"
+                        )
+                        return True
             logger.error("Falha na autenticação ou resposta inesperada do Navidrome.")
             return False
         except Exception as e:
@@ -93,27 +101,27 @@ class SearchManager:
             return None
         params = self._auth_params()
         params.update({"query": query, "songCount": 1})
+        session = NetworkManager.get_aio_session()
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.navi_url}/rest/search3.view", params=params, timeout=5
-                ) as r:
-                    if r.status == 200:
-                        data = await r.json()
-                        songs = (
-                            data.get("subsonic-response", {})
-                            .get("searchResult3", {})
-                            .get("song", [])
+            async with session.get(
+                f"{self.navi_url}/rest/search3.view", params=params, timeout=5
+            ) as r:
+                if r.status == 200:
+                    data = await r.json()
+                    songs = (
+                        data.get("subsonic-response", {})
+                        .get("searchResult3", {})
+                        .get("song", [])
+                    )
+                    if songs:
+                        s = songs[0]
+                        stream_params = self._auth_params()
+                        stream_params["id"] = s["id"]
+                        qs = "&".join(f"{k}={v}" for k, v in stream_params.items())
+                        logger.info(
+                            f"  Encontrado no Navidrome: {s.get('title')} - {s.get('artist')}"
                         )
-                        if songs:
-                            s = songs[0]
-                            stream_params = self._auth_params()
-                            stream_params["id"] = s["id"]
-                            qs = "&".join(f"{k}={v}" for k, v in stream_params.items())
-                            logger.info(
-                                f"  Encontrado no Navidrome: {s.get('title')} - {s.get('artist')}"
-                            )
-                            return f"{self.navi_url}/rest/stream.view?{qs}"
+                        return f"{self.navi_url}/rest/stream.view?{qs}"
         except Exception as e:
             logger.error(f"Erro ao consultar Navidrome: {e}")
         return None

@@ -3,6 +3,8 @@ from discord.ext import commands
 import aiohttp
 from collections import defaultdict
 
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class SocialBase(commands.Cog):
     def __init__(self, bot):
@@ -82,15 +84,15 @@ class SocialBase(commands.Cog):
     async def get_gif(self, category: str) -> str:
         """Busca um GIF aleatório da API nekos.best com fallback."""
         url = f"{self.base_url}/{category}"
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return data["results"][0]["url"]
-                    return "https://media.giphy.com/media/Lp51TPltqpSMM/giphy.gif"
-            except:
+        session = NetworkManager.get_aio_session()
+        try:
+            async with session.get(url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data["results"][0]["url"]
                 return "https://media.giphy.com/media/Lp51TPltqpSMM/giphy.gif"
+        except:
+            return "https://media.giphy.com/media/Lp51TPltqpSMM/giphy.gif"
 
     async def execute_interaction(
         self, source, author, target, action_key, can_return=True

@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class FundoSelect(discord.ui.Select):

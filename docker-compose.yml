@@ -25,5 +25,24 @@ services:
       - .env
     restart: always
     depends_on:
+      meilisearch:
+        condition: service_healthy
       lavalink:
         condition: service_healthy
+  
+  meilisearch:
+    image: getmeili/meilisearch:v1.8
+    container_name: meilisearch
+    ports:
+      - "7700:7700"
+    env_file:
+      - .env
+    volumes:
+      - ./Data/Persistence/MeiliDB:/meili_data
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

@@ -1,5 +1,113 @@
 # Changelog
 
+### 🚀 [v3.0.0] — 17 de junho de 2026
+
+**Roteamento & Inteligência Cognitiva**
+
+- **Validação Vetorial no TLMRouter :** Implementada checagem matemática de similaridade de cosseno (`1.0 - distance`) com linha de corte (_threshold_) configurada em `0.86`, evitando que mensagens arbitrárias disparem ferramentas indevidamente.
+- **Desambiguação do WeatherTool :** Adicionado filtro léxico/semântico e _Early Return_ com `None` para evitar que expressões cotidianas (como _"tempo de caminhada"_) ou buscas sem localidade acionem chamadas meteorológicas desnecessárias.
+- **Cascata Inteligente & Fallback para WebSearch (P2):** Criada interceptação no pipeline para redirecionar automaticamente consultas de nicho falhas (como nomes de celebridades no `game_search` ou `anime`) para o mecanismo de busca na web (`web_search`), higienizando o contexto do RAG.
+
+**Performance de Rede & Infraestrutura**
+
+- **Gerenciador Global NetworkManager:** Centralizada a criação de sessões HTTP (`aiohttp.ClientSession` e `httpx.AsyncClient`) em formato _Singleton_, ativando _Connection Pooling_ e reduzindo a latência em requisições de APIs externas.
+- **Buscas Simultâneas de Produtos:** Otimizado o método `ProductSearchTool.search` com `asyncio.gather`, executando as varreduras no Pelando, Mercado Livre e SerpApi em paralelo.
+- **Tratamento de Exceções de Rede:** Substituição de blocos de captura genéricos por exceções de rede e timeout dedicadas (`aiohttp.ClientError`, `httpx.HTTPError`, `asyncio.TimeoutError`).
+
+**Refatoração & Qualidade de Código**
+
+- **Eliminação de Magic Numbers:** Parametrização de constantes e _timeouts_ nos módulos `SQLiteConnection`, `JikanSearch` e `CupomFinder`, permitindo configuração direta via `.env`.
+- **Padronização de Type Hinting:** Adição de anotações de tipo explícitas nos métodos principais do `Pipeline.py` e utilitários auxiliares.
+- **Limpeza de Código Morto:** Remoção do método legado `executar_camada`, unificando a esteira de geração diretamente no `LLMChainOrchestrator`.
+
+### 🚀 [v2.2.9] — 12 de junho de 2026
+
+**Pipeline Cognitivo & Roteamento Híbrido (Brain/Core)**
+
+- **Transição do TLMRouter para ChromaDB:** Refatorado para atuar como orquestrador do `VectorStore`, salvando os embeddings em disco e eliminando a retenção permanente na memória RAM.
+- **Execção em Dupla Camada (Camada 0 & Camada 1):**
+  - _Camada 0 (Sintática):_ `LimpezaManager` processa saudações, FAQs e intenções simples via RapidFuzz + lematização do spaCy em ~1ms (0 tokens de LLM).
+  - _Camada 1 (Semântica):_ `TLMRouter` atua no fallback para resolver intenções e comandos mais complexos consultando o ChromaDB.
+- **Reorganização de Módulos & Limpeza de Código:**
+  - `LimpezaManager` movido para `Brain/Core/Router/Limpeza.py` para centralizar a arquitetura do roteador. Assumindo novo nome `IntentClassifier.py`
+  - Remoção do `IntentClassifier.py` por duplicidade de escopo com a `LimpezaManager`.
+- **Interceptação de Respostas Estáticas:** Unificação das seções `intents` e `intents_commands` do `nlp_data.json` no `Pipeline.py` para responder instantaneamente a dúvidas frequentes sobre o bot sem consumir cota de IA.
+
+**Core & Ciclo de Vida (Bot.py / Logger.py)**
+
+- **Separação do Fluxo de Diagnóstico:**
+  - `run_pre_flight_checks()`: Criado para checar arquivos, base de dados e variáveis do `.env` antes da conexão com o Gateway do Discord.
+- **Mapeamento de Múltiplas IAs:** Substituído o status genérico "ONLINE" por identificação dinâmica do modelo primário (ex: `gemini-2.0-flash`) e contador de provedores secundários (+N secundários).
+- **Modo de Desenvolvimento (`DEBUG_MODE=true`):** Configuração automática do nível de log (`logging.DEBUG`) com exibição do traceback completo no terminal durante exceções.
+- **Tratamento de Exceções & Imports:** Corrigida duplicação de import do `llm_factory` e adicionado log defensivo para a rotina de escrita de estatísticas (`save_stats_loop`).
+
+**Módulo de Usuário (Modules/Utility/User/InfoUser.py)**
+
+- **Desagrupamento da Classe `UserProfile`:** Removida a dependência do grupo raiz `user` para permitir execução direta por prefixo (`+`).
+- **Novos Comandos Híbridos Independente:**
+- `+avatar` / `/avatar`: Convertido com atalhos (`pfp`, `foto`, `useravatar`).
+- `+userbanner` / `/userbanner`: Criado para consulta direta de banners de conta.
+- `+userinfo` / `/userinfo`: Isolado para checagem completa de dados de conta/membro.
+
+**Módulo Roteador Semântico (`TLMRouter`)**
+
+- **Sincronização Vetorial em Background:** Implementada a rotina de _lazy loading_ no `Pipeline` para acionar a criação e atualização da coleção `rotas_intencoes` no ChromaDB.
+- **Tratamento de Coleções Inexistentes:** Corrigida a verificação inicial no `VectorStore` e no `TLMRouter` para garantir a inicialização automática da coleção de rotas durante a carga da aplicação.
+- **Resolução de Erro de Execução (`AttributeError`):** Removida a chamada indesejada do método inexistente `_extrair_args`, padronizando o envio dos argumentos limpos diretamente para o chamador da ferramenta.
+- **Gestão de Cache de Rotas:** Adicionado o mecanismo de exclusão/limpeza de IDs antigos no ChromaDB ao reindexar o arquivo `router_triggers.json`.
+  **Módulo Ferramentas de Clima (`WeatherTool`)**
+- **Extração Desacoplada de Argumentos:** Transferida a responsabilidade de sanitização de texto diretamente para a `WeatherTool`, mantendo o `Pipeline` limpo e coeso.
+- **Integração com `DataManager` & `nlp_data`:** A ferramenta agora consulta dinamicamente o dicionário `nlp_data.json` em RAM para ler `state_mapping` e `stopwords`, convertendo siglas como "RJ" ou "SP" para nomes por extenso ("Rio de Janeiro", "São Paulo") automaticamente.
+- **Normalização Dinâmica de Locais:** Implementada remoção automatizada de palavras de ruído e conectivos ("preciso", "levar", "guarda-chuva", "hoje", "em o") para evitar falhas de geocodificação no Nominatim.
+
+**Módulo Pipeline Cognitivo (`Pipeline`)**
+
+- **Ajuste de Interceptação da Camada 0:** Adicionada verificação no método `_interceptar_resposta_estatica` para ignorar a devolução de mensagens estáticas do JSON quando a intenção identificada pertencer a uma ferramenta de dados dinâmicos (`weather`, `game_search`, etc.).
+
+## [2.2.8-1] - 11 de junho de 2026
+
+### Adicionado
+
+- **Motor de Cache & Ingestão de Ofertas (Meilisearch):** Implementada a arquitetura completa de cache rápido (< 10ms) e persistência de ofertas estruturadas em JSON com suporte a ordenação por preço e coleta.
+
+- **Ingestão Passiva via Telegram:** Integrado o `TelegramScraper` assíncrono via Telethon para escuta em tempo real de canais de promoção, com extração automatizada de títulos, preços, lojas e links.
+
+- **Autenticação Interativa via DM no Discord:** Criado fluxo de login do Telegram operado via mensagens privadas com o `OWNER_ID`, incluindo suporte a 2FA e auto-exclusão das mensagens com dados sensíveis após 20 segundos.
+- **Chaves de Controle e Debug (`.env`):** Adicionada a variável `TELEGRAM_ENABLED` para ativar/desativar o módulo de ingestão sob demanda e a flag `DEBUG_MODE` para inspeção detalhada de mensagens recebidas e descarte de posts.
+- **Expurgo Físico Noturno:** Adicionada rotina no `NightCycle` para deleção automática e diária no Meilisearch de documentos cujo `expira_em` tenha vencido.
+
+### Alterado
+
+- **Estratégia de Busca (`ProductSearchTool`):** Refatorado o orquestrador para adotar a lógica de _Cache Hit_ no Meilisearch antes de acionar scrapers externos (_Cache Miss_), gravando novas ofertas automaticamente no banco.
+
+- **Modularização do DataManager:** Reorganização estrutural em `Connections/` (`SQLiteConnection`, `MeiliConnection`) e `SubManagers/` (`ShoppingDataManager`, `BrainDataManager`, `DiscordDataManager`).
+
+- **Pré-teste de Saúde no Lavalink (`_node_manager`):** Adicionada validação por ping HTTP antes da conexão ao pool do Wavelink para descartar instantaneamente nós offline ou com erros de SSL.
+
+### Corrigido
+
+- **Lazy Initialization no Meilisearch:** Resolvida a exceção `RuntimeError: no running event loop` ao adiar o setup de índices para a primeira requisição assíncrona.
+
+- **Atributo `folders` no DataManagerFacade:** Restaurado o dicionário `folders` no `Manager.py` para manter compatibilidade com módulos legados e gerenciadores de playlist.
+
+- **Resiliência de Boot do Roteador (`TLMRouter`):** Implementado loop de _retry_ com até 5 tentativas no boot para evitar suspensão do roteamento semântico caso o container do Ollama demore a inicializar.
+
+### [2.2.8] - 07 de junho de 2026
+
+#### 🚀 Adicionado
+
+- **Motor SQLite para Persistência (`DatabaseConnection`):** Implementada conexão transacional e _thread-safe_ no arquivo `Data/Persistence/database.db`, garantindo proteção contra gravações simultâneas e eliminando os riscos de corrupção de dados.
+
+- **Módulos Especializados de Dados (`BrainDataManager` & `DiscordDataManager`):** Isolamento de responsabilidades onde o `BrainDataManager` responde exclusivamente pela camada cognitiva (prompts, identidade e NLP) e o `DiscordDataManager` gerencia preferências de usuários e permissões de canais do Discord.
+
+- **Orquestrador Facade (`DataManagerFacade`):** Camada centralizada no `Manager.py` responsável por rotear chamadas para os novos módulos especializados sem quebrar a compatibilidade da API com o restante do sistema.
+
+#### 🔄 Alterado
+
+- **Descontinuação de I/O em Arquivos JSON:** Interrompida a reescrita direta de arquivos `.json` no disco para persistência de listas, preferências e configurações.
+
+- **Persistência de Token do IGDB (`IGDBService`):** Reformulada a renovação do token OAuth2 da Twitch para carregar e salvar suas credenciais temporárias na tabela `knowledge` do SQLite via `data_manager`, dispensando caminhos de arquivo locais.
+
 ### [2.2.7] - 06 de junho de 2026
 
 #### Descontinuações (Deprecated / Removed)
@@ -505,7 +613,7 @@ O módulo `Modules/Audio/*` agora está dividido estritamente nos domínios: `Pl
 ### **Atualizações em `Core/Bot.py`:**
 
 - **Leitura Dinâmica de Configurações:** Realiza o parse e a leitura do arquivo `config.json` em tempo de execução para extrair nome e versão dinamicamente, com fallback seguro.
-- **Tratamento Resiliente do Prefix:** Suporte robusto à extração via `os.getenv("BOT_PREFIX", "-")`, garantindo o prefixo padrão caso ocorram falhas ou ausência no arquivo `.env`.
+- **Tratamento Resiliente do Prefix:** Suporte robusto à extração via `AppConfig.get("BOT_PREFIX", "-")`, garantindo o prefixo padrão caso ocorram falhas ou ausência no arquivo `.env`.
 - **Correção no Fluxo de Sincronização:** A rotina `run_diagnostics()` foi movida do `setup_hook` para o evento nativo `on_ready`, solucionando bugs de latência nula e adicionando persistência para a visualização `AppealStartView`.
 - **Gerenciador de Erros Visual Avançado:** O listener global `on_command_error` agora gera embeds detalhados e intuitivos para exceções do tipo `MissingRequiredArgument`, eliminando mensagens em texto simples.
 - **Padronização de Fuso Horário:** Correção na captura do `start_time` do sistema, migrando para o método recomendado `discord.utils.utcnow()`.

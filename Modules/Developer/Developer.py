@@ -20,9 +20,7 @@ class Developer(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger("SamBot.Developer")
-        # CORREÇÃO 2: Instanciação direta em vez de calling get_instance()
         self.factory = llm_factory
-        # Cria a cadeia principal para testes de LLM
         self.chain = self.factory.get_default_principal_chain()
         self.emoji = "💻"
 
@@ -56,7 +54,6 @@ class Developer(commands.Cog):
         msg = await ctx.send("🔄 **Testando pipeline de IA...**")
         try:
             start_time = asyncio.get_event_loop().time()
-            # CORREÇÃO 3: Utiliza a geração de resposta a partir da cadeia orquestrada
             response = await self.chain.generate_response(
                 prompt, "Responda de forma técnica e curta."
             )
@@ -126,6 +123,64 @@ class Developer(commands.Cog):
             )
         except Exception as e:
             await msg.edit(content=f"❌ **Erro no Ciclo:** {str(e)}")
+
+    @commands.command(name="reload_db", aliases=["atualizar", "syncdb"])
+    @commands.is_owner()
+    async def reload_knowledge_database(self, ctx):
+        """Lê os arquivos JSON da pasta Knowledge, grava no SQLite e limpa os caches."""
+        msg = await ctx.send(
+            "🔄 **Iniciando sincronização dos JSONs com o banco de dados...**"
+        )
+
+        try:
+            import json
+            from pathlib import Path
+            from Brain.Memory.DataManager.Connections import data_manager
+
+            knowledge_dir = Path("Data/Knowledge")
+            arquivos_atualizados = []
+
+            if knowledge_dir.exists():
+                for json_file in knowledge_dir.glob("*.json"):
+                    key_name = json_file.stem
+                    with open(json_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    data_manager.save_knowledge(key_name, data)
+                    arquivos_atualizados.append(f"`{key_name}`")
+
+            data_manager.reload_all()
+
+            if hasattr(self.bot, "pipeline") and hasattr(self.bot.pipeline, "router"):
+                await self.bot.pipeline.router.sincronizar_base_rotas(force=True)
+
+            embed = discord.Embed(
+                title="✅ Banco de Dados Sincronizado!",
+                description="Os arquivos JSON foram lidos e gravados com sucesso no SQLite.",
+                color=discord.Color.green(),
+            )
+
+            detalhes = (
+                ", ".join(arquivos_atualizados)
+                if arquivos_atualizados
+                else "Nenhum JSON encontrado."
+            )
+            embed.add_field(
+                name="📂 Registros Atualizados", value=detalhes, inline=False
+            )
+            embed.add_field(
+                name="🧠 Cache de Memória",
+                value="RAM limpa & VectorStore sincronizada.",
+                inline=False,
+            )
+
+            await msg.edit(content=None, embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Erro ao sincronizar banco de dados: {e}", exc_info=True)
+            await msg.edit(
+                content=f"❌ **Falha ao atualizar o banco de dados:** `{str(e)}`"
+            )
 
 
 async def setup(bot):

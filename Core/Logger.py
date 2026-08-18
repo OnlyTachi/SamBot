@@ -2,6 +2,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import sys
+from Core.ConfigLoader import AppConfig
 
 
 class Logger:
@@ -14,8 +15,16 @@ class Logger:
         return cls._instance
 
     def _initialize_logger(self):
+        val = AppConfig.get("DEBUG_MODE", False)
+        if isinstance(val, bool):
+            debug_mode = val
+        else:
+            debug_mode = str(val).lower() in ("true", "1", "yes")
+
+        log_level = logging.DEBUG if debug_mode else logging.INFO
+
         self.logger = logging.getLogger("SamBot")
-        self.logger.setLevel(logging.INFO)
+        self.logger.setLevel(log_level)
 
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
@@ -25,11 +34,12 @@ class Logger:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
+        # Handler do Terminal (Console)
         console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(log_level)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-        # Garantir que a pasta de logs existe
         log_dir = "logs"
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
@@ -44,7 +54,7 @@ class Logger:
             backupCount=backup_count,
             encoding="utf-8",
         )
-        general_handler.setLevel(logging.INFO)
+        general_handler.setLevel(log_level)
         general_handler.setFormatter(formatter)
         self.logger.addHandler(general_handler)
 
@@ -55,7 +65,7 @@ class Logger:
             backupCount=backup_count,
             encoding="utf-8",
         )
-        error_handler.setLevel(logging.ERROR)  # Filtra para só salvar ERROR ou CRITICAL
+        error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(formatter)
         self.logger.addHandler(error_handler)
 

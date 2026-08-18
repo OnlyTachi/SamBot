@@ -1,5 +1,7 @@
-import aiohttp
 import time
+
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class CurrencyService:
     def __init__(self):
@@ -12,19 +14,19 @@ class CurrencyService:
         """Retorna a cotação atual do Dólar para Real."""
         if self._cache_rate and (time.time() - self._cache_time < self._cache_duration):
             return self._cache_rate
+        session = NetworkManager.get_aio_session()
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(self.api_url) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        rate = float(data['USDBRL']['bid'])
-                        
-                        self._cache_rate = rate
-                        self._cache_time = time.time()
-                        return rate
+            async with session.get(self.api_url) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    rate = float(data["USDBRL"]["bid"])
+
+                    self._cache_rate = rate
+                    self._cache_time = time.time()
+                    return rate
         except Exception as e:
             print(f"❌ [Currency] Erro ao buscar cotação: {e}")
-            
+
         # Fallback se a API falhar (valor aproximado seguro)
         return 6.00

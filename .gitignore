@@ -1,17 +1,22 @@
-# Configurações e Segredos
+# Segredos e Configurações Locais
 .env
+config.yaml
+Data/Config/*.session-journal
+Data/Config/*.session
 Data/Config/*.json
-Data/Persistence/Tokens/
 application.yml
 
 # Dados de Utilizador e Memória (RAG)
 Data/Persistence/Users/*
 Data/Persistence/VectorDB/
+Data/Persistence/MeiliDB/
 Data/Persistence/playlists.json
 Data/Persistence/channels.json
 Data/Knowledge/users.json
-Data/Users/users.json
 Data/Knowledge/jellyfin_catalog.json
+Data/Persistence/*.db
+Data/Persistence/*.db-shm
+Data/Persistence/*.db-wal
 
 # Python e Ambiente
 __pycache__/

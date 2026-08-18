@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from Brain.Providers.BaseLLM import BaseLLMProvider
+from Core.ConfigLoader import AppConfig
 
 try:
     from openai import AsyncOpenAI
@@ -15,8 +16,8 @@ class DeepSeekDriver(BaseLLMProvider):
     def __init__(self, log_instance, generation_config: Optional[dict] = None):
         self.log = log_instance
         self.api_key = os.getenv("DEEPSEEK_API_KEY")
-        self.model_name = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-        self.base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+        self.model_name = AppConfig.get("DEEPSEEK_MODEL", "deepseek-chat")
+        self.base_url = AppConfig.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
         self.temperature = 0.7
         if generation_config and "temperature" in generation_config:
             self.temperature = generation_config["temperature"]
@@ -24,16 +25,15 @@ class DeepSeekDriver(BaseLLMProvider):
     async def initialize(self) -> bool:
         """Verifica se a biblioteca 'openai' está disponível e se a chave foi configurada."""
         if not DEEPSEEK_AVAILABLE:
-            self.log.warning(
+            self.log.debug(
                 "  Biblioteca 'openai' não encontrada. Camada DeepSeek offline."
             )
             return False
         if not self.api_key:
-            self.log.warning(
+            self.log.debug(
                 "  Nenhuma chave API da DeepSeek encontrada no .env. Camada DeepSeek desativada."
             )
             return False
-
         self.log.info(
             f"  [DeepSeek] Configurado com sucesso usando o modelo: {self.model_name}"
         )

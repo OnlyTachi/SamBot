@@ -6,7 +6,7 @@ import random
 import logging
 
 from Brain.Core.Pipeline import CognitionPipeline
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 logger = logging.getLogger("SamBot.Agent")
 

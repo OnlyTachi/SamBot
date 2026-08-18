@@ -1,0 +1,111 @@
+{
+    "price_patterns": [
+        "(?:POR|POR:|APENAS|SÓ|SO|VALOR|PREÇO|PRECO)?\\s*R\\$\\s*(\\d+(?:[.,]\\d+)*)",
+        "POR:\\s*R?\\$\\s*(\\d+(?:[.,]\\d+)*)",
+        "DE:\\s*R?\\$\\s*\\d+(?:[.,]\\d+)*\\s*POR:\\s*R?\\$\\s*(\\d+(?:[.,]\\d+)*)",
+        "A\\s*PARTIR\\s*DE\\s*R?\\$\\s*(\\d+(?:[.,]\\d+)*)",
+        "1X\\s*DE\\s*R?\\$\\s*(\\d+(?:[.,]\\d+)*)"
+    ],
+    "domain_to_store": {
+        "s.shopee.com.br": "Shopee",
+        "shopee.com.br": "Shopee",
+        "meli.la": "Mercado Livre",
+        "mercadolivre.com.br": "Mercado Livre",
+        "mercadolivre.com": "Mercado Livre",
+        "amzn.to": "Amazon",
+        "amazon.com.br": "Amazon",
+        "amazon.com": "Amazon",
+        "eioferta.com.br": "Kabum",
+        "kabum.com.br": "Kabum",
+        "magazineluiza.com.br": "Magalu",
+        "magazinevoce.com.br": "Magalu",
+        "m.magazineluiza.com.br": "Magalu",
+        "terabyteshop.com.br": "Terabyte",
+        "pichau.com.br": "Pichau",
+        "casasbahia.com.br": "Casas Bahia",
+        "casasbahia.com": "Casas Bahia",
+        "ponto.com.br": "Ponto",
+        "pontofrio.com.br": "Ponto",
+        "extra.com.br": "Extra",
+        "ali.ski": "AliExpress",
+        "s.click.aliexpress.com": "AliExpress",
+        "aliexpress.com": "AliExpress",
+        "pt.aliexpress.com": "AliExpress",
+        "shein.com": "Shein",
+        "shein.top": "Shein",
+        "m.shein.com": "Shein",
+        "carrefour.com.br": "Carrefour",
+        "fastshop.com.br": "Fast Shop",
+        "girafa.com.br": "Girafa",
+        "dell.com": "Dell",
+        "nike.com.br": "Nike",
+        "adidas.com.br": "Adidas"
+    },
+    "title_ignore_patterns": [
+        "ANÚNCIO",
+        "\\[ Photo \\]",
+        "\\[ Video \\]",
+        "\\[ Imagem \\]",
+        "✅ RESGATE TODOS OS CUPONS.*",
+        "https?://\\S+",
+        "www\\.\\S+",
+        "USE O CUPOM:?\\s*\\w+",
+        "CUPOM:?\\s*\\w+",
+        "FRETE GRÁTIS.*",
+        "LINK NOS COMONTÁRIOS.*",
+        "LINK NA BIO.*",
+        "CLIQUE AQUI.*",
+        "SÓ HOJE.*",
+        "CORRE.*",
+        "🚨.*",
+        "😱.*",
+        "🔥.*",
+        "👇.*"
+    ],
+    "store_aliases": {
+        "shopee": [
+            "shopee",
+            "shoope",
+            "shope",
+            "sope",
+            "chope"
+        ],
+        "amazon": [
+            "amazon",
+            "amzn",
+            "amzon",
+            "amazom"
+        ],
+        "mercado-livre": [
+            "mercado livre",
+            "mercadolivre",
+            "ml",
+            "mercadolivre.com"
+        ],
+        "kabum": [
+            "kabum",
+            "kabu",
+            "kabun"
+        ],
+        "magalu": [
+            "magalu",
+            "magazine luiza",
+            "magazineluiza"
+        ],
+        "aliexpress": [
+            "aliexpress",
+            "ali",
+            "alixpress",
+            "ali express"
+        ],
+        "terabyte": [
+            "terabyte",
+            "terabyteshop",
+            "tera"
+        ],
+        "pichau": [
+            "pichau",
+            "pichau.com"
+        ]
+    }
+}

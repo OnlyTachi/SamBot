@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from Brain.Providers.BaseLLM import BaseLLMProvider
+from Core.ConfigLoader import AppConfig
 
 try:
     from openai import AsyncOpenAI
@@ -19,8 +20,10 @@ class OpenRouterDriver(BaseLLMProvider):
             "OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free"
         )
         self.base_url = "https://openrouter.ai/api/v1"
-        self.site_url = os.getenv("OPENROUTER_SITE_URL", "https://github.com/SamBot")
-        self.app_name = os.getenv("OPENROUTER_APP_NAME", "SamBot")
+        self.site_url = AppConfig.get(
+            "OPENROUTER_SITE_URL", "https://github.com/SamBot"
+        )
+        self.app_name = AppConfig.get("OPENROUTER_APP_NAME", "SamBot")
         self.temperature = 0.7
         if generation_config and "temperature" in generation_config:
             self.temperature = generation_config["temperature"]
@@ -28,16 +31,15 @@ class OpenRouterDriver(BaseLLMProvider):
     async def initialize(self) -> bool:
         """Valida disponibilidade e credenciais do OpenRouter."""
         if not OPENROUTER_AVAILABLE:
-            self.log.warning(
+            self.log.debug(
                 "  Biblioteca 'openai' não encontrada. Camada OpenRouter offline."
             )
             return False
         if not self.api_key:
-            self.log.warning(
+            self.log.debug(
                 "  Nenhuma chave OPENROUTER_API_KEY no .env. Camada OpenRouter desativada."
             )
             return False
-
         self.log.info(
             f"  [OpenRouter] Configurado com sucesso para o modelo: {self.model_name}"
         )

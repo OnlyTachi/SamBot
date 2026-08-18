@@ -1,8 +1,7 @@
 import logging
 import random
 from datetime import datetime
-
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Providers.LLMFactory import llm_factory
 from Brain.Tools.Shopping.PriceTracker import PriceTracker
@@ -12,76 +11,47 @@ from Brain.Tools.JellyfinTool import JellyfinTool
 class NightCycle:
     """
     Gerencia a rotina de manutenção noturna do robô.
-    Orquestra a flutuação do mercado, dividendos e a sumarização de logs através da Cadeia Auxiliar.
+    Orquestra a flutuação do mercado, dividendos, expurgo de cache e sumarização de logs.
     """
 
     def __init__(self):
         self.logger = logging.getLogger("SamBot.NightCycle")
-
         self.aux_chain = llm_factory.get_default_auxiliary_chain()
 
     async def run_maintenance(self, chat_logs: list):
-        self.logger.info("🌙 Iniciando ciclo noturno...")
+        self.logger.info("  Iniciando ciclo noturno...")
 
+        # 1. Mercado e Dividendos
         await self._update_market_calculations()
+
+        # 2. Alertas de Preço
         tracker = PriceTracker()
         alertas = await tracker.verificar_alertas_noturnos()
 
+        # 3. Expurgo de Ofertas Expiradas
+        try:
+            self.logger.info(
+                "  [NightCycle] Iniciando limpeza do cache de ofertas (Meilisearch)..."
+            )
+            await data_manager.purge_expired_offers()
+        except Exception as e:
+            self.logger.error(f"Erro ao expurgar ofertas do cache: {e}")
+
+        # 4. Sincronização de Mídia
         try:
             jellyfin = JellyfinTool()
             await jellyfin.sync_catalog()
         except Exception as e:
             self.logger.error(f"Erro ao atualizar o cache noturno do Jellyfin: {e}")
 
+        # 5. Resumos de Memória Vetorial
         if chat_logs:
             await self._process_chat_summaries(chat_logs)
         else:
-            self.logger.info("💤 Nenhuma atividade recente para processar.")
+            self.logger.info("  Nenhuma atividade recente para processar.")
 
-        self.logger.info("☀️ Ciclo de manutenção finalizado.")
+        self.logger.info("  Ciclo de manutenção finalizado.")
         return alertas
-
-    async def _update_market_calculations(self):
-        """Atualiza preços dos ativos e paga dividendos de FIIs."""
-        self.logger.info("📈 Atualizando cotações e processando dividendos...")
-
-        ativos = data_manager.get_knowledge("mercado") or {}
-        if not ativos:
-            return
-
-        for ticker, info in ativos.items():
-            if info["tipo"] == "Ação":
-                volatilidade = 0.08 if info.get("volatilidade") == "alta" else 0.04
-            else:
-                volatilidade = 0.02
-
-            variacao = 1 + random.uniform(-volatilidade, volatilidade + 0.01)
-            info["preco_atual"] = round(info["preco_atual"] * variacao, 2)
-
-        data_manager.save_knowledge("mercado", ativos)
-
-        users_path = data_manager.folders["users"] / "users.json"
-        todos_usuarios = data_manager._io_read_json(users_path)
-
-        for user_id, user_data in todos_usuarios.items():
-            portfolio = user_data.get("portfolio", {})
-            if not portfolio:
-                continue
-
-            total_dividendos_recebidos = 0
-            for ticker, posse in portfolio.items():
-                if ticker in ativos and ativos[ticker]["tipo"] == "FII":
-                    valor_div = ativos[ticker].get("dividendo_estimado", 0)
-                    total_dividendos_recebidos += valor_div * posse["quantidade"]
-
-            if total_dividendos_recebidos > 0:
-                banco_atual = user_data.get("banco", 0)
-                user_data["banco"] = round(banco_atual + total_dividendos_recebidos, 2)
-                self.logger.info(
-                    f"💰 Dividendos: {user_id} recebeu {total_dividendos_recebidos} em conta."
-                )
-
-        data_manager._io_save_json(users_path, todos_usuarios)
 
     async def _process_chat_summaries(self, chat_logs):
         """Lógica de extração de fatos e atualização da memória vetorial usando a Cadeia Auxiliar."""

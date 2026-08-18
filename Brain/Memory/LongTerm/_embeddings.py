@@ -4,7 +4,7 @@ import logging
 from chromadb.api.types import EmbeddingFunction
 from dotenv import load_dotenv
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 from Brain.Providers.LLMFactory import llm_factory
 
 load_dotenv()

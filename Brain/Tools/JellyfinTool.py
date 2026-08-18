@@ -1,15 +1,14 @@
-import aiohttp
 import os
-import random
 import logging
-import asyncio
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
+from Brain.Core.NetworkManager import NetworkManager
+from Core.ConfigLoader import AppConfig
 
 
 class JellyfinTool:
     def __init__(self):
         self.logger = logging.getLogger("SamBot.JellyfinTool")
-        self.base_url = os.getenv("JELLYFIN_URL", "").rstrip("/")
+        self.base_url = AppConfig.get("JELLYFIN_URL", "").rstrip("/")
         self.api_key = os.getenv("JELLYFIN_API_KEY")
         self.headers = {"X-Emby-Token": self.api_key, "Accept": "application/json"}
         self.is_configured = bool(self.base_url and self.api_key)
@@ -22,14 +21,14 @@ class JellyfinTool:
 
     async def _fetch(self, endpoint: str, params: dict = None) -> dict:
         url = f"{self.base_url}{endpoint}"
+        session = NetworkManager.get_aio_session()
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url, headers=self.headers, params=params, timeout=15
-                ) as resp:
-                    if resp.status == 200:
-                        return await resp.json()
-                    self.logger.error(f"Erro na API do Jellyfin: Status {resp.status}")
+            async with session.get(
+                url, headers=self.headers, params=params, timeout=15
+            ) as resp:
+                if resp.status == 200:
+                    return await resp.json()
+                self.logger.error(f"Erro na API do Jellyfin: Status {resp.status}")
         except Exception as e:
             self.logger.error(f"Falha de conexão com o Jellyfin: {e}")
         return {}

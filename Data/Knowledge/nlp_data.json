@@ -28,71 +28,14 @@
         "sem",
         "que",
         "se",
-        "qual",
-        "quais",
-        "quem",
-        "onde",
-        "como",
-        "quando",
-        "por que",
-        "porque",
-        "porquê",
-        "por que",
         "é",
         "foi",
         "será",
         "seria",
         "está",
         "estão",
-        "estava",
-        "estavam",
-        "vai",
-        "vão",
-        "ia",
-        "iam",
-        "ter",
-        "tem",
-        "tinha",
-        "tinham",
         "tá",
         "tão",
-        "faz",
-        "fez",
-        "fazendo",
-        "feito",
-        "gostaria",
-        "poderia",
-        "queria",
-        "quisera",
-        "saber",
-        "queria saber",
-        "diga",
-        "fale",
-        "mostre",
-        "veja",
-        "encontre",
-        "liste",
-        "traga",
-        "me dá",
-        "me dê",
-        "hoje",
-        "amanhã",
-        "amanha",
-        "ontem",
-        "agora",
-        "depois",
-        "cedo",
-        "tarde",
-        "noite",
-        "fim",
-        "semana",
-        "fds",
-        "mês",
-        "ano",
-        "dia",
-        "momento",
-        "hora",
-        "horas",
         "eu",
         "tu",
         "ele",
@@ -104,15 +47,9 @@
         "me",
         "te",
         "lhe",
-        "nos",
-        "vos",
-        "lhes",
         "mim",
         "ti",
         "si",
-        "comigo",
-        "contigo",
-        "consigo",
         "este",
         "esta",
         "isto",
@@ -121,101 +58,16 @@
         "isso",
         "aquele",
         "aquela",
-        "aquilo",
-        "meu",
-        "minha",
-        "meus",
-        "minhas",
-        "teu",
-        "tua",
-        "teus",
-        "tuas",
-        "seu",
-        "sua",
-        "seus",
-        "suas",
-        "nosso",
-        "nossa",
-        "nossos",
-        "nossas",
-        "vosso",
-        "vossa",
-        "vossos",
-        "vossas",
-        "algum",
-        "alguma",
-        "alguns",
-        "algumas",
-        "nenhum",
-        "nenhuma",
-        "nenhuns",
-        "nenhumas",
-        "qualquer",
-        "quaisquer",
-        "outro",
-        "outra",
-        "outros",
-        "outras",
-        "muito",
-        "muita",
-        "muitos",
-        "muitas",
-        "pouco",
-        "pouca",
-        "poucos",
-        "poucas",
-        "mais",
-        "menos",
-        "tão",
-        "tanto",
-        "tanta",
-        "tantos",
-        "tantas",
-        "quão",
         "sim",
         "não",
         "talvez",
-        "provavelmente",
-        "certamente",
-        "realmente",
-        "aí",
-        "ali",
-        "lá",
-        "aqui",
-        "cá",
-        "lá",
-        "atrás",
-        "adiante",
-        "fora",
-        "dentro",
         "tipo",
         "né",
-        "pá",
-        "pô",
         "cara",
         "mano",
-        "velho",
         "então",
         "daí",
-        "pois",
-        "assim",
-        "?",
-        "!",
-        ".",
-        ",",
-        ";",
-        ":",
-        "(",
-        ")",
-        "[",
-        "]",
-        "{",
-        "}",
-        "-",
-        "_",
-        "/",
-        "\\",
-        "|"
+        "pois"
     ],
     "intents": {
         "identity_check": {
@@ -376,378 +228,6 @@
                 "Até mais! Vou ficar aqui no meu modo de espera até você precisar de mim de novo."
             ]
         },
-        "weather": {
-            "triggers": [
-                "clima",
-                "tempo",
-                "chover",
-                "chuva",
-                "tempestade",
-                "trovão",
-                "relâmpago",
-                "temperatura",
-                "calor",
-                "frio",
-                "fresquinho",
-                "gelado",
-                "quente",
-                "previsão",
-                "meteorologia",
-                "sol",
-                "ensolarado",
-                "nublado",
-                "céu",
-                "vento",
-                "ventania",
-                "neve",
-                "geada",
-                "nevoeiro",
-                "humidade",
-                "vai dar sol",
-                "vai chover",
-                "está sol",
-                "está frio",
-                "graus",
-                "celsius",
-                "climatologia",
-                "tempo agora",
-                "chuva hoje"
-            ],
-            "stopwords": [
-                "clima",
-                "tempo",
-                "previsão",
-                "previsao",
-                "temperatura",
-                "chuva",
-                "sol",
-                "nublado",
-                "vento",
-                "umidade",
-                "humidade",
-                "calor",
-                "frio",
-                "graus",
-                "celsius",
-                "fahrenheit",
-                "chover",
-                "fazer",
-                "grau",
-                "máxima",
-                "mínima",
-                "sensação",
-                "térmica",
-                "climatologia",
-                "meteo",
-                "meteorológica",
-                "meteorológico",
-                "agora",
-                "hoje",
-                "amanhã"
-            ],
-            "state_mapping": {
-                "ac": "Acre",
-                "al": "Alagoas",
-                "ap": "Amapá",
-                "am": "Amazonas",
-                "ba": "Bahia",
-                "ce": "Ceará",
-                "df": "Distrito Federal",
-                "es": "Espírito Santo",
-                "go": "Goiás",
-                "ma": "Maranhão",
-                "mt": "Mato Grosso",
-                "ms": "Mato Grosso do Sul",
-                "mg": "Minas Gerais",
-                "pa": "Pará",
-                "pb": "Paraíba",
-                "pr": "Paraná",
-                "pe": "Pernambuco",
-                "pi": "Piauí",
-                "rj": "Rio de Janeiro",
-                "rn": "Rio Grande do Norte",
-                "rs": "Rio Grande do Sul",
-                "ro": "Rondônia",
-                "rr": "Roraima",
-                "sc": "Santa Catarina",
-                "sp": "São Paulo",
-                "se": "Sergipe",
-                "to": "Tocantins"
-            },
-            "responses": [
-                "Para eu te dar a previsão exata, me diga qual é a sua cidade ou estado! ☀️🌧️",
-                "O tempo anda meio doido ultimamente! Me diz a sua localização para eu verificar se vai precisar de guarda-chuva ou de protetor solar.",
-                "Clima verificado! Me informe o local que você deseja consultar e eu busco a temperatura e a sensação térmica atualizadas em tempo real. 🌡️"
-            ]
-        },
-        "games": {
-            "triggers": [
-                "steam",
-                "jogo",
-                "jogar",
-                "game",
-                "games",
-                "promo",
-                "oferta",
-                "preço",
-                "custa",
-                "valor",
-                "lançamento",
-                "gameplay",
-                "trailer",
-                "requisitos",
-                "pc",
-                "sobre o jogo",
-                "quanto",
-                "quanto custa",
-                "vale a pena",
-                "desconto",
-                "comprar jogo",
-                "consoles",
-                "playstation",
-                "xbox",
-                "nintendo",
-                "rpg",
-                "fps",
-                "indie",
-                "multiplayer"
-            ],
-            "promo_triggers": [
-                "promo",
-                "oferta",
-                "barato",
-                "desconto",
-                "sale",
-                "liquidação",
-                "promoção",
-                "baixo preço",
-                "menor preço",
-                "queda de preço",
-                "gratuito",
-                "de graça"
-            ],
-            "stopwords": [
-                "jogo",
-                "jogos",
-                "game",
-                "games",
-                "steam",
-                "loja",
-                "pc",
-                "computador",
-                "preço",
-                "valor",
-                "custa",
-                "quanto",
-                "promoção",
-                "oferta",
-                "desconto",
-                "barato",
-                "caro",
-                "sobre",
-                "história",
-                "requisitos",
-                "roda",
-                "mínimos",
-                "recomendados",
-                "lançado",
-                "desenvolvedora",
-                "estúdio",
-                "empresa",
-                "baixar",
-                "download",
-                "instalar",
-                "comprar",
-                "adquirir",
-                "gênero",
-                "plataforma"
-            ],
-            "responses": [
-                "Se você está procurando ofertas de jogos ou quer saber os requisitos de algum game específico, me diga o nome dele! 🎮",
-                "Amo o mundo dos games! Qual é o jogo da vez que você quer pesquisar na Steam ou em outras plataformas?",
-                "Posso checar preços, discounts históricos, gameplays e as especificações recomendadas para o seu PC rodar o jogo desejado. Digite o título!"
-            ]
-        },
-        "search": {
-            "triggers": [
-                "pesquise",
-                "procure",
-                "busque",
-                "encontre",
-                "quem foi",
-                "quem é",
-                "o que é",
-                "o que significa",
-                "definição",
-                "significa",
-                "notícias",
-                "novidades",
-                "atualidades",
-                "sabe sobre",
-                "google",
-                "bing",
-                "brave",
-                "duckduckgo",
-                "fale sobre",
-                "conte sobre",
-                "história de",
-                "biografia",
-                "explica-me",
-                "como funciona",
-                "por que",
-                "pesquisa",
-                "informacao",
-                "informação",
-                "resumo",
-                "o que significa"
-            ],
-            "stopwords": [
-                "pesquise",
-                "procure",
-                "busque",
-                "google",
-                "brave",
-                "bing",
-                "significa",
-                "significado",
-                "definição",
-                "biografia",
-                "quem",
-                "foi",
-                "é",
-                "são",
-                "eram",
-                "história",
-                "notícias",
-                "novidades",
-                "sobre",
-                "entenda",
-                "explique",
-                "resumo",
-                "informações",
-                "dados",
-                "sabe",
-                "conhece",
-                "falar",
-                "me",
-                "diga",
-                "conte",
-                "explica",
-                "descreve",
-                "detalhes",
-                "referente",
-                "relacionado",
-                "assunto",
-                "tema"
-            ],
-            "responses": [
-                "Vou acionar meus motores de busca para pesquisar sobre isso. O que você quer que eu procure exatamente? 🌐",
-                "Estou de olho na internet para te trazer as melhores informações. Qual é o tópico, biografia ou notícia que você busca?",
-                "Posso resumir definições, conceitos complexos ou as últimas notícias. Digite sua pesquisa!"
-            ]
-        },
-        "anime": {
-            "triggers": [
-                "anime",
-                "animes",
-                "manga",
-                "mangá",
-                "otaku",
-                "mal",
-                "myanimelist",
-                "anilist",
-                "sinopse",
-                "episódio",
-                "episodio",
-                "temporada",
-                "filler",
-                "print",
-                "screenshot",
-                "imagem",
-                "foto",
-                "cena",
-                "que anime é este",
-                "qual anime",
-                "reconhecer",
-                "descobrir anime",
-                "top",
-                "top anime",
-                "ranking",
-                "melhores animes",
-                "recomenda",
-                "sugere",
-                "indica",
-                "waifu",
-                "shonen",
-                "seinen",
-                "cosplay",
-                "abertura",
-                "opening"
-            ],
-            "recognition_triggers": [
-                "print",
-                "screenshot",
-                "imagem",
-                "foto",
-                "cena",
-                "reconhecer",
-                "descobrir anime",
-                "que anime é este",
-                "identificar",
-                "qual é a imagem"
-            ],
-            "stopwords": [
-                "anime",
-                "animes",
-                "manga",
-                "mangá",
-                "otaku",
-                "myanimelist",
-                "mal",
-                "anilist",
-                "jikan",
-                "trace",
-                "moe",
-                "sinopse",
-                "resumo",
-                "história",
-                "enredo",
-                "personagem",
-                "episódio",
-                "episodio",
-                "ep",
-                "temporada",
-                "season",
-                "lançamento",
-                "estreia",
-                "estúdio",
-                "autor",
-                "criador",
-                "nota",
-                "score",
-                "avaliação",
-                "ranking",
-                "top",
-                "melhores",
-                "cena",
-                "print",
-                "screenshot",
-                "imagem",
-                "foto",
-                "link",
-                "url",
-                "sugerir",
-                "recomendar",
-                "indicar",
-                "sugestão",
-                "recomendação"
-            ],
-            "responses": [
-                "Falou em anime, meus olhos brilham! 🌟 Qual obra você quer consultar a sinopse, estúdio ou nota no MyAnimeList?",
-                "Se você tem o print ou a imagem de um anime misterioso, envie para mim que eu posso tentar descobrir qual é usando serviços de reconhecimento visual!",
-                "Estou pronto para te indicar ótimos animes! Que gênero você mais curte? (Ação, Romance, Isekai, Suspense...)"
-            ]
-        },
         "math_calculator": {
             "triggers": [
                 "calcule",
@@ -823,138 +303,532 @@
                 "Aqui está um pouco do que posso fazer:\n1. 🌦️ Consultar o clima de qualquer cidade\n2. 🎮 Buscar jogos e promoções na Steam\n3. 🔍 Fazer pesquisas gerais na web\n4. ⛩️ Encontrar detalhes e reconhecer animes\n5. 🧮 Fazer cálculos rápidos (eu acho)\nComo posso ser útil agora?"
             ]
         },
-        "jellyfin": {
-            "triggers": [
-                "jellyfin",
-                "jelly",
-                "filme",
-                "filmes",
-                "série",
-                "series",
-                "séries",
-                "assistir",
-                "desenho",
-                "anime",
-                "ver filme",
-                "ver serie",
-                "streaming",
-                "servidor",
-                "recomenda filme",
-                "recomenda serie",
-                "sugere filme",
-                "o que tem para assistir",
-                "catalogo",
-                "catálogo",
-                "biblioteca",
-                "midia",
-                "mídia",
-                "novidades",
-                "lançamentos",
-                "adicionados"
-            ],
-            "recommendation_triggers": [
-                "recomenda",
-                "sugere",
-                "indica",
-                "novidade",
-                "novidades",
-                "aleatório",
-                "random",
-                "dica",
-                "🍿",
-                "🎬"
-            ],
-            "stopwords": [
-                "jellyfin",
-                "jelly",
-                "filme",
-                "filmes",
-                "série",
-                "series",
-                "séries",
-                "assistir",
-                "ver",
-                "buscar",
-                "procure",
-                "pesquise",
-                "encontre",
-                "catálogo",
-                "catalogo",
-                "biblioteca",
-                "servidor",
-                "streaming",
-                "recomenda",
-                "recomendação",
-                "sugere",
-                "sugestão",
-                "indica",
-                "indicação",
-                "novidades",
-                "lançamentos",
-                "adicionados",
-                "recente",
-                "recentes",
-                "disponível",
-                "tem",
-                "no"
-            ],
-            "responses": [
-                "Pipoca na mão! 🍿 O que você quer procurar no Jellyfin hoje? Me diga o nome do filme ou da série!",
-                "Estou conectada ao seu servidor Jellyfin! Se quiser uma indicação do que assistir, basta me pedir uma recomendação ou novidade. 🎬",
-                "Posso vasculhar a sua biblioteca de mídia em um piscar of olhos. Digite o título que você quer checar se está disponível!"
-            ]
-        },
-        "pokemon": {
-            "triggers": [
-                "pokemon",
-                "pokémon",
-                "pokedex",
-                "pokédex",
-                "buscar pokemon",
-                "status do pokemon",
-                "info do pokemon",
-                "item pokemon",
-                "pokeitem",
-                "pokebola",
-                "pokébola",
-                "calcular pokemon",
-                "stats pokemon"
-            ],
-            "item_triggers": [
-                "item",
-                "item pokemon",
-                "pokeitem",
-                "pokebola",
-                "pokébola",
-                "master ball",
-                "berry",
-                "fruta"
-            ],
-            "stopwords": [
-                "pokemon",
-                "pokémon",
-                "pokedex",
-                "pokédex",
-                "buscar",
-                "procure",
-                "pesquise",
-                "encontre",
-                "status",
-                "stats",
-                "atributos",
-                "informações",
-                "info",
-                "dados",
-                "sobre",
-                "item",
-                "itens",
-                "objeto"
-            ],
-            "responses": [
-                "Temos que pegar! 🧲 Qual Pokémon você deseja que eu consulte na Pokédex? Digite o nome ou o ID!",
-                "Estou conectada à PokéAPI! Além de monstros de bolso, você também pode me pedir para checar o custo e efeito de itens (como 'master-ball' ou 'rare-candy'). 🎒",
-                "Quer analisar as estatísticas base de um Pokémon para montar seu time competitivo? Me diga o nome dele!"
-            ]
+        "intents_commands": {
+            "faq_avatar": {
+                "triggers": [
+                    "comando de avatar",
+                    "qual o comando de foto de perfil",
+                    "como ver a foto do perfil de alguem",
+                    "pfp comando",
+                    "ver foto do avatar"
+                ],
+                "responses": [
+                    "🖼️ O comando para ver o avatar é +avatar (ou /avatar). Use +avatar @membro para ver o de outra pessoa!"
+                ]
+            },
+            "faq_userinfo": {
+                "triggers": [
+                    "comando de userinfo",
+                    "qual comando ver dados da conta",
+                    "como ver info do usuario",
+                    "detalhes do perfil da conta"
+                ],
+                "responses": [
+                    "📌 O comando para ver as informações da conta é +userinfo (ou /userinfo)."
+                ]
+            },
+            "faq_banner": {
+                "triggers": [
+                    "comando de banner",
+                    "como ver o banner de alguem",
+                    "foto de fundo do perfil"
+                ],
+                "responses": [
+                    "🚩 O comando para ver o banner é +userbanner (ou /userbanner)."
+                ]
+            },
+            "faq_perfil": {
+                "triggers": [
+                    "ver meu perfil",
+                    "comando de status do usuario",
+                    "como ver meu card de perfil",
+                    "profile comando"
+                ],
+                "responses": [
+                    "🎴 Para ver o seu card de perfil personalizado com nível, moedas e emblemas, use +perfil (ou /perfil)."
+                ]
+            },
+            "faq_setbio": {
+                "triggers": [
+                    "mudar minha biografia",
+                    "como alterar a bio",
+                    "trocar frase do perfil",
+                    "setbio comando"
+                ],
+                "responses": [
+                    "📝 Para mudar a frase exibida no seu perfil, use +setbio <sua frase>."
+                ]
+            },
+            "faq_depositar": {
+                "triggers": [
+                    "como guardar dinheiro no banco",
+                    "guardar dinheiro",
+                    "comando de depositar",
+                    "dep comando"
+                ],
+                "responses": [
+                    "🏦 Para depositar moedas no banco e deixá-las seguras, use +depositar <quantidade ou all>."
+                ]
+            },
+            "faq_sacar": {
+                "triggers": [
+                    "como tirar dinheiro do banco",
+                    "sacar dinheiro",
+                    "comando de sacar",
+                    "levantar dinheiro"
+                ],
+                "responses": [
+                    "💵 Para retirar dinheiro do banco para a sua carteira, use +sacar <quantidade ou all>."
+                ]
+            },
+            "faq_pagar": {
+                "triggers": [
+                    "como dar dinheiro para alguem",
+                    "transferir moedas",
+                    "comando de pagar",
+                    "pay comando"
+                ],
+                "responses": [
+                    "💸 Para transferir dinheiro da sua carteira para outro usuário, use +pagar @membro <valor>."
+                ]
+            },
+            "faq_level": {
+                "triggers": [
+                    "ver meu xp",
+                    "qual meu nivel",
+                    "comando de level",
+                    "ver progresso de nivel"
+                ],
+                "responses": [
+                    "📊 Para gerar o seu cartão visual com o nível atual e progresso de XP, use +level."
+                ]
+            },
+            "faq_rank": {
+                "triggers": [
+                    "ver leaderboard",
+                    "ranking de xp",
+                    "quem e o top 1 do servidor",
+                    "comando de top rank"
+                ],
+                "responses": [
+                    "🏆 Para ver a classificação dos membros com mais XP, use +rank (ou +rank global)."
+                ]
+            },
+            "faq_work": {
+                "triggers": [
+                    "como trabalhar",
+                    "ganhar dinheiro trabalhando",
+                    "comando de trabalho",
+                    "trabalhar comando"
+                ],
+                "responses": [
+                    "💼 Para escolher uma profissão e cumprir o seu expediente, use +work."
+                ]
+            },
+            "faq_demissao": {
+                "triggers": [
+                    "como sair do emprego",
+                    "pedir demissao",
+                    "comando resign"
+                ],
+                "responses": [
+                    "🚪 Para pedir demissão do seu emprego atual, use +demissao."
+                ]
+            },
+            "faq_daily": {
+                "triggers": [
+                    "pegar recompensa diaria",
+                    "resgatar daily",
+                    "bonus do dia",
+                    "comando diario"
+                ],
+                "responses": [
+                    "🎁 Para resgatar o seu bônus diário de moedas e manter sua ofensiva, use +daily."
+                ]
+            },
+            "faq_fundos": {
+                "triggers": [
+                    "ver meus planos de fundo",
+                    "mudar fundo do perfil",
+                    "equipar background",
+                    "comando fundos"
+                ],
+                "responses": [
+                    "🎨 Para ver e equipar os planos de fundo que possui no seu perfil, use +fundos."
+                ]
+            },
+            "faq_loja": {
+                "triggers": [
+                    "como abrir a loja",
+                    "comprar itens",
+                    "shop comando",
+                    "o que tem na loja"
+                ],
+                "responses": [
+                    "🛒 Para explorar e comprar itens, backgrounds e emblemas, use +loja."
+                ]
+            },
+            "faq_mercado": {
+                "triggers": [
+                    "ver bolsa de valores",
+                    "cotacoes de acoes",
+                    "mercado financeiro",
+                    "comando mercado"
+                ],
+                "responses": [
+                    "📈 Para ver as cotações em tempo real da Bolsa de Valores e FIIs, use +mercado."
+                ]
+            },
+            "faq_comprar_investimento": {
+                "triggers": [
+                    "como comprar acoes",
+                    "investir em fiis",
+                    "comprar ativos"
+                ],
+                "responses": [
+                    "💵 Para comprar cotas de ações/FIIs usando o dinheiro do seu banco, use +comprar <ticker> <quantidade>."
+                ]
+            },
+            "faq_vender_investimento": {
+                "triggers": [
+                    "como vender acoes",
+                    "resgatar investimentos",
+                    "vender ativos"
+                ],
+                "responses": [
+                    "📉 Para vender os seus ativos e receber o dinheiro de volta no banco, use +vender <ticker> <quantidade>."
+                ]
+            },
+            "faq_carteira_investimento": {
+                "triggers": [
+                    "ver meus investimentos",
+                    "custodia de acoes",
+                    "portfolio de investimentos"
+                ],
+                "responses": [
+                    "💼 Para verificar o seu patrimônio investido e rendimentos, use +carteira."
+                ]
+            },
+            "faq_coinflip": {
+                "triggers": [
+                    "jogar cara ou coroa",
+                    "apostar na moeda",
+                    "comando coinflip"
+                ],
+                "responses": [
+                    "🪙 Para apostar moedas no Cara ou Coroa, use +coinflip <cara/coroa> <valor>."
+                ]
+            },
+            "faq_roleta": {
+                "triggers": [
+                    "jogar na roleta",
+                    "girar os slots",
+                    "apostar cassino"
+                ],
+                "responses": [
+                    "🎰 Para girar a roleta de multiplicadores do cassino, use +roleta <valor>."
+                ]
+            },
+            "faq_play": {
+                "triggers": [
+                    "como tocar musica",
+                    "colocar musica no bot",
+                    "ouvir musica",
+                    "comando play"
+                ],
+                "responses": [
+                    "🎵 Para reproduzir uma música ou playlist no canal de voz, use +play <nome ou link>."
+                ]
+            },
+            "faq_skip": {
+                "triggers": [
+                    "pular musica",
+                    "proxima musica",
+                    "passar faixa"
+                ],
+                "responses": [
+                    "⏭️ Para pular a música que está tocando atualmente, use +skip."
+                ]
+            },
+            "faq_pause": {
+                "triggers": [
+                    "pausar musica",
+                    "parar musica temporariamente"
+                ],
+                "responses": [
+                    "⏸️ Para pausar a reprodução atual, use +pause."
+                ]
+            },
+            "faq_resume": {
+                "triggers": [
+                    "despausar musica",
+                    "voltar a tocar musica",
+                    "retomar som"
+                ],
+                "responses": [
+                    "▶️ Para despausar e continuar ouvindo a música, use +resume."
+                ]
+            },
+            "faq_stop": {
+                "triggers": [
+                    "desconectar bot de musica",
+                    "parar playlist",
+                    "limpar fila e sair"
+                ],
+                "responses": [
+                    "⏹️ Para parar o player, limpar a fila e desconectar o bot do canal de voz, use +stop."
+                ]
+            },
+            "faq_queue": {
+                "triggers": [
+                    "ver fila de musica",
+                    "quais as proximas musicas",
+                    "comando queue"
+                ],
+                "responses": [
+                    "📜 Para visualizar a lista de músicas na fila de reprodução, use +queue."
+                ]
+            },
+            "faq_nowplaying": {
+                "triggers": [
+                    "qual musica esta tocando agora",
+                    "tempo da musica",
+                    "info da musica atual"
+                ],
+                "responses": [
+                    "🎶 Para ver detalhes e a barra de progresso da música atual, use +nowplaying."
+                ]
+            },
+            "faq_shuffle": {
+                "triggers": [
+                    "embaralhar fila",
+                    "misturar musicas",
+                    "modo aleatorio musica"
+                ],
+                "responses": [
+                    "🔀 Para misturar a ordem das músicas na fila, use +shuffle."
+                ]
+            },
+            "faq_volume": {
+                "triggers": [
+                    "mudar volume do bot",
+                    "ajustar som",
+                    "aumentar ou diminuir volume"
+                ],
+                "responses": [
+                    "🔊 Para alterar o volume do áudio (de 0 a 100), use +volume <nível>."
+                ]
+            },
+            "faq_filtro": {
+                "triggers": [
+                    "efeitos de audio",
+                    "ativar nightcore",
+                    "ativar bassboost",
+                    "filtro de musica"
+                ],
+                "responses": [
+                    "🎛️ Para aplicar equalizações especiais (Nightcore, Vaporwave, Bassboost), use /filtro."
+                ]
+            },
+            "faq_playlist": {
+                "triggers": [
+                    "como salvar playlist",
+                    "carregar minhas playlists",
+                    "gerenciar playlists pessoais"
+                ],
+                "responses": [
+                    "🎼 Use /playlist salvar <nome> para gravar a fila ou /playlist carregar <nome> para tocar suas playlists salvas!"
+                ]
+            },
+            "faq_clima": {
+                "triggers": [
+                    "ver previsao do tempo",
+                    "como esta o clima hoje",
+                    "clima da cidade"
+                ],
+                "responses": [
+                    "🌤️ Para consultar o clima e temperatura de uma cidade, use +clima <cidade>."
+                ]
+            },
+            "faq_dicionario": {
+                "triggers": [
+                    "significado de uma palavra",
+                    "procurar no dicionario",
+                    "sinonimos de uma palavra"
+                ],
+                "responses": [
+                    "📖 Para buscar definições, exemplos e sinônimos de palavras em português, use +dicionario <palavra>."
+                ]
+            },
+            "faq_escolher": {
+                "triggers": [
+                    "me ajude a decidir",
+                    "escolher entre opcoes",
+                    "tomar uma decisao"
+                ],
+                "responses": [
+                    "🎲 Para deixar o bot escolher uma das opções por você, use +escolher opção1, opção2, opção3."
+                ]
+            },
+            "faq_anagrama": {
+                "triggers": [
+                    "gerar anagrama",
+                    "misturar letras da palavra"
+                ],
+                "responses": [
+                    "🔤 Para criar um anagrama aleatório de um texto ou palavra, use +anagrama <texto>."
+                ]
+            },
+            "faq_morse": {
+                "triggers": [
+                    "traduzir codigo morse",
+                    "converter texto para morse"
+                ],
+                "responses": [
+                    "📟 Use /morse para <texto> para codificar ou /morse de <código> para traduzir código morse."
+                ]
+            },
+            "faq_qrcode": {
+                "triggers": [
+                    "gerar qr code",
+                    "criar codigo qr para link"
+                ],
+                "responses": [
+                    "📱 Para transformar um texto ou URL em uma imagem QR Code, use +qrcode <link ou texto>."
+                ]
+            },
+            "faq_moeda": {
+                "triggers": [
+                    "converter moedas",
+                    "cotacao de dolar para real",
+                    "quanto esta o dolar"
+                ],
+                "responses": [
+                    "🏱 Para converter valores entre diferentes moedas, use /moeda de: USD para: BRL valor: 10."
+                ]
+            },
+            "faq_corinfo": {
+                "triggers": [
+                    "informacoes sobre uma cor",
+                    "ver paleta hexadecimal",
+                    "detalhes de rgb"
+                ],
+                "responses": [
+                    "🎨 Para analisar e gerar paletas a partir de um código Hex ou RGB, use +corinfo <#hex ou R,G,B>."
+                ]
+            },
+            "faq_calc": {
+                "triggers": [
+                    "fazer uma conta matematica",
+                    "calculadora no chat",
+                    "quanto e"
+                ],
+                "responses": [
+                    "🧮 Para resolver expressões matemáticas diretamente no chat, use +calc <expressão>."
+                ]
+            },
+            "faq_lembrete": {
+                "triggers": [
+                    "como criar um lembrete",
+                    "me lembre de algo",
+                    "agendar alarme"
+                ],
+                "responses": [
+                    "⏰ Para definir um lembrete com alarme e opções de adiar (snooze), use +lembrete criar <motivo> <tempo (ex: 1h30m)>."
+                ]
+            },
+            "faq_afk": {
+                "triggers": [
+                    "ficar afk",
+                    "modo ausente",
+                    "avisar que fui comer"
+                ],
+                "responses": [
+                    "💤 Para ativar o modo AFK e avisar quem te marcar no chat, use +afk <motivo opcional>."
+                ]
+            },
+            "faq_ping": {
+                "triggers": [
+                    "ver ping do bot",
+                    "status de latencia",
+                    "como esta o desempenho do bot"
+                ],
+                "responses": [
+                    "🏓 Para verificar a latência, informações do sistema (CPU/RAM) e uptime, use +ping."
+                ]
+            },
+            "faq_help": {
+                "triggers": [
+                    "ver menu de ajuda",
+                    "quais os comandos do bot",
+                    "central de comandos",
+                    "ajuda comando"
+                ],
+                "responses": [
+                    "📖 Para abrir o menu interativo com todas as categorias e comandos do servidor, use +help (ou +ajuda)."
+                ]
+            },
+            "faq_dice": {
+                "triggers": [
+                    "rolar dados",
+                    "dado de rpg",
+                    "rolar 1d20"
+                ],
+                "responses": [
+                    "🎲 Para rolar dados de RPG ou dados comuns, use +roll 1d20 ou +roll 6."
+                ]
+            },
+            "faq_avaliar": {
+                "triggers": [
+                    "avaliar minha waifu",
+                    "dar nota para husbando",
+                    "rate waifu"
+                ],
+                "responses": [
+                    "⭐ Para solicitar uma nota irônica do bot para a sua cara metade, use +avaliar waifu <nome> ou +avaliar husbando <nome>."
+                ]
+            },
+            "faq_social": {
+                "triggers": [
+                    "comandos de abraco e beijo",
+                    "dar um tapa em alguem",
+                    "morder alguem",
+                    "interacao social"
+                ],
+                "responses": [
+                    "🫂 O bot possui diversos comandos sociais como +hug, +kiss, +slap, +pat, +cuddle, +bite e +feed!"
+                ]
+            },
+            "faq_mod_clear": {
+                "triggers": [
+                    "como apagar mensagens do chat",
+                    "limpar chat",
+                    "purge comando"
+                ],
+                "responses": [
+                    "🧹 (Admin) Para deletar entre 1 e 100 mensagens de um canal, use +clear <quantidade>."
+                ]
+            },
+            "faq_mod_punicoes": {
+                "triggers": [
+                    "como banir ou mutar",
+                    "dar advertencia a um membro",
+                    "comandos de moderacao"
+                ],
+                "responses": [
+                    "🛡️ (Admin) Comandos de punição disponíveis: +warn, +mute, +kick, +ban, +unmute e +unban."
+                ]
+            },
+            "faq_mod_trava": {
+                "triggers": [
+                    "trancar canal de texto",
+                    "bloquear mensagens no chat",
+                    "destrancar chat"
+                ],
+                "responses": [
+                    "🔒 (Admin) Para trancar um canal use +lock. Para reabrir e liberar mensagens, use +unlock."
+                ]
+            }
         }
     },
     "music_preferences": {

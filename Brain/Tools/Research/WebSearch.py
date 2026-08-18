@@ -1,6 +1,8 @@
-import aiohttp
 import os
 import urllib.parse
+
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class BuscaTool:
     def __init__(self):
@@ -14,25 +16,21 @@ class BuscaTool:
             raise ValueError("Chaves Google ausentes")
 
         url = "https://www.googleapis.com/customsearch/v1"
-        params = {
-            'q': query,
-            'key': self.google_key,
-            'cx': self.google_cx,
-            'num': 5 
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    items = data.get('items', [])
-                    if not items: return None
-                    
-                    text = "🔎 Resultados Google:\n"
-                    for item in items:
-                        text += f"- {item.get('title')}: {item.get('snippet')} ({item.get('link')})\n"
-                    return text
-                return None
+        params = {"q": query, "key": self.google_key, "cx": self.google_cx, "num": 5}
+        session = NetworkManager.get_aio_session()
+
+        async with session.get(url, params=params) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                items = data.get("items", [])
+                if not items:
+                    return None
+
+                text = "🔎 Resultados Google:\n"
+                for item in items:
+                    text += f"- {item.get('title')}: {item.get('snippet')} ({item.get('link')})\n"
+                return text
+            return None
 
     async def _brave_search(self, query):
         """Busca via Brave Search API."""
@@ -42,19 +40,22 @@ class BuscaTool:
         url = "https://api.search.brave.com/res/v1/web/search"
         headers = {"Accept": "application/json", "X-Subscription-Token": self.brave_key}
         params = {"q": query, "count": 5}
+        session = NetworkManager.get_aio_session()
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, params=params) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    results = data.get('web', {}).get('results', [])
-                    if not results: return None
+        async with session.get(url, headers=headers, params=params) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                results = data.get("web", {}).get("results", [])
+                if not results:
+                    return None
 
-                    text = "🦁 Resultados Brave:\n"
-                    for r in results:
-                        text += f"- {r.get('title')}: {r.get('description')} ({r.get('url')})\n"
-                    return text
-                return None
+                text = "🦁 Resultados Brave:\n"
+                for r in results:
+                    text += (
+                        f"- {r.get('title')}: {r.get('description')} ({r.get('url')})\n"
+                    )
+                return text
+            return None
 
     async def _duckduckgo_fallback(self, query):
         """Busca Instantânea DuckDuckGo (Gratuito/Sem Key)."""
@@ -62,30 +63,29 @@ class BuscaTool:
         # É um último recurso.
         # melhor avisar do que nada.
         url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json"
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                if resp.status == 200:
-                    try:
-                        data = await resp.json(content_type=None) 
-                        abstract = data.get("AbstractText")
-                        source = data.get("AbstractURL")
-                        heading = data.get("Heading")
-                        
-                        if abstract:
-                            return f"🦆 Resumo DuckDuckGo ({heading}):\n{abstract}\nFonte: {source}"
-                        
-                        related = data.get("RelatedTopics", [])
-                        if related and len(related) > 0:
-                            text = f"🦆 Tópicos DuckDuckGo sobre '{query}':\n"
-                            for i, topic in enumerate(related[:3]):
-                                if 'Text' in topic:
-                                    text += f"- {topic['Text']}\n"
-                            return text
-                            
-                    except Exception:
-                        pass
-                return None
+        session = NetworkManager.get_aio_session()
+        async with session.get(url) as resp:
+            if resp.status == 200:
+                try:
+                    data = await resp.json(content_type=None)
+                    abstract = data.get("AbstractText")
+                    source = data.get("AbstractURL")
+                    heading = data.get("Heading")
+
+                    if abstract:
+                        return f"🦆 Resumo DuckDuckGo ({heading}):\n{abstract}\nFonte: {source}"
+
+                    related = data.get("RelatedTopics", [])
+                    if related and len(related) > 0:
+                        text = f"🦆 Tópicos DuckDuckGo sobre '{query}':\n"
+                        for i, topic in enumerate(related[:3]):
+                            if "Text" in topic:
+                                text += f"- {topic['Text']}\n"
+                        return text
+
+                except Exception:
+                    pass
+            return None
 
     async def buscar_na_cascata(self, query):
         """
@@ -93,17 +93,20 @@ class BuscaTool:
         """
         try:
             res = await self._google_search(query)
-            if res: return res
+            if res:
+                return res
         except Exception:
-            pass 
+            pass
         try:
             res = await self._brave_search(query)
-            if res: return res
+            if res:
+                return res
         except Exception:
             pass
         try:
             res = await self._duckduckgo_fallback(query)
-            if res: return res
+            if res:
+                return res
         except Exception:
             pass
 

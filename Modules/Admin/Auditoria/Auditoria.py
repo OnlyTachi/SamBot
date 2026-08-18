@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import logging
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 # Importação dos Handlers (usando try/except para não quebrar enquanto construímos)
 try:

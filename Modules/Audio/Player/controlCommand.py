@@ -183,6 +183,13 @@ class ControlCommands(commands.Cog):
                 except Exception:
                     pass
 
+    @commands.Cog.listener()
+    async def on_wavelink_node_closed(self, node: wavelink.Node):
+        logger.warning(
+            f"Node {node.identifier} fechou a conexão e foi colocado em castigo."
+        )
+        search_manager.mark_node_offline(node.identifier)
+
     # --- Comandos Híbridos de Controle ---
     @commands.hybrid_command(
         name="skip", aliases=["pular", "s"], description="Pula a música atual."

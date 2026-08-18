@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from Brain.Providers.BaseLLM import BaseLLMProvider
+from Core.ConfigLoader import AppConfig
 
 try:
     from ollama import AsyncClient
@@ -28,10 +29,10 @@ class OllamaDriver(BaseLLMProvider):
         self.local_url = os.getenv(
             "OLLAMA_LOCAL_URL", "http://host.docker.internal:11434"
         )
-        self.local_model = os.getenv("MODEL_FAST_LOCAL", "qwen2.5:1.5b")
+        self.local_model = AppConfig.get("MODEL_FAST_LOCAL", "qwen2.5:1.5b")
 
         # Configuração de Embedding Local
-        self.embed_model_local = os.getenv("MODEL_EMBED_LOCAL", "nomic-embed-text")
+        self.embed_model_local = AppConfig.get("MODEL_EMBED_LOCAL", "nomic-embed-text")
 
     async def initialize(self) -> bool:
         """

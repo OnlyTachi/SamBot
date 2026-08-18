@@ -6,7 +6,7 @@ import time
 
 from ._utils import checar_hierarquia, disparar_aviso
 from ._appeals import notificar_infrator
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class ModPunicoes(commands.Cog):

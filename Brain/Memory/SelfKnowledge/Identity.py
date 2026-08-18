@@ -5,7 +5,7 @@ import json
 # Ferramentas e Providers
 from Brain.Providers.LLMFactory import llm_factory
 from Brain.Tools.Research.WebSearch import BuscaTool
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class AutoConhecimento:

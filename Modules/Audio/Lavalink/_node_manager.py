@@ -2,36 +2,31 @@ import os
 import wavelink
 import logging
 
+from Brain.Core.NetworkManager import NetworkManager
+from Core.ConfigLoader import AppConfig
+
 logger = logging.getLogger("SamBot.LavalinkNodes")
+session = NetworkManager.get_aio_session()
+
+
+async def test_node_health(uri: str) -> bool:
+    """Realiza um teste rápido de HTTP HEAD/GET para validar porta e SSL."""
+    try:
+        async with session.get(uri, timeout=3.0, ssl=False) as resp:
+            return resp.status in [200, 400, 401, 404]
+    except Exception:
+        return False
 
 
 async def setup_nodes(bot):
-    """
-    Inicializa e gerencia os servidores Lavalink de acordo com o modo escolhido.
-    """
     nodes = []
-    music_mode = os.getenv("MUSIC_SOURCE_MODE", "ONLINE").strip().upper()
+    music_mode = AppConfig.get("MUSIC_SOURCE_MODE", "ONLINE").strip().upper()
     logger.info(f"Modo de busca musical ativo: {music_mode}")
 
-    if music_mode == "LOCAL":
-        local_host = os.getenv("LAVALINK_LOCAL_HOST", "")
-        local_port = os.getenv("LAVALINK_LOCAL_PORT", "2333")
-        local_pass = os.getenv("LAVALINK_LOCAL_PASSWORD", "youshallnotpass")
-
-        if local_host:
-            nodes.append(
-                wavelink.Node(
-                    identifier="LOCAL_1",
-                    uri=f"http://{local_host}:{local_port}",
-                    password=local_pass,
-                )
-            )
-            logger.info(f"🏠 Node Local ({local_host}) engatilhado.")
-
-    elif music_mode == "ONLINE":
-        online_hosts = os.getenv("LAVALINK_ONLINE_HOSTS", "")
-        online_ports = os.getenv("LAVALINK_ONLINE_PORTS", "")
-        online_passwords = os.getenv("LAVALINK_ONLINE_PASSWORDS", "")
+    if music_mode == "ONLINE":
+        online_hosts = AppConfig.get("LAVALINK_ONLINE_HOSTS", "")
+        online_ports = AppConfig.get("LAVALINK_ONLINE_PORTS", "")
+        online_passwords = AppConfig.get("LAVALINK_ONLINE_PASSWORDS", "")
 
         if online_hosts:
             hosts = [h.strip() for h in online_hosts.split(",")]
@@ -45,28 +40,35 @@ async def setup_nodes(bot):
                 if online_passwords
                 else ["youshallnotpass"] * len(hosts)
             )
-
-            ssl_ports = ["443", "8443", "2053", "2083", "2096"]  # Portas comuns de SSL
+            ssl_ports = ["443", "8443", "2053", "2083", "2096"]
 
             for i, host in enumerate(hosts):
                 port = ports[i] if i < len(ports) else ports[0]
                 pwd = passwords[i] if i < len(passwords) else passwords[0]
                 protocol = "https" if port in ssl_ports else "http"
+                uri = f"{protocol}://{host}:{port}"
 
-                nodes.append(
-                    wavelink.Node(
-                        identifier=f"ONLINE_{i+1}",
-                        uri=f"{protocol}://{host}:{port}",
-                        password=pwd,
+                if await test_node_health(uri):
+                    nodes.append(
+                        wavelink.Node(
+                            identifier=f"ONLINE_{i+1}",
+                            uri=uri,
+                            password=pwd,
+                        )
                     )
-                )
-                logger.info(f"☁️ Node Online {i+1} ({host}) engatilhado.")
+                    logger.info(
+                        f"  Node Online {i+1} ({host}) engatilhado com sucesso."
+                    )
+                else:
+                    logger.warning(
+                        f"  [Lavalink] Node Online {i+1} ({host}) falhou no teste de ping e foi ignorado."
+                    )
 
     if not nodes:
         logger.error(
-            "❌ Nenhum servidor Lavalink configurado para o modo atual! O módulo de música não vai funcionar."
+            "  Nenhum servidor Lavalink configurado/ativo! O módulo de música não vai funcionar."
         )
         return
 
     await wavelink.Pool.connect(client=bot, nodes=nodes)
-    logger.info(f"🚀 {len(nodes)} Node(s) Lavalink conectado(s) ao Pool de Carga!")
+    logger.info(f"  {len(nodes)} Node(s) Lavalink conectado(s) ao Pool de Carga!")

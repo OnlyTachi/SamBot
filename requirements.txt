@@ -22,3 +22,5 @@ groq
 selectolax
 semantic-router 
 h2
+telethon
+pyyaml

@@ -76,7 +76,6 @@ class UserInfoView(discord.ui.View):
         self.target_user = target_user
         self.command_author = command_author
 
-    # Trava os botões apenas para quem executou o comando
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user != self.command_author:
             await interaction.response.send_message(
@@ -86,7 +85,6 @@ class UserInfoView(discord.ui.View):
             return False
         return True
 
-    # Botão 1: Permissões e Cargos (Visível apenas para o executor)
     @discord.ui.button(
         label="Permissões e Cargos",
         style=discord.ButtonStyle.primary,
@@ -127,7 +125,6 @@ class UserInfoView(discord.ui.View):
 
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # Botão 2: Avatar (Visível apenas para o executor)
     @discord.ui.button(
         label="Ver Avatar e Detalhes",
         style=discord.ButtonStyle.secondary,
@@ -149,41 +146,10 @@ class UserProfile(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    # 1. Comando principal do grupo transformado em Embed
-    @commands.hybrid_group(
-        name="user",
-        invoke_without_command=True,
-        description="Comandos relacionados ao perfil de usuários",
-    )
-    async def grupo_user(self, ctx: commands.Context):
-        embed = discord.Embed(
-            title="ℹ️ Opções disponíveis",
-            description="Selecione um dos comandos abaixo para interagir com o perfil:",
-            color=0x5865F2,
-        )
-        embed.add_field(
-            name="`/user info`",
-            value="Informações detalhadas sobre a conta e o membro.",
-            inline=False,
-        )
-        embed.add_field(
-            name="`/user avatar`",
-            value="Mostra o avatar de perfil no servidor e global.",
-            inline=False,
-        )
-        embed.add_field(
-            name="`/user banner`", value="Mostra o banner do perfil.", inline=False
-        )
-        embed.set_footer(
-            text=f"Requisitado por {ctx.author.display_name}",
-            icon_url=ctx.author.display_avatar.url,
-        )
-
-        await ctx.send(embed=embed)
-
-    # 2. Comando Avatar (Híbrido)
-    @grupo_user.command(
-        name="avatar", description="Mostra o avatar do seu perfil ou de outro usuário."
+    @commands.hybrid_command(
+        name="avatar",
+        aliases=["pfp", "foto", "useravatar"],
+        description="Mostra o avatar do seu perfil ou de outro usuário.",
     )
     @app_commands.describe(
         usuario="O usuário que deseja ver o avatar (deixe vazio para ver o seu)"
@@ -195,48 +161,44 @@ class UserProfile(commands.Cog):
         )
         avatar_url = usuario.display_avatar.url
         embed.set_image(url=avatar_url)
-
         view = discord.ui.View()
         view.add_item(discord.ui.Button(label="Link Direto", url=avatar_url))
-
         await ctx.send(embed=embed, view=view)
 
-    # 3. Comando Banner (Híbrido)
-    @grupo_user.command(
-        name="banner", description="Mostra o banner do seu perfil ou de outro usuário."
+    @commands.hybrid_command(
+        name="userbanner",
+        aliases=["banner", "ubanner"],
+        description="Mostra o banner do seu perfil ou de outro usuário.",
     )
     @app_commands.describe(
         usuario="O usuário que deseja ver o banner (deixe vazio para ver o seu)"
     )
-    async def banner(self, ctx: commands.Context, usuario: discord.Member = None):
+    async def userbanner(self, ctx: commands.Context, usuario: discord.Member = None):
         usuario = usuario or ctx.author
         fetched_user = await self.bot.fetch_user(usuario.id)
-
         if not fetched_user.banner:
             return await ctx.send(
-                f"❌ {usuario.mention} não possui um banner configurado!",
+                f"⚠️ {usuario.mention} não possui um banner configurado!",
                 ephemeral=True,
             )
-
         embed = discord.Embed(
-            title=f"🎑 Banner de {fetched_user.display_name}",
+            title=f"🚩 Banner de {fetched_user.display_name}",
             color=fetched_user.accent_color or discord.Color.blurple(),
         )
         embed.set_image(url=fetched_user.banner.url)
-
         await ctx.send(embed=embed)
 
-    # 4. Comando Info reestruturado com formato de 2 Embeds
-    @grupo_user.command(
-        name="info", description="Mostra informações detalhadas sobre a conta."
+    @commands.hybrid_command(
+        name="userinfo",
+        aliases=["user", "uinfo"],
+        description="Mostra informações detalhadas sobre a conta de um usuário.",
     )
     @app_commands.describe(
         usuario="O usuário que deseja ver as informações (deixe vazio para ver o seu)"
     )
     @commands.guild_only()
-    async def info(self, ctx: commands.Context, usuario: discord.Member = None):
+    async def userinfo(self, ctx: commands.Context, usuario: discord.Member = None):
         user = usuario or ctx.author
-
         # Pega as insígnias/badges da conta do usuário
         flags = [flag[0] for flag in user.public_flags if flag[1]]
         badges_str = " ".join(
@@ -245,68 +207,62 @@ class UserProfile(commands.Cog):
         if not badges_str:
             badges_str = "Nenhuma"
 
-        # Embed 1: Conta Discord (Informações Globais)
         embed_user = discord.Embed(
             title="Informações sobre o Usuário",
             description=f"**{user.name}**",
             color=user.color or 0x5865F2,
         )
-        embed_user.add_field(name="😃 Insígnias", value=badges_str, inline=False)
+        embed_user.add_field(name="🚩 Insígnias", value=badges_str, inline=False)
         embed_user.add_field(name="🆔 ID do Discord", value=str(user.id), inline=False)
         embed_user.add_field(
-            name="🏷️ Tag do Discord", value=f"{user.mention}", inline=False
+            name="📌 Tag do Discord", value=f"{user.mention}", inline=False
         )
-
         created_dt = f"{format_dt(user.created_at, style='F')} ({format_dt(user.created_at, style='R')})"
         embed_user.add_field(
-            name="🗓️ Data de Criação da Conta", value=created_dt, inline=False
+            name="📅 Data de Criação da Conta", value=created_dt, inline=False
         )
         embed_user.set_thumbnail(url=user.display_avatar.url)
 
-        # Embed 2: Dados no Servidor Específico
         embed_member = discord.Embed(
             title="Informações sobre o Membro",
             description=f"**{user.display_name}**",
             color=user.color or 0x5865F2,
         )
-
         if user.joined_at:
             joined_dt = f"{format_dt(user.joined_at, style='F')} ({format_dt(user.joined_at, style='R')})"
             embed_member.add_field(
-                name="🗓️ Data de Entrada no Servidor", value=joined_dt, inline=False
+                name="📥 Data de Entrada no Servidor", value=joined_dt, inline=False
             )
-
         top_role = (
             user.top_role.mention
             if user.top_role and user.top_role.name != "@everyone"
             else "Nenhum cargo"
         )
-        embed_member.add_field(name="😎 Maior cargo", value=top_role, inline=False)
+        embed_member.add_field(name="👑 Maior cargo", value=top_role, inline=False)
 
         # Checando fatos curiosos
         curiosidades = []
-
         if user.timed_out_until:
-            curiosidades.append("❌ Castigado (De castigo/mutado no momento)")
-
+            curiosidades.append("🚫 Castigado (De castigo/mutado no momento)")
         if user.premium_since:
             curiosidades.append(
-                f"✨ Impulsionando o servidor desde {format_dt(user.premium_since, style='R')}"
+                f"💎 Impulsionando o servidor desde {format_dt(user.premium_since, style='R')}"
             )
-
         if user.bot:
             curiosidades.append("🤖 É um aplicativo/bot")
 
         embed_member.add_field(
-            name="⚡ Curiosidades Interessantes",
-            value="\n".join(curiosidades),
+            name="💡 Curiosidades Interessantes",
+            value=(
+                "\n".join(curiosidades)
+                if curiosidades
+                else "Nenhuma curiosidade destacada."
+            ),
             inline=False,
         )
 
-        # Renderiza a View (Os botões que enviam info privada)
+        # Renderiza a View com os botões interativos
         view = UserInfoView(target_user=user, command_author=ctx.author)
-
-        # Envia os dois embeds de uma só vez
         await ctx.send(embeds=[embed_user, embed_member], view=view)
 
 

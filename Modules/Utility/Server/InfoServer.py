@@ -107,7 +107,7 @@ class InfoServer(commands.Cog):
 
     @servidor_grupo.command(
         name="icone",
-        aliases=["icon", "avatar"],
+        aliases=["icon"],
         description="Mostra o ícone do servidor.",
     )
     async def servidor_icone(self, ctx: commands.Context):

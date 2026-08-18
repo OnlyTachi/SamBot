@@ -3,6 +3,8 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class Conversor(commands.Cog):
     def __init__(self, bot):
@@ -25,19 +27,19 @@ class Conversor(commands.Cog):
         para = para.upper().strip()
 
         url = f"https://economia.awesomeapi.com.br/last/{de}-{para}"
+        session = NetworkManager.get_aio_session()
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        return await interaction.followup.send(
-                            f"❌ Não encontrei a cotação de `{de}` para `{para}`. Verifique se as siglas estão corretas!"
-                        )
-                    dados = await response.json()
-            except Exception:
-                return await interaction.followup.send(
-                    "❌ Ops! A API de moedas está fora do ar no momento."
-                )
+        try:
+            async with session.get(url) as response:
+                if response.status != 200:
+                    return await interaction.followup.send(
+                        f"❌ Não encontrei a cotação de `{de}` para `{para}`. Verifique se as siglas estão corretas!"
+                    )
+                dados = await response.json()
+        except Exception:
+            return await interaction.followup.send(
+                "❌ Ops! A API de moedas está fora do ar no momento."
+            )
 
         chave_api = f"{de}{para}"
 

@@ -4,6 +4,7 @@ import random
 import time
 from typing import List, Optional
 from Brain.Providers.BaseLLM import BaseLLMProvider
+from Core.ConfigLoader import AppConfig
 
 try:
     import google.generativeai as genai
@@ -17,7 +18,7 @@ except ImportError:
 class GeminiDriver(BaseLLMProvider):
     def __init__(self, log_instance):
         self.log = log_instance
-        self.model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.0-flash")
+        self.model_name = AppConfig.get("GEMINI_MODEL_NAME", "gemini-2.0-flash")
         self.embed_model_cloud = "gemini-embedding-2"
 
         # Carrega todas as chaves do seu .env

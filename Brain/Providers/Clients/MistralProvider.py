@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from Brain.Providers.BaseLLM import BaseLLMProvider
+from Core.ConfigLoader import AppConfig
 
 try:
     from openai import AsyncOpenAI
@@ -15,7 +16,7 @@ class MistralDriver(BaseLLMProvider):
     def __init__(self, log_instance, generation_config: Optional[dict] = None):
         self.log = log_instance
         self.api_key = os.getenv("MISTRAL_API_KEY")
-        self.model_name = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+        self.model_name = AppConfig.get("MISTRAL_MODEL", "mistral-small-latest")
         self.base_url = "https://api.mistral.ai/v1"
         self.temperature = 0.7
         if generation_config and "temperature" in generation_config:
@@ -24,16 +25,15 @@ class MistralDriver(BaseLLMProvider):
     async def initialize(self) -> bool:
         """Testa existência de credenciais da Mistral AI."""
         if not MISTRAL_AVAILABLE:
-            self.log.warning(
+            self.log.debug(
                 "  Biblioteca 'openai' não encontrada. Camada Mistral AI offline."
             )
             return False
         if not self.api_key:
-            self.log.warning(
+            self.log.debug(
                 "  Nenhuma chave MISTRAL_API_KEY encontrada no .env. Mistral desativado."
             )
             return False
-
         self.log.info(
             f"  [Mistral AI] Configurado com sucesso usando o modelo: {self.model_name}"
         )

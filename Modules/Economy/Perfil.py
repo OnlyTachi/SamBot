@@ -1,3 +1,4 @@
+import aiohttp
 import discord
 from discord.ext import commands
 import logging
@@ -5,7 +6,7 @@ import io
 from pathlib import Path
 from easy_pil import Editor, Canvas, Font, load_image_async
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class Perfil(commands.Cog):
@@ -65,7 +66,7 @@ class Perfil(commands.Cog):
             f_bio = Font.poppins(variant="italic", size=22)
             f_stats = Font.poppins(variant="regular", size=25)
             f_label = Font.poppins(variant="bold", size=18)
-        except:
+        except (OSError, AttributeError, FileNotFoundError):
             f_nome = f_bio = f_stats = f_label = Font.default()
 
         # 3. Avatar Redondo
@@ -74,7 +75,7 @@ class Perfil(commands.Cog):
             avatar_img = await load_image_async(str(avatar_url))
             avatar = Editor(avatar_img).resize((200, 200)).circle_image()
             background.paste(avatar, (40, 40))
-        except Exception as e:
+        except (discord.HTTPException, aiohttp.ClientError, OSError, TypeError) as e:
             self.logger.error(f"Erro ao carregar avatar no perfil: {e}")
 
         # 4. Textos Principais

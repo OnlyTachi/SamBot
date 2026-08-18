@@ -1,6 +1,7 @@
 import os
 import logging
 from dotenv import load_dotenv
+from Core.ConfigLoader import AppConfig
 
 # Importação dos Clients e do Orquestrador
 from Brain.Providers.Clients.GeminiProvider import GeminiDriver
@@ -37,7 +38,7 @@ class LLMFactory:
         }
 
     def _get_active_providers_from_env(self) -> list:
-        raw_order = os.getenv("LLM_CHAIN_ORDER", "gemini,groq,ollama")
+        raw_order = AppConfig.get("LLM_CHAIN_ORDER", "gemini,groq,ollama")
         provider_names = [p.strip().lower() for p in raw_order.split(",") if p.strip()]
 
         ordered_providers = []

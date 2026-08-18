@@ -1,34 +1,29 @@
-import requests
 import os
 import logging
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class ImageSearchTool:
     def __init__(self):
-        self.pixabay_key = os.getenv('PIXABAY_API_KEY')
+        self.pixabay_key = os.getenv("PIXABAY_API_KEY")
+        self.logger = logging.getLogger("SamBot.ImageSearch")
 
-    def buscar_pixabay(self, query):
-        """Busca imagens gratuitas no Pixabay."""
+    async def buscar_pixabay(self, query: str):
+        """Busca imagens gratuitas no Pixabay de forma assíncrona."""
         if not self.pixabay_key:
-            logging.warning("Chave do Pixabay não configurada.")
+            self.logger.warning("Chave do Pixabay não configurada.")
             return None
-
         try:
             url = f"https://pixabay.com/api/?key={self.pixabay_key}&q={query}&per_page=3&lang=pt"
-            res = requests.get(url, timeout=10)
-            data = res.json()
-            
-            if data.get('hits'):
-                return data['hits'][0]['largeImageURL']
+            session = NetworkManager.get_aio_session()
+            async with session.get(url, timeout=10) as res:
+                if res.status == 200:
+                    data = await res.json()
+                    if data.get("hits"):
+                        return data["hits"][0]["largeImageURL"]
         except Exception as e:
-            logging.error(f"Erro ao buscar no Pixabay: {e}")
-        
+            self.logger.error(f"Erro ao buscar no Pixabay: {e}")
         return None
 
-    def obter_imagem(self, query):
-        """
-        Função principal que busca a imagem.
-        :param query: O termo da busca (ex: 'gato de botas')
-        """
-        link = self.buscar_pixabay(query)
-        
-        return link
+    async def obter_imagem(self, query: str):
+        return await self.buscar_pixabay(query)

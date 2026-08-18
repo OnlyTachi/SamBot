@@ -1,10 +1,11 @@
+import asyncio
+import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
-import aiohttp
 
-# Importa o DataManager para ler a sua base de dados centralizada
-from Brain.Memory.DataManager import data_manager
+from Brain.Core.NetworkManager import NetworkManager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class Clima(commands.Cog):
@@ -31,47 +32,46 @@ class Clima(commands.Cog):
 
         if cidade_lower in mapeamento_estados:
             cidade_formatada = mapeamento_estados[cidade_lower]
-        # ───────────────────────────────────
 
         geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={cidade_formatada}&count=1&language=pt"
+        session = NetworkManager.get_aio_session()
+        try:
+            async with session.get(geo_url) as geo_resp:
+                if geo_resp.status != 200:
+                    return await ctx.send(
+                        "Não consegui consultar o serviço de localização no momento."
+                    )
+                geo_dados = await geo_resp.json()
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return await ctx.send("Ops! O serviço de geocodificação está fora do ar.")
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                async with session.get(geo_url) as geo_resp:
-                    if geo_resp.status != 200:
-                        return await ctx.send(
-                            "❌ Não consegui consultar o serviço de localização no momento."
-                        )
-                    geo_dados = await geo_resp.json()
-            except Exception:
-                return await ctx.send(
-                    "❌ Ops! O serviço de geocodificação está fora do ar."
-                )
+        if not geo_dados.get("results"):
+            return await ctx.send(
+                f"❌ A cidade **{cidade}** não foi encontrada. Verifique a ortografia!"
+            )
 
-            if not geo_dados.get("results"):
-                return await ctx.send(
-                    f"❌ A cidade **{cidade}** não foi encontrada. Verifique a ortografia!"
-                )
+        resultado = geo_dados["results"][0]
+        lat = resultado["latitude"]
+        lon = resultado["longitude"]
+        nome_cidade = resultado["name"]
+        pais = resultado.get("country", "")
 
-            resultado = geo_dados["results"][0]
-            lat = resultado["latitude"]
-            lon = resultado["longitude"]
-            nome_cidade = resultado["name"]
-            pais = resultado.get("country", "")
+        clima_url = (
+            f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+            "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&timezone=auto"
+        )
 
-            clima_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code&timezone=auto"
-
-            try:
-                async with session.get(clima_url) as clima_resp:
-                    if clima_resp.status != 200:
-                        return await ctx.send(
-                            "❌ Não consegui obter os dados climáticos para essa região."
-                        )
-                    clima_dados = await clima_resp.json()
-            except Exception:
-                return await ctx.send(
-                    "❌ Ops! A API de clima está fora do ar no momento... Tente novamente mais tarde."
-                )
+        try:
+            async with session.get(clima_url) as clima_resp:
+                if clima_resp.status != 200:
+                    return await ctx.send(
+                        "❌ Não consegui obter os dados climáticos para essa região."
+                    )
+                clima_dados = await clima_resp.json()
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            return await ctx.send(
+                "❌ Ops! A API de clima está fora do ar no momento... Tente novamente mais tarde."
+            )
 
         atual = clima_dados.get("current", {})
         if not atual:
@@ -79,7 +79,7 @@ class Clima(commands.Cog):
 
         temp = atual.get("temperature_2m")
         sensacao = atual.get("apparent_temperature")
-        umidade = Parcel = atual.get("relative_humidity_2m")
+        umidade = atual.get("relative_humidity_2m")
         codigo_clima = atual.get("weather_code", 0)
 
         mapeamento_wmo = {

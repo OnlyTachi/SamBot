@@ -1,41 +1,43 @@
-# Brain/Core/Pipeline.py
-import discord
-import re
-import random
-import logging
-import json
-import traceback
 import asyncio
-from datetime import datetime
+import json
+import logging
+import random
+import re
 import time
+import traceback
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import discord
 
 # Ferramentas e Subdomínios
-from Brain.Providers.LLMFactory import llm_factory
-from Brain.Memory.DataManager import data_manager
-from Brain.Memory.LongTerm.VectorStore import vector_store
-from Brain.Memory.LongTerm._learning import AprendizadoAtivo
-from Brain.Memory.ShortTerm.Context import HistoricoManager
-from Brain.Memory.ShortTerm._expressions import ExpressoesManager
-from Brain.Memory.SelfKnowledge.Identity import AutoConhecimentoManager
-from Brain.Core.Limpeza import LimpezaManager
+from Brain.Core.Router.IntentClassifier import LimpezaManager
 from Brain.Core.Router.TLMRouter import TLMRouter
+from Brain.Memory.DataManager.Connections import data_manager
+from Brain.Memory.LongTerm._learning import AprendizadoAtivo
+from Brain.Memory.LongTerm.VectorStore import vector_store
+from Brain.Memory.SelfKnowledge.Identity import AutoConhecimentoManager
+from Brain.Memory.ShortTerm._expressions import ExpressoesManager
+from Brain.Memory.ShortTerm.Context import HistoricoManager
+from Brain.Providers.LLMFactory import llm_factory
 
 logger = logging.getLogger("SamBot.Pipeline")
 logger.propagate = False
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | Pipeline        | %(message)s",
+        "%(asctime)s | %(levelname)-8s | Pipeline | %(message)s",
         "%Y-%m-%d %H:%M:%S",
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
 
 # 1. Carregamento Modular de Ferramentas
-TOOL_CLASSES = {}
+TOOL_CLASSES: Dict[str, Any] = {}
 
 
-def tentar_importar_tool(nome, modulo, classe):
+def tentar_importar_tool(nome: str, modulo: str, classe: str) -> None:
+    """Importa dinamicamente módulos de ferramentas, registrando-os no dicionário TOOL_CLASSES."""
     try:
         mod = __import__(modulo, fromlist=[classe])
         TOOL_CLASSES[nome] = getattr(mod, classe)
@@ -71,7 +73,7 @@ class CognitionPipeline:
     Orquestra Memória RAG, Ferramentas, Identidade e a Geração de Texto.
     """
 
-    def __init__(self, bot):
+    def __init__(self, bot: Any) -> None:
         self.bot = bot
         self.logger = logger
 
@@ -91,15 +93,16 @@ class CognitionPipeline:
         self.identity = self.data_manager.get_identity()
 
         # Ferramentas
-        self.tools = {}
-        self.vision_tool = None
+        self.tools: Dict[str, Any] = {}
+        self.vision_tool: Optional[Any] = None
         self._inicializar_ferramentas()
 
         self.logger.info(
             f"🧠 Pipeline Cognitivo Pronto. Entidade: {self.identity.get('name')}"
         )
 
-    def _inicializar_ferramentas(self):
+    def _inicializar_ferramentas(self) -> None:
+        """Instancia todas as ferramentas disponíveis no registro."""
         if not TOOLS_AVAILABLE:
             return
         for key, cls in TOOL_CLASSES.items():
@@ -112,16 +115,18 @@ class CognitionPipeline:
             try:
                 try:
                     self.tools[key] = cls(self.bot)
-                except:
+                except Exception:
                     self.tools[key] = cls()
             except Exception as e:
                 self.logger.error(f"❌ Erro na ferramenta {key}: {e}")
 
-    def _carregar_prompt(self, persona_name: str) -> str:
+    def _carregar_prompt(self, persona_name: Optional[str]) -> str:
+        """Carrega o prompt base correspondente à persona requisitada."""
         persona_key = persona_name if persona_name else "padrao"
         return self.data_manager.get_prompt(persona_key)
 
     async def _consultar_memoria_longa(self, query: str) -> str:
+        """Consulta a memória vetorial de longo prazo (RAG) por contexto relevante."""
         if not query or not self.vector_store:
             return ""
         try:
@@ -135,12 +140,17 @@ class CognitionPipeline:
             )
             return f"\n[MEMÓRIA DE LONGO PRAZO RELEVANTE]:\n{texto_memoria}\n"
         except Exception as e:
-            self.logger.warning(f"⚠️ Aviso RAG: {e}")
+            self.logger.warning(f"Aviso RAG: {e}")
             return ""
 
     async def _rotear_ferramentas(self, content: str, message: discord.Message) -> str:
+        """Roteia e executa chamadas de ferramentas dinâmicas baseadas no input do usuário."""
         if not self.tools:
             return ""
+
+        if not getattr(self.router, "_sincronizado", False):
+            await self.router.sincronizar_base_rotas()
+            self.router._sincronizado = True
 
         ferramentas_ativas = list(self.tools.keys())
         actions = await self.router.executar(content, ferramentas_ativas)
@@ -148,7 +158,15 @@ class CognitionPipeline:
         if not actions or not isinstance(actions, list):
             return ""
 
-        results = []
+        results: List[str] = []
+        prefixos_de_falha = (
+            "não encontrei",
+            "erro",
+            "nenhum",
+            "igdb_not_configured",
+            "não foi possível",
+        )
+
         for action in actions:
             name = action.get("tool")
             args = str(action.get("args", ""))
@@ -201,8 +219,30 @@ class CognitionPipeline:
                             else tool.listar_itens(message.author.id)
                         )
 
-                    if res:
+                    if name in ["game_search", "anime"] and "web_search" in self.tools:
+                        if not res or str(res).strip().lower().startswith(
+                            prefixos_de_falha
+                        ):
+                            self.logger.warning(
+                                f"  [Fallback] A ferramenta '{name}' falhou ou não encontrou dados. Acionando 'web_search' para o termo: '{args}'"
+                            )
+                            web_tool = self.tools["web_search"]
+                            res = (
+                                await web_tool.buscar_na_cascata(args)
+                                if hasattr(web_tool, "buscar_na_cascata")
+                                else await web_tool.search(args)
+                            )
+                            name = "web_search"
+
+                    if res and not str(res).strip().lower().startswith(
+                        prefixos_de_falha
+                    ):
                         results.append(f"\n[{name.upper()}]: {res}")
+                    else:
+                        self.logger.info(
+                            f"Retorno da ferramenta '{name}' ignorado por ser nulo ou erro."
+                        )
+
                 except Exception as e:
                     self.logger.error(
                         f"  Erro ao executar a ferramenta '{name}': {e}", exc_info=True
@@ -210,14 +250,15 @@ class CognitionPipeline:
 
         return "".join(results) + "\n" if results else ""
 
-    async def _processar_anexos(self, message: discord.Message):
+    async def _processar_anexos(self, message: discord.Message) -> List[Dict[str, Any]]:
+        """Processa anexos da mensagem Discord (imagens/mídia) para consumo pelo LLM/Vision."""
         if self.vision_tool and self.vision_tool.is_image_message(message):
             try:
                 return await self.vision_tool.process_attachments(message.attachments)
             except Exception as e:
-                self.logger.error(f"❌ Erro VisionTool: {e}")
+                self.logger.error(f"Erro VisionTool: {e}")
 
-        parts = []
+        parts: List[Dict[str, Any]] = []
         valid_exts = (".png", ".jpg", ".jpeg", ".webp")
         for att in message.attachments:
             if any(att.filename.lower().endswith(ext) for ext in valid_exts):
@@ -228,72 +269,85 @@ class CognitionPipeline:
                     )
                 except Exception as e:
                     self.logger.warning(
-                        f"⚠️ Não foi possível ler o anexo '{att.filename}' de {message.author.name}: {e}"
+                        f"Não foi possível ler o anexo '{att.filename}' de {message.author.name}: {e}"
                     )
         return parts
 
-    async def executar_camada(self, contexto):
-        try:
-            resposta = await self.driver_atual.gerar_resposta(contexto)
-            return resposta
-
-        except Exception as e:
-            logger.error(
-                f"Falha na execução do driver {type(self.driver_atual).__name__}. Ativando failover. Erro: {e}",
-                exc_info=True,
-            )
-
-            return await self.acionar_failover(contexto)
-
-    async def _enviar_resposta(self, message: discord.Message, texto: str):
+    async def _enviar_resposta(self, message: discord.Message, texto: str) -> None:
+        """Envia resposta ao Discord dividindo mensagens longas respeitando o limite do Discord."""
         if not texto:
             return
-        LIMIT = 1900
-        while len(texto) > LIMIT:
-            idx = texto[:LIMIT].rfind("\n")
+        limit = 1900
+        while len(texto) > limit:
+            idx = texto[:limit].rfind("\n")
             if idx == -1:
-                idx = texto[:LIMIT].rfind(". ")
+                idx = texto[:limit].rfind(". ")
             if idx == -1:
-                idx = texto[:LIMIT].rfind(" ")
+                idx = texto[:limit].rfind(" ")
             if idx == -1:
-                idx = LIMIT
-
+                idx = limit
             chunk = texto[:idx].strip()
             if chunk:
                 await message.channel.send(chunk)
             texto = texto[idx:].strip()
             await asyncio.sleep(0.4)
-
         if texto:
             await message.reply(texto, mention_author=False)
 
-    async def processar_cognicao(
-        self, message: discord.Message, clean_text: str, persona_name: str = None
-    ):
-        start = time.time()
-        if not self.llm_factory:
-            return
-
     async def _interceptar_resposta_estatica(
-        self, clean_text: str, intents_config: dict
-    ) -> str:
-        """Camada 0: Analisa a mensagem e devolve uma resposta estática caso seja de baixa relevância."""
-        if not hasattr(self.limpeza, "identify_intent_hybrid"):
+        self, clean_text: str, intents_config: Dict[str, Any]
+    ) -> Optional[str]:
+        """Intercepta intenções conhecidas para rápida resposta estática com custo 0 de tokens."""
+        if not intents_config or not hasattr(self.limpeza, "identify_intent_hybrid"):
             return None
+
+        ferramentas_dinamicas = [
+            "weather",
+            "game_search",
+            "music_recommend",
+            "anime",
+            "jellyfin",
+            "pokemon",
+            "web_search",
+            "product_search",
+            "cupom_finder",
+            "shopping_list",
+        ]
 
         resultado = self.limpeza.identify_intent_hybrid(clean_text, intents_config)
         intent = resultado.get("intent")
         score = resultado.get("score_confianca", 0)
 
-        if intent in ["identity_check", "general_greetings"] and score > 80:
-            responses = intents_config.get(intent, {}).get("responses", [])
+        if intent in ferramentas_dinamicas:
+            return None
+
+        if intent in intents_config and score > 85:
+            responses = intents_config[intent].get("responses", [])
             if responses:
                 return random.choice(responses)
+
+        if hasattr(self, "router"):
+            rotas = await self.router.executar(clean_text, list(intents_config.keys()))
+            if rotas:
+                intent_semantica = rotas[0].get("tool")
+
+                if intent_semantica in ferramentas_dinamicas:
+                    return None
+
+                if intent_semantica in intents_config:
+                    responses = intents_config[intent_semantica].get("responses", [])
+                    if responses:
+                        return random.choice(responses)
+
         return None
 
     async def processar_cognicao(
-        self, message: discord.Message, clean_text: str, persona_name: str = None
-    ):
+        self,
+        message: discord.Message,
+        clean_text: str,
+        persona_name: Optional[str] = None,
+    ) -> None:
+        """Execução do fluxo completo do pipeline de cognição."""
         start = time.time()
         if not self.llm_factory:
             return
@@ -338,8 +392,8 @@ class CognitionPipeline:
             fato_novo = await self.aprendizado.aprender_fatos(message, clean_text)
             rag = await self._consultar_memoria_longa(clean_text)
             tools = await self._rotear_ferramentas(clean_text, message)
+
             # Histórico
-            hist_str = ""
             if hasattr(self.historico, "get_context"):
                 hist_data = self.historico.get_context(user_id)
             else:
@@ -370,7 +424,7 @@ class CognitionPipeline:
             if fato_novo:
                 full_sys += f"\n[SISTEMA]: Você acabou de aprender isto agora: '{fato_novo}'. Comente brevemente!"
 
-            parts = [f"{user_name}: {clean_text}"] if clean_text else []
+            parts: List[Any] = [f"{user_name}: {clean_text}"] if clean_text else []
             if anexos:
                 parts.extend(anexos)
                 if not clean_text:
@@ -399,4 +453,6 @@ class CognitionPipeline:
 
         except Exception:
             self.logger.error(traceback.format_exc())
-            await message.reply("🤯 *Meus neurônios entraram em curto! Pode repetir?*")
+            await message.reply(
+                "*Meus neurônios entraram em curto! Pode repetir?* ||(nao garanto responder corretamente)||"
+            )

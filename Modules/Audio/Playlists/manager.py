@@ -1,7 +1,7 @@
 import json
 import logging
 import aiofiles
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class PlaylistManager:

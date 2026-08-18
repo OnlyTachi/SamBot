@@ -19,23 +19,19 @@ class Calculadora(commands.Cog):
         try:
             if not re.match(r"^[0-9\s\+\-\*\/\(\)\.\,]+$", expressao_limpa):
                 raise ValueError("Caracteres inválidos")
-
             expressao_eval = expressao_limpa.replace(",", ".")
             resultado = eval(expressao_eval, {"__builtins__": None}, {})
-
             if isinstance(resultado, float):
                 if resultado.is_integer():
                     resultado = int(resultado)
                 else:
                     resultado = round(resultado, 10)
-
             resultado_formatado = str(resultado).replace(".", ",")
             await ctx.send(f"Resultado: {resultado_formatado}")
-
-        except Exception:
+        except (SyntaxError, ZeroDivisionError, TypeError, ValueError, NameError):
             mensagem_erro = (
                 f" | Olha, eu posso até estar matando aula para ficar no Discord,\n"
-                f"mas tenho certeza de que `{expressao_limpa}` não é uma conta matemática que faça sentido. Dá uma revisada aí!"
+                f"mas tenho certeza de que `{expressao_limpa}` não é uma conta matemática que faça sentido."
             )
             await ctx.send(mensagem_erro)
 

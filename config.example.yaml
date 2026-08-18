@@ -1,0 +1,54 @@
+bot:
+  prefix: "-"
+  debug_mode: false
+  owner_id: 123456789 # Substitua pelo seu ID
+
+music:
+  mode: "ONLINE"
+  lavalink:
+    local:
+      host: "127.0.0.1"
+      port: 2333
+      password: "sua_senha_local"
+      secure: false
+
+    nodes:
+      - name: "Node-Publico-Exemplo"
+        host: "lavalink.exemplo.com"
+        port: 443
+        password: "sua_senha_aqui"
+        secure: true
+
+telegram:
+  enabled: false
+  channels:
+    - "canal_exemplo"
+
+database:
+  sqlite_timeout: 30.0
+
+tools:
+  anime:
+    jikan:
+      timeout: 10.0
+      top_limit: 5
+  shopping:
+    pelando:
+      timeout: 8.0
+      coupon_limit: 5
+
+llm:
+  chain_order: ["gemini", "groq", "ollama"]
+  models:
+    gemini: "gemini-2.5-flash"
+    groq: "llama-3.1-8b-instant"
+    openrouter: "llama-3.1-8b-instant"
+    deepseek: "deepseek-chat"
+    mistral: "mistral-small-latest"
+  ollama:
+    remote_url: "http://ip:11434" # Deixe vazio se não usar
+    local_url: "http://host.docker.internal:11434"
+    models:
+      smart: "phi3.5:latest"
+      fast: "qwen2.5:1.5b"
+      embed: "nomic-embed-text"

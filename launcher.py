@@ -4,13 +4,12 @@ import subprocess
 import time
 import socket
 import urllib.request
-import re
+import urllib.parse
 import json
 import shutil
 from pathlib import Path
 
-# --- Configuração de Cores ANSI (Multiplataforma) ---
-os.system("")  # Habilita suporte a cores ANSI no CMD do Windows
+os.system("")  # Enables ANSI colors support on Windows CMD
 C_RESET = "\033[0m"
 C_CYAN = "\033[96m"
 C_GREEN = "\033[92m"
@@ -34,7 +33,7 @@ def print_header():
     print(r" \___ \ / _` | '_ ` _ \|  _ \ / _ \| __|")
     print(r"  ___) | (_| | | | | | | |_) | (_) | |_ ")
     print(r" |____/ \__,_|_| |_| |_|____/ \___/ \__|")
-    print(f"                                   v5.0{C_RESET}")
+    print(f"                                   v5.5{C_RESET}")
     print(f"{C_MAGENTA}>> Centro de Controle, Diagnóstico e Configuração <<{C_RESET}\n")
 
 
@@ -47,8 +46,22 @@ def ping_host(host, port, timeout=3):
     """Testa se uma porta TCP está aberta."""
     try:
         socket.setdefaulttimeout(timeout)
-        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect((host, port))
+        s.close()
         return True
+    except Exception:
+        return False
+
+
+def check_http_service(url, timeout=3):
+    """Verifica se um serviço HTTP/HTTPS está acessível."""
+    try:
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "http://" + url
+        req = urllib.request.Request(url, headers={"User-Agent": "SamBotLauncher/5.5"})
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            return response.status < 500
     except Exception:
         return False
 
@@ -174,12 +187,13 @@ def git_updater():
 
 
 def run_diagnostics():
-    """Roda testes de rede, conexões de APIs e arquivos locais."""
+    """Roda testes de rede, conexões de APIs e serviços configurados."""
     print_header()
     print(f"{C_CYAN}--- Executando Diagnóstico do Sistema ---{C_RESET}\n")
 
     print(f"Versão do Python: {C_YELLOW}{sys.version.split()[0]}{C_RESET}")
 
+    # Teste de Internet
     print("Conexão com a Internet: ", end="")
     try:
         urllib.request.urlopen("https://1.1.1.1", timeout=3)
@@ -187,23 +201,67 @@ def run_diagnostics():
     except Exception:
         print(f"{C_RED}Offline{C_RESET}")
 
+    # Teste de Arquivo .env
     print("Arquivo .env: ", end="")
     if os.path.exists(".env"):
         print(f"{C_GREEN}Encontrado{C_RESET}")
     else:
         print(f"{C_RED}Não encontrado (Use o Assistente de Configuração){C_RESET}")
 
-    print("Lavalink Padrão (lavalinkv4.serenetia.com:443): ", end="")
-    if ping_host("lavalinkv4.serenetia.com", 443):
+    env_data = read_env_file()
+
+    # Teste Meilisearch
+    meili_host = env_data.get("MEILI_HOST", "http://meilisearch:7700")
+    print(f"Meilisearch ({meili_host}): ", end="")
+    if check_http_service(meili_host):
         print(f"{C_GREEN}Acessível{C_RESET}")
     else:
-        print(f"{C_RED}Inacessível / Bloqueado{C_RESET}")
+        print(f"{C_RED}Inacessível{C_RESET}")
+
+    # Teste Lavalink Local
+    lava_host = env_data.get("LAVALINK_LOCAL_HOST", "127.0.0.1")
+    lava_port = int(env_data.get("LAVALINK_LOCAL_PORT", "2333"))
+    print(f"Lavalink Local ({lava_host}:{lava_port}): ", end="")
+    if ping_host(lava_host, lava_port):
+        print(f"{C_GREEN}Porta Aberta{C_RESET}")
+    else:
+        print(f"{C_YELLOW}Inacessível / Não iniciado{C_RESET}")
+
+    # Teste Navidrome
+    navidrome_url = env_data.get("NAVIDROME_URL", "")
+    if navidrome_url and navidrome_url != "https://seu-navidrome.com":
+        print(f"Navidrome ({navidrome_url}): ", end="")
+        if check_http_service(navidrome_url):
+            print(f"{C_GREEN}Acessível{C_RESET}")
+        else:
+            print(f"{C_RED}Inacessível{C_RESET}")
+
+    # Teste Jellyfin
+    jellyfin_url = env_data.get("JELLYFIN_URL", "")
+    if jellyfin_url and "SEU_IP_OU_DOMINIO" not in jellyfin_url:
+        print(f"Jellyfin ({jellyfin_url}): ", end="")
+        if check_http_service(jellyfin_url):
+            print(f"{C_GREEN}Acessível{C_RESET}")
+        else:
+            print(f"{C_RED}Inacessível{C_RESET}")
+
+    # Teste Ollama Local
+    ollama_local = env_data.get("OLLAMA_LOCAL_URL", "")
+    if ollama_local:
+        print(f"Ollama Local ({ollama_local}): ", end="")
+        if check_http_service(ollama_local):
+            print(f"{C_GREEN}Acessível{C_RESET}")
+        else:
+            print(f"{C_YELLOW}Inacessível{C_RESET}")
 
     input(f"\n{C_CYAN}Pressione ENTER para voltar ao menu...{C_RESET}")
 
 
 def setup_wizard(first_time=False):
-    """Assistente interativo inteligente para geração e edição do .env."""
+    """
+    Assistente interativo inteligente para geração e edição do .env.
+    Configurações divididas em Principais (obrigatórias) e Opcionais por categoria.
+    """
     current_env = read_env_file()
 
     if first_time or not current_env:
@@ -213,10 +271,7 @@ def setup_wizard(first_time=False):
         print(f"║       SAMBOT - ASSISTENTE DE CONFIG      ║")
         print(f"╚══════════════════════════════════════════╝{C_RESET}")
         print(
-            f"\n{C_YELLOW}Parece que é sua primeira vez aqui! Vamos configurar o básico.{C_RESET}"
-        )
-        print(
-            f"({C_CYAN}Dica: Se não souber o que responder, digite ? e aperte Enter{C_RESET})\n"
+            f"\n{C_YELLOW}Vamos configurar o bot de maneira rápida e organizada!{C_RESET}"
         )
     else:
         print_header()
@@ -224,10 +279,10 @@ def setup_wizard(first_time=False):
             f"{C_YELLOW}Bem-vindo ao Assistente de Configuração Inteligente!{C_RESET}"
         )
         print(f"\n{C_GREEN}[!] Um arquivo .env já foi detectado.{C_RESET}")
-        print("  [ 1 ] Editar arquivo atual (Mantém as chaves se deixar em branco)")
-        print("  [ 2 ] Sobrescrever tudo (Começar do zero)")
+        print("  [ 1 ] Editar/Adicionar dados mantendo o existente")
+        print("  [ 2 ] Redefinir do zero (Limpar arquivo)")
         print("  [ 0 ] Cancelar e voltar")
-        escolha = input(f"\n{C_BOLD}Escolha: {C_RESET}")
+        escolha = input(f"\n{C_BOLD}Escolha: {C_RESET}").strip()
 
         if escolha == "0":
             return
@@ -241,17 +296,14 @@ def setup_wizard(first_time=False):
         elif escolha != "1":
             return
 
-        print(
-            f"\n({C_CYAN}Dica: Digite '?' para ajuda ou aperte ENTER para manter o valor atual{C_RESET})\n"
-        )
-
     def ask(key, prompt, help_text, default_fallback=""):
+        """Pergunta interativa com suporte a atalhos e valores padrão."""
         default_val = current_env.get(key, default_fallback)
         while True:
             display_default = (
                 f" [{C_GREEN}{default_val}{C_RESET}]" if default_val else ""
             )
-            val = input(f"{C_BOLD}{prompt}{display_default}{C_RESET} ").strip()
+            val = input(f"{C_BOLD}{prompt}{display_default}:{C_RESET} ").strip()
 
             if val == "?":
                 print(f"\n{C_CYAN}💡 Ajuda:{C_RESET} {help_text}\n")
@@ -262,202 +314,342 @@ def setup_wizard(first_time=False):
 
     env_data = current_env.copy()
 
-    # Configurações Principais
-    print(f"\n{C_MAGENTA}--- Configuração Principal ---{C_RESET}")
+    print(f"\n{C_MAGENTA}{C_BOLD}==========================================")
+    print(f"📌 CONFIGURAÇÕES PRINCIPAIS (ESSENCIAIS)")
+    print(f"=========================================={C_RESET}")
+    print(
+        f"{C_CYAN}(Pressione ENTER para manter o valor padrão ou aperte ? para ajuda){C_RESET}\n"
+    )
+
     env_data["DISCORD_TOKEN"] = ask(
         "DISCORD_TOKEN",
-        "🔑 Token do bot?",
-        "Token do bot gerado no Discord Developer Portal.",
+        "🔑 Token do Bot (Discord)",
+        "Obtenha seu token no Discord Developer Portal (https://discord.com/developers/applications).",
     )
     env_data["OWNER_ID"] = ask(
-        "OWNER_ID", "👑 ID do Dono (Owner ID)?", "Seu ID numérico do Discord."
+        "OWNER_ID",
+        "👑 ID do Dono (Owner ID)",
+        "Seu ID numérico de usuário no Discord.",
     )
     env_data["BOT_PREFIX"] = ask(
-        "BOT_PREFIX", "⚡ Prefixo do Bot?", "Símbolo para comandos de texto.", "+"
+        "BOT_PREFIX",
+        "⚡ Prefixo de Comandos de Texto",
+        "Símbolo usado antes dos comandos (ex: +, !, .).",
+        "+",
+    )
+    env_data["DEBUG_MODE"] = ask(
+        "DEBUG_MODE",
+        "🐛 Modo Debug (true/false)",
+        "Exibe logs detalhados de erros e operações no console.",
+        "false",
     )
 
-    # Fluxo de Música e Servidores Lavalink
-    print(f"\n{C_MAGENTA}--- Fluxo de Música & Lavalink ---{C_RESET}")
-    env_data["MUSIC_SOURCE_MODE"] = ask(
-        "MUSIC_SOURCE_MODE",
-        "🔀 Modo de Busca (LOCAL, ONLINE)?",
-        "LOCAL apenas rede interna; ONLINE apenas web.",
-        "ONLINE",
-    )
+    # Função auxiliar para salvar o arquivo .env
+    def save_env():
+        with open(".env", "w", encoding="utf-8") as f:
+            for k, v in env_data.items():
+                if v is not None:
+                    f.write(f'{k}="{v}"\n')
 
-    env_data["LAVALINK_LOCAL_HOST"] = ask(
-        "LAVALINK_LOCAL_HOST",
-        "📻 Host Lavalink Local?",
-        "IP ou host do Lavalink local.",
-        "127.0.0.1",
-    )
-    env_data["LAVALINK_LOCAL_PORT"] = ask(
-        "LAVALINK_LOCAL_PORT",
-        "🔌 Porta Lavalink Local?",
-        "Porta do servidor local.",
-        "2333",
-    )
-    env_data["LAVALINK_LOCAL_PASSWORD"] = ask(
-        "LAVALINK_LOCAL_PASSWORD",
-        "🔒 Senha Lavalink Local?",
-        "Senha do servidor local.",
-        "youshallnotpass",
-    )
+    save_env()
 
-    env_data["LAVALINK_ONLINE_HOSTS"] = ask(
-        "LAVALINK_ONLINE_HOSTS",
-        "🌐 Hosts Lavalink Online?",
-        "Lista de servidores remotos separados por vírgula.",
-        "lavalinkv4.serenetia.com",
-    )
-    env_data["LAVALINK_ONLINE_PORTS"] = ask(
-        "LAVALINK_ONLINE_PORTS",
-        "🔌 Portas Lavalink Online?",
-        "Portas correspondentes separadas por vírgula.",
-        "443",
-    )
-    env_data["LAVALINK_ONLINE_PASSWORDS"] = ask(
-        "LAVALINK_ONLINE_PASSWORDS",
-        "🔒 Senhas Lavalink Online?",
-        "Senhas correspondentes separadas por vírgula.",
-        "https://seretia.link/discord",
-    )
+    while True:
+        clear_screen()
+        print_header()
+        print(f"{C_GREEN}{C_BOLD}✅ Configurações Principais registradas!{C_RESET}")
+        print(f"\n{C_CYAN}{C_BOLD}💡 O Bot já estará pronto para iniciar!{C_RESET}")
+        print(f"Caso queira algo extra, digite o número da categoria para configurar.")
+        print(f"{C_YELLOW}(Caso queira pular ou finalizar, aperte ENTER){C_RESET}\n")
 
-    # Mídia Local (Navidrome e Jellyfin)
-    print(f"\n{C_MAGENTA}--- Configuração de Bibliotecas de Mídia ---{C_RESET}")
-    env_data["NAVIDROME_URL"] = ask(
-        "NAVIDROME_URL",
-        "🎵 URL do Navidrome?",
-        "URL completa da sua instância Navidrome.",
-        "",
+        print(f"  {C_BOLD}[ 1 ] 🎵 Música{C_RESET} (Lavalink e Navidrome)")
+        print(
+            f"  {C_BOLD}[ 2 ] ✈️ Telegram & Busca Indexada{C_RESET} (Meilisearch, Telegram API)"
+        )
+        print(f"  {C_BOLD}[ 3 ] 🏠 APIs Internas {C_RESET} (Ollama Local & Remoto)")
+        print(
+            f"  {C_BOLD}[ 4 ] 🌐 APIs Externas & Cloud AI{C_RESET} (Gemini, Groq, DeepSeek, OpenRouter, IGDB, Steam, Google, etc.)"
+        )
+        print(f"\n  {C_GREEN}[ ENTER / 0 ] Finalizar e Salvar{C_RESET}")
+
+        opcao = input(f"\n{C_BOLD}Opção desejada: {C_RESET}").strip()
+
+        if opcao == "" or opcao == "0":
+            break
+
+        # CATEGORIA 1: MÚSICA
+        elif opcao == "1":
+            print(f"\n{C_MAGENTA}--- 🎵 Configuração de Música ---{C_RESET}")
+            print(f"{C_YELLOW}(Aperte ENTER para pular/manter padrão){C_RESET}\n")
+
+            env_data["MUSIC_SOURCE_MODE"] = ask(
+                "MUSIC_SOURCE_MODE",
+                "🎧 Modo de Origem da Música (LOCAL / ONLINE)",
+                "LOCAL usa Navidrome; ONLINE usa Lavalink/YouTube.",
+                "ONLINE",
+            )
+
+            print(f"\n{C_CYAN}> Lavalink Local:{C_RESET}")
+            env_data["LAVALINK_LOCAL_HOST"] = ask(
+                "LAVALINK_LOCAL_HOST",
+                "Host Local",
+                "IP do Lavalink local.",
+                "127.0.0.1",
+            )
+            env_data["LAVALINK_LOCAL_PORT"] = ask(
+                "LAVALINK_LOCAL_PORT",
+                "Porta Local",
+                "Porta do servidor Lavalink local.",
+                "2333",
+            )
+            env_data["LAVALINK_LOCAL_PASSWORD"] = ask(
+                "LAVALINK_LOCAL_PASSWORD",
+                "Senha Local",
+                "Senha configurada no application.yml do Lavalink.",
+                "youshallnotpass",
+            )
+
+            print(
+                f"\n{C_CYAN}> Lavalink Online (Múltiplos separados por vírgula):{C_RESET}"
+            )
+            env_data["LAVALINK_ONLINE_HOSTS"] = ask(
+                "LAVALINK_ONLINE_HOSTS",
+                "Hosts Online",
+                "Domínios de Lavalinks públicos/remotos.",
+                "lavalinkv4.serenetia.com",
+            )
+            env_data["LAVALINK_ONLINE_PORTS"] = ask(
+                "LAVALINK_ONLINE_PORTS", "Portas Online", "Portas.", "443"
+            )
+            env_data["LAVALINK_ONLINE_PASSWORDS"] = ask(
+                "LAVALINK_ONLINE_PASSWORDS",
+                "Senhas Online",
+                "Senhas.",
+                "https://seretia.link/discord",
+            )
+
+            print(f"\n{C_CYAN}> Servidores Pessoais (Navidrome / Jellyfin):{C_RESET}")
+            env_data["NAVIDROME_URL"] = ask(
+                "NAVIDROME_URL",
+                "URL Navidrome",
+                "URL do seu servidor Navidrome.",
+                "https://seu-navidrome.com",
+            )
+            env_data["NAVIDROME_USER"] = ask(
+                "NAVIDROME_USER", "Usuário Navidrome", "Nome de usuário.", "seu_usuario"
+            )
+            env_data["NAVIDROME_PASSWORD"] = ask(
+                "NAVIDROME_PASSWORD", "Senha Navidrome", "Senha de acesso.", ""
+            )
+            env_data["JELLYFIN_URL"] = ask(
+                "JELLYFIN_URL",
+                "URL Jellyfin",
+                "URL do seu servidor Jellyfin.",
+                "http://SEU_IP_OU_DOMINIO:8096",
+            )
+            env_data["JELLYFIN_API_KEY"] = ask(
+                "JELLYFIN_API_KEY",
+                "Jellyfin API Key",
+                "Chave criada no painel Jellyfin.",
+                "",
+            )
+
+            save_env()
+            print(f"\n{C_GREEN}[V] Configurações de Música salvas!{C_RESET}")
+            time.sleep(1.5)
+
+        # CATEGORIA 2: TELEGRAM & BUSCA INDEXADA
+        elif opcao == "2":
+            print(
+                f"\n{C_MAGENTA}--- ✈️ Telegram & Busca Indexada (Meilisearch) ---{C_RESET}"
+            )
+            print(f"{C_YELLOW}(Aperte ENTER para pular/manter padrão){C_RESET}\n")
+
+            env_data["TELEGRAM_ENABLED"] = ask(
+                "TELEGRAM_ENABLED",
+                "Ativar Telegram (true/false)",
+                "Inicia o módulo de monitoramento do Telegram.",
+                "false",
+            )
+            env_data["TELEGRAM_API_ID"] = ask(
+                "TELEGRAM_API_ID",
+                "Telegram API ID",
+                "Obtido em https://my.telegram.org.",
+            )
+            env_data["TELEGRAM_API_HASH"] = ask(
+                "TELEGRAM_API_HASH", "Telegram API Hash", "Obtido em my.telegram.org."
+            )
+            env_data["TELEGRAM_CHANNELS"] = ask(
+                "TELEGRAM_CHANNELS",
+                "Canais do Telegram",
+                "Separados por vírgula.",
+                "pelando,promocoes_br",
+            )
+
+            print(f"\n{C_CYAN}> Meilisearch (Mecanismo de Busca):{C_RESET}")
+            env_data["MEILI_HOST"] = ask(
+                "MEILI_HOST",
+                "Host Meilisearch",
+                "URL do container/servidor Meilisearch.",
+                "http://meilisearch:7700",
+            )
+            env_data["MEILI_MASTER_KEY"] = ask(
+                "MEILI_MASTER_KEY",
+                "Master Key Meilisearch",
+                "Chave mestra de autenticação.",
+                "masterKey",
+            )
+
+            save_env()
+            print(
+                f"\n{C_GREEN}[V] Configurações de Telegram & Meilisearch salvas!{C_RESET}"
+            )
+            time.sleep(1.5)
+
+        # CATEGORIA 3: APIS INTERNAS (HOMELAB & OLLAMA)
+        elif opcao == "3":
+            print(
+                f"\n{C_MAGENTA}--- 🏠 APIs Internas & Homelab (Ollama Local/Remoto) ---{C_RESET}"
+            )
+            print(f"{C_YELLOW}(Aperte ENTER para pular/manter padrão){C_RESET}\n")
+
+            print(f"{C_CYAN}> Ollama Remoto (Tailscale / Servidor dedicado):{C_RESET}")
+            env_data["OLLAMA_REMOTE_URL"] = ask(
+                "OLLAMA_REMOTE_URL",
+                "URL Ollama Remoto",
+                "Ex: http://100.x.y.z:11434",
+                "http://ip_tailscale_workstation:11434",
+            )
+            env_data["MODEL_SMART_REMOTE"] = ask(
+                "MODEL_SMART_REMOTE",
+                "Modelo Remoto Inteligente",
+                "Exemplo: phi3.5:latest, llama3.1:8b",
+                "phi3.5:latest",
+            )
+            env_data["MODEL_EMBED_REMOTE"] = ask(
+                "MODEL_EMBED_REMOTE",
+                "Modelo Embed Remoto",
+                "Ex: nomic-embed-text:latest",
+                "nomic-embed-text:latest",
+            )
+
+            print(f"\n{C_CYAN}> Ollama Local (Mesma máquina / Docker):{C_RESET}")
+            env_data["OLLAMA_LOCAL_URL"] = ask(
+                "OLLAMA_LOCAL_URL",
+                "URL Ollama Local",
+                "Ex: http://host.docker.internal:11434 ou http://localhost:11434",
+                "http://host.docker.internal:11434",
+            )
+            env_data["MODEL_FAST_LOCAL"] = ask(
+                "MODEL_FAST_LOCAL",
+                "Modelo Local Rápido",
+                "Exemplo: qwen2.5:1.5b",
+                "qwen2.5:1.5b",
+            )
+            env_data["MODEL_EMBED_LOCAL"] = ask(
+                "MODEL_EMBED_LOCAL",
+                "Modelo Embed Local",
+                "Ex: nomic-embed-text:latest",
+                "nomic-embed-text:latest",
+            )
+
+            save_env()
+            print(f"\n{C_GREEN}[V] Configurações de APIs Internas salvas!{C_RESET}")
+            time.sleep(1.5)
+
+        # CATEGORIA 4: APIS EXTERNAS & CLOUD AI
+        elif opcao == "4":
+            print(
+                f"\n{C_MAGENTA}--- 🌐 APIs Externas & Inteligência Artificial Cloud ---{C_RESET}"
+            )
+            print(f"{C_YELLOW}(Aperte ENTER para pular/manter padrão){C_RESET}\n")
+
+            print(f"{C_CYAN}> Provedores de IA Cloud:{C_RESET}")
+            env_data["GEMINI_MODEL_NAME"] = ask(
+                "GEMINI_MODEL_NAME",
+                "Modelo Gemini",
+                "Nome do modelo Google Gemini.",
+                "gemini-2.0-flash",
+            )
+            env_data["GEMINI_API_KEY_1"] = ask(
+                "GEMINI_API_KEY_1",
+                "Gemini API Key 1",
+                "Chave de API do Google AI Studio.",
+            )
+            env_data["GEMINI_API_KEY_2"] = ask(
+                "GEMINI_API_KEY_2", "Gemini API Key 2 (Opcional)", "Chave reserva."
+            )
+            env_data["GEMINI_API_KEY_3"] = ask(
+                "GEMINI_API_KEY_3", "Gemini API Key 3 (Opcional)", "Chave reserva."
+            )
+
+            env_data["GROQ_API_KEY"] = ask(
+                "GROQ_API_KEY", "Groq API Key", "Chave da Groq Console."
+            )
+            env_data["GROQ_MODEL"] = ask(
+                "GROQ_MODEL", "Modelo Groq", "Modelo", "llama-3.1-8b-instant"
+            )
+
+            env_data["DEEPSEEK_API_KEY"] = ask(
+                "DEEPSEEK_API_KEY", "DeepSeek API Key", "Chave da DeepSeek Platform."
+            )
+            env_data["DEEPSEEK_MODEL"] = ask(
+                "DEEPSEEK_MODEL", "Modelo DeepSeek", "Modelo", "llama-3.1-8b-instant"
+            )
+
+            env_data["MISTRAL_API_KEY"] = ask(
+                "MISTRAL_API_KEY", "Mistral API Key", "Chave Mistral AI."
+            )
+            env_data["MISTRAL_MODEL"] = ask(
+                "MISTRAL_MODEL", "Modelo Mistral", "Modelo", "mistral-7b-instruct"
+            )
+
+            env_data["OPENROUTER_API_KEY"] = ask(
+                "OPENROUTER_API_KEY", "OpenRouter API Key", "Chave OpenRouter."
+            )
+            env_data["OPENROUTER_MODEL"] = ask(
+                "OPENROUTER_MODEL",
+                "Modelo OpenRouter",
+                "Modelo",
+                "llama-3.1-8b-instant",
+            )
+
+            print(f"\n{C_CYAN}> Games, Buscas & Mídias:{C_RESET}")
+            env_data["IGDB_CLIENT_ID"] = ask(
+                "IGDB_CLIENT_ID", "IGDB Client ID", "ID da Twitch Dev Console."
+            )
+            env_data["IGDB_CLIENT_SECRET"] = ask(
+                "IGDB_CLIENT_SECRET", "IGDB Client Secret", "Secret da Twitch Dev."
+            )
+            env_data["STEAM_API_KEY"] = ask(
+                "STEAM_API_KEY", "Steam API Key", "Chave WebAPI da Steam."
+            )
+            env_data["GOOGLE_SEARCH_API_KEY"] = ask(
+                "GOOGLE_SEARCH_API_KEY", "Google Search API Key", "Chave Custom Search."
+            )
+            env_data["GOOGLE_SEARCH_CX"] = ask(
+                "GOOGLE_SEARCH_CX", "Google Search CX ID", "ID do motor de busca."
+            )
+            env_data["BRAVE_SEARCH_API_KEY"] = ask(
+                "BRAVE_SEARCH_API_KEY", "Brave Search API Key", "Chave Brave API."
+            )
+            env_data["SERPAPI_KEY"] = ask(
+                "SERPAPI_KEY", "SerpApi Key", "Chave SerpApi (Shopping/Ofertas)."
+            )
+            env_data["PIXABAY_API_KEY"] = ask(
+                "PIXABAY_API_KEY", "Pixabay API Key", "Chave de imagens do Pixabay."
+            )
+            env_data["KLIPY_API_KEY"] = ask(
+                "KLIPY_API_KEY", "Klipy API Key", "Chave de gifs/vídeos Klipy."
+            )
+
+            save_env()
+            print(f"\n{C_GREEN}[V] Configurações de APIs Externas salvas!{C_RESET}")
+            time.sleep(1.5)
+
+    save_env()
+    print(
+        f"\n{C_GREEN}[V] Todas as alterações foram gravadas no arquivo .env com sucesso!{C_RESET}"
     )
-    env_data["NAVIDROME_USER"] = ask(
-        "NAVIDROME_USER", "👤 Usuário Navidrome?", "Seu usuário no Navidrome.", ""
-    )
-    env_data["NAVIDROME_PASSWORD"] = ask(
-        "NAVIDROME_PASSWORD", "🔑 Senha Navidrome?", "Sua senha do Navidrome.", ""
-    )
-
-    env_data["JELLYFIN_URL"] = ask(
-        "JELLYFIN_URL", "🍿 URL do Jellyfin?", "URL da sua instância Jellyfin.", ""
-    )
-    env_data["JELLYFIN_API_KEY"] = ask(
-        "JELLYFIN_API_KEY",
-        "🔑 Token API Jellyfin?",
-        "Chave de acesso gerada no Jellyfin.",
-        "",
-    )
-    env_data["SERAPI_KEY"] = ask(
-        "SERAPI_KEY",
-        "🛒 SerpApi Key (Google Shopping)?",
-        "Chave de acesso para buscas de produtos no Google Shopping.",
-        "",
-    )
-
-    # Integrações Avançadas Opcionais
-    print(f"\n{C_MAGENTA}--- Integrações Avançadas e APIs (Opcionais) ---{C_RESET}")
-    do_advanced = (
-        input(
-            f"Deseja configurar chaves extras de APIs e Inteligência Artificial? (s/n) [{C_YELLOW}n{C_RESET}]: "
-        )
-        .strip()
-        .lower()
-    )
-
-    if do_advanced == "s":
-        print(f"\n{C_YELLOW}🧠 INTELES (IA & LLM){C_RESET}")
-        env_data["GEMINI_MODEL_NAME"] = ask(
-            "GEMINI_MODEL_NAME",
-            "🤖 Modelo Gemini?",
-            "Ex: gemini-2.0-flash",
-            "gemini-2.0-flash",
-        )
-        env_data["GEMINI_API_KEY_1"] = ask(
-            "GEMINI_API_KEY_1",
-            "🔑 Gemini Chave 1?",
-            "Chave principal do Google AI Studio.",
-        )
-        env_data["GEMINI_API_KEY_2"] = ask(
-            "GEMINI_API_KEY_2",
-            "🔑 Gemini Chave 2?",
-            "Chave secundária de backup (Opcional).",
-        )
-
-        env_data["GROQ_API_KEY"] = ask(
-            "GROQ_API_KEY", "⚡ Groq API Key?", "Chave do painel Groq."
-        )
-        env_data["GROQ_MODEL"] = ask(
-            "GROQ_MODEL",
-            "🤖 Modelo Groq?",
-            "Modelo a ser usado na Groq.",
-            "llama-3.1-8b-instant",
-        )
-
-        print(f"\n{C_YELLOW}🏠 OLLAMA (Modelos Locais/Tailscale){C_RESET}")
-        env_data["OLLAMA_REMOTE_URL"] = ask(
-            "OLLAMA_REMOTE_URL",
-            "🌐 URL Ollama Remoto?",
-            "Endereço do Ollama remoto via Tailscale/Rede.",
-            "",
-        )
-        env_data["MODEL_SMART_REMOTE"] = ask(
-            "MODEL_SMART_REMOTE",
-            "🤖 Modelo Remoto?",
-            "Ex: phi3.5:latest",
-            "phi3.5:latest",
-        )
-        env_data["OLLAMA_LOCAL_URL"] = ask(
-            "OLLAMA_LOCAL_URL",
-            "💻 URL Ollama Local?",
-            "Endereço local do Ollama.",
-            "http://host.docker.internal:11434",
-        )
-        env_data["MODEL_FAST_LOCAL"] = ask(
-            "MODEL_FAST_LOCAL",
-            "🤖 Modelo Local Rápido?",
-            "Ex: qwen2.5:1.5b",
-            "qwen2.5:1.5b",
-        )
-
-        print(f"\n{C_YELLOW}🎮 JOGOS, MÍDIA E BUSCA{C_RESET}")
-        env_data["STEAM_API_KEY"] = ask(
-            "STEAM_API_KEY", "Steam API Key?", "Chave de desenvolvedor da Steam."
-        )
-        env_data["IGDB_CLIENT_ID"] = ask(
-            "IGDB_CLIENT_ID", "IGDB Client ID?", "Client ID da Twitch Developers."
-        )
-        env_data["IGDB_CLIENT_SECRET"] = ask(
-            "IGDB_CLIENT_SECRET", "IGDB Client Secret?", "Client Secret da Twitch."
-        )
-        env_data["GOOGLE_SEARCH_API_KEY"] = ask(
-            "GOOGLE_SEARCH_API_KEY",
-            "Google Search API Key?",
-            "Chave de busca customizada do Google.",
-        )
-        env_data["GOOGLE_SEARCH_CX"] = ask(
-            "GOOGLE_SEARCH_CX",
-            "Google CX ID?",
-            "ID do mecanismo de pesquisa programável.",
-        )
-        env_data["BRAVE_SEARCH_API_KEY"] = ask(
-            "BRAVE_SEARCH_API_KEY",
-            "Brave Search API Key?",
-            "Chave alternativa do Brave Search.",
-        )
-        env_data["PIXABAY_API_KEY"] = ask(
-            "PIXABAY_API_KEY", "Pixabay API Key?", "Chave do Pixabay para imagens."
-        )
-        env_data["KLIPY_API_KEY"] = ask(
-            "KLIPY_API_KEY", "Klipy API Key?", "Chave de integração do Klipy."
-        )
-
-    print(f"\n{C_YELLOW}Salvando arquivo .env...{C_RESET}")
-    with open(".env", "w", encoding="utf-8") as f:
-        for k, v in env_data.items():
-            if v is not None:
-                f.write(f'{k}="{v}"\n')
-
-    print(f"{C_GREEN}[V] Configurações salvas no arquivo .env com sucesso!{C_RESET}")
     time.sleep(2)
 
 
@@ -669,7 +861,7 @@ def main_menu():
         print(
             f"  [ 3 ] {C_MAGENTA}Verificar Atualizações do Repositório (Git Pull){C_RESET}"
         )
-        print(f"  [ 4 ] Diagnóstico Geral do Sistema (APIs e Rede)")
+        print(f"  [ 4 ] Diagnóstico Geral do Sistema (APIs, Mídia e Rede)")
         print(f"  [ 5 ] Gerenciador Docker Compose")
         print(f"  [ 6 ] Painel de Métricas e Logs Locais")
         print(f"  [ 7 ] Limpar Cache do Python (__pycache__)")

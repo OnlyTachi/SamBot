@@ -9,7 +9,7 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
 from easy_pil import Editor, Canvas, Font, load_image_async
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class LevelingSystem(commands.Cog):
