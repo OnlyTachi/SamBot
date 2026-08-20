@@ -1,50 +1,29 @@
 import asyncio
 import difflib
-import json
-import logging
 import math
 import os
 import random
 import traceback
+from pathlib import Path
+
 import discord
 from discord.ext import commands, tasks
 
-# Camada de Inteligência e Dados
 from Brain.Memory.DataManager.Connections import data_manager
+from Core.ConfigLoader import AppConfig
+from Core.Logger import Logger
 from Modules.Admin.Mods._appeals import AppealStartView
 from Services.ServiceManager import ServiceManager
-from Core.ConfigLoader import AppConfig
+
+try:
+    from Brain.Core.NetworkManager import NetworkManager
+except ImportError:
+    NetworkManager = None
 
 try:
     from Brain.Providers.LLMFactory import llm_factory
 except ImportError:
-    LLMFactory = None
     llm_factory = None
-
-try:
-    from .Logger import Logger
-except ImportError:
-
-    class Logger:
-        def __init__(self):
-            self.logger = logging.getLogger("SamBot.Core")
-            if not self.logger.handlers:
-                logging.basicConfig(level=logging.INFO)
-
-        def info(self, msg):
-            self.logger.info(msg)
-
-        def error(self, msg):
-            self.logger.error(msg)
-
-        def critical(self, msg):
-            self.logger.critical(msg)
-
-        def warning(self, msg):
-            self.logger.warning(msg)
-
-        def debug(self, msg):
-            self.logger.debug(msg)
 
 
 class SamBot(commands.Bot):
@@ -54,40 +33,31 @@ class SamBot(commands.Bot):
         intents.members = True
         intents.voice_states = True
         intents.presences = True
+
         self.services: ServiceManager = None
-
-        try:
-            with open("config.json", "r", encoding="utf-8") as f:
-                self.config_info = json.load(f)
-        except FileNotFoundError:
-            self.config_info = {"version": "3.1.0", "name": "SamBot"}
-
-        self.version = self.config_info.get("version", "3.1.0")
+        self.version = AppConfig.get("bot.version", "3.1.0")
+        self.bot_name = AppConfig.get("bot.name", "SamBot")
         self.start_time = discord.utils.utcnow()
-        owner_id = os.getenv("OWNER_ID")
+
+        owner_id = AppConfig.get("bot.owner_id") or os.getenv("OWNER_ID")
         self._owner_id_manual = int(owner_id) if owner_id else None
+
         self.is_music_playing = False
         self.stats = {"messages_read": 0, "commands_used": 0, "voice_time_minutes": 0}
         self.stats_file = "logs/bot_stats.json"
 
-        # Flags de ambiente
-        val = AppConfig.get("DEBUG_MODE", False)
-        self.debug_mode = (
-            val if isinstance(val, bool) else str(val).lower() in ("true", "1", "yes")
-        )
+        self.debug_mode = AppConfig.debug_mode
         self.log = Logger()
         self.agent = None
 
-        self.log.info(
-            f"🤖 Inicializando {self.config_info.get('name', 'SamBot')} Core v{self.version}..."
-        )
+        self.log.info(f"🤖 Inicializando {self.bot_name} Core v{self.version}...")
         if self.debug_mode:
             self.log.debug("Modo de depuração ativado no sistema.")
 
         self.run_pre_flight_checks()
 
         super().__init__(
-            command_prefix=AppConfig.get("BOT_PREFIX", "-"),
+            command_prefix=AppConfig.get("BOT_PREFIX", AppConfig.prefix),
             intents=intents,
             help_command=None,
             case_insensitive=True,
@@ -95,46 +65,45 @@ class SamBot(commands.Bot):
         )
 
     def run_pre_flight_checks(self):
-        """Executa checagens básicas locais antes de abrir conexão com o Gateway do Discord."""
+        """Executa checagens básicas locais antes de abrir conexão com o Gateway."""
         self.log.info("📋 Executando verificações pré-conexão...")
 
         provedores = []
-        if os.getenv("GEMINI_API_KEY_1"):
+        if os.getenv("GEMINI_API_KEY_1") or AppConfig.gemini_keys:
             provedores.append(
-                f"Gemini ({os.getenv('GEMINI_MODEL_NAME', 'gemini-2.5-flash')})"
+                f"Gemini ({AppConfig.get('GEMINI_MODEL_NAME', 'gemini-2.5-flash')})"
             )
         if os.getenv("GROQ_API_KEY"):
             provedores.append(
-                f"Groq ({os.getenv('GROQ_MODEL', 'llama-3.1-8b-instant')})"
+                f"Groq ({AppConfig.get('GROQ_MODEL', 'llama-3.1-8b-instant')})"
             )
         if os.getenv("OPENROUTER_API_KEY"):
             provedores.append(
-                f"OpenRouter ({os.getenv('OPENROUTER_MODEL', 'llama-3.1-8b-instant')})"
+                f"OpenRouter ({AppConfig.get('OPENROUTER_MODEL', 'llama-3.1-8b-instant')})"
             )
         if os.getenv("DEEPSEEK_API_KEY"):
             provedores.append(
-                f"DeepSeek ({os.getenv('DEEPSEEK_MODEL', 'llama-3.1-8b-instant')})"
+                f"DeepSeek ({AppConfig.get('DEEPSEEK_MODEL', 'llama-3.1-8b-instant')})"
             )
         if os.getenv("OLLAMA_REMOTE_URL"):
             provedores.append(
-                f"Ollama Remoto ({os.getenv('MODEL_SMART_REMOTE', 'phi3.5:latest')})"
+                f"Ollama Remoto ({AppConfig.get('MODEL_SMART_REMOTE', 'phi3.5:latest')})"
             )
         if os.getenv("OLLAMA_LOCAL_URL"):
             provedores.append(
-                f"Ollama Local ({os.getenv('MODEL_FAST_LOCAL', 'qwen2.5:1.5b')})"
+                f"Ollama Local ({AppConfig.get('MODEL_FAST_LOCAL', 'qwen2.5:1.5b')})"
             )
 
         ia_env_info = (
-            f"{len(provedores)} provedor(es) detectado(s) no .env"
+            f"{len(provedores)} provedor(es) detectado(s)"
             if provedores
-            else "Nenhuma chave de IA no .env"
+            else "Nenhuma chave de IA detectada"
         )
-
         db_status = "Conectado" if data_manager else "Não detectado"
         music_mode = AppConfig.get("MUSIC_SOURCE_MODE", "ONLINE").upper()
 
         self.log.info(f"   - Base de Dados: {db_status}")
-        self.log.info(f"   - Configuração IA (.env): {ia_env_info}")
+        self.log.info(f"   - Configuração IA (.env/YAML): {ia_env_info}")
         self.log.info(f"   - Fonte de Música: {music_mode}")
 
     async def setup_hook(self):
@@ -144,32 +113,47 @@ class SamBot(commands.Bot):
         self.agent = self.get_cog("CerebroIA")
         if self.agent:
             self.log.info(
-                f"🧠 Cérebro IA (Agent) vinculado. Status: {getattr(self.agent, 'status', 'Pronto')}"
+                f"🧠 Cérebro vinculado. Status: {getattr(self.agent, 'status', 'Pronto')}"
             )
         else:
             self.log.warning(
                 "⚠️ O módulo Brain/Agent.py não foi carregado. O bot operará sem IA."
             )
 
-        self.log.info("🔄 Sincronizando árvore de comandos...")
-        try:
-            synced = await self.tree.sync()
-            self.log.info(f"✅ {len(synced)} comandos sincronizados com sucesso.")
-        except Exception as e:
-            self.log.error(f"❌ Falha na sincronização de comandos: {e}")
+        # Sincronização condicional de comandos
+        sync_on_startup = AppConfig.get("SYNC_COMMANDS_ON_STARTUP", True)
+        test_guild_id = os.getenv("TEST_GUILD_ID")
 
-        self.log.info("✅ Setup do hook concluído.")
+        if sync_on_startup:
+            self.log.info("Sincronizando árvore de comandos...")
+            try:
+                if self.debug_mode and test_guild_id:
+                    guild_obj = discord.Object(id=int(test_guild_id))
+                    self.tree.copy_global_to(guild=guild_obj)
+                    synced = await self.tree.sync(guild=guild_obj)
+                    self.log.info(
+                        f"{len(synced)} comandos sincronizados na guilda de teste ({test_guild_id})."
+                    )
+                else:
+                    synced = await self.tree.sync()
+                    self.log.info(f"{len(synced)} comandos globais sincronizados.")
+            except discord.HTTPException as e:
+                self.log.error(
+                    f"❌ Erro de API ao sincronizar comandos: {e.status} - {e.text}"
+                )
+            except Exception as e:
+                self.log.error(f"❌ Falha inesperada na sincronização: {e}")
+        else:
+            self.log.info("⏩ Sincronização automática de slash commands ignorada.")
+
         self.services = ServiceManager(self)
         await self.services.start_all()
+        self.log.info("✅ Setup do hook concluído.")
 
     async def carregar_cogs(self):
         self.log.info("📥 Carregando extensões (Cogs)...")
-        pastas_raizes = [
-            "./Modules",
-            "./Brain",
-            "./Audio",
-        ]
-        ignorar_pastas = [
+        pastas_raizes = [Path("Modules"), Path("Brain"), Path("Services")]
+        ignorar_pastas = {
             "Tools",
             "Memory",
             "Providers",
@@ -177,33 +161,55 @@ class SamBot(commands.Bot):
             "Data",
             "__pycache__",
             "Lavalink",
-        ]
-        ignorar_arquivos = ["__init__.py", "LLMFactory.py", "Bot.py", "Logger.py"]
+        }
+        ignorar_arquivos = {"__init__.py", "LLMFactory.py", "Bot.py", "Logger.py"}
+
+        total_carregados = 0
+        total_erros = 0
 
         for pasta_raiz in pastas_raizes:
-            if not os.path.exists(pasta_raiz):
+            if not pasta_raiz.exists():
+                self.log.warning(
+                    f"⚠️ Diretório de módulos não encontrado: {pasta_raiz}"
+                )
                 continue
-            for root, dirs, files in os.walk(pasta_raiz):
-                dirs[:] = [d for d in dirs if d not in ignorar_pastas]
-                for file in files:
-                    if (
-                        file.endswith(".py")
-                        and file not in ignorar_arquivos
-                        and not file.startswith("_")
-                    ):
-                        caminho_relativo = os.path.relpath(
-                            os.path.join(root, file), "."
+
+            for arquivo in pasta_raiz.rglob("*.py"):
+                if any(parte in ignorar_pastas for parte in arquivo.parts):
+                    continue
+                if arquivo.name in ignorar_arquivos or arquivo.name.startswith("_"):
+                    continue
+
+                nome_extensao = ".".join(arquivo.with_suffix("").parts)
+
+                try:
+                    await self.load_extension(nome_extensao)
+                    self.log.info(f"🔹 Módulo carregado: {nome_extensao}")
+                    total_carregados += 1
+                except commands.NoEntryPointError:
+                    if self.debug_mode:
+                        self.log.debug(f"⚪ Ignorado (sem setup()): {nome_extensao}")
+                except commands.ExtensionFailed as e:
+                    total_erros += 1
+                    self.log.error(
+                        f"❌ Erro de execução no setup de {nome_extensao}: {e.original}"
+                    )
+                    if self.debug_mode:
+                        traceback.print_exception(
+                            type(e.original), e.original, e.original.__traceback__
                         )
-                        nome_extensao = caminho_relativo.replace(os.sep, ".").replace(
-                            ".py", ""
-                        )
-                        try:
-                            await self.load_extension(nome_extensao)
-                            self.log.info(f"🔹 Módulo carregado: {nome_extensao}")
-                        except commands.NoEntryPointError:
-                            pass
-                        except Exception as e:
-                            self.log.error(f"❌ Falha ao carregar {nome_extensao}: {e}")
+                except commands.ExtensionNotFound:
+                    total_erros += 1
+                    self.log.error(f"❌ Extensão não encontrada: {nome_extensao}")
+                except Exception as e:
+                    total_erros += 1
+                    self.log.error(
+                        f"❌ Falha genérica ao carregar {nome_extensao}: {e}"
+                    )
+
+        self.log.info(
+            f"🏁 Cogs finalizados: {total_carregados} carregados com sucesso | {total_erros} falhas."
+        )
 
     async def run_diagnostics(self):
         """Executa o diagnóstico completo com a conexão ativa no Discord."""
@@ -213,9 +219,8 @@ class SamBot(commands.Bot):
             f"{int(lat * 1000)}ms" if lat and not math.isnan(lat) else "Desconhecida"
         )
 
-        # Mapeia provedores para identificar ativos e backups
         modelos_configurados = []
-        if os.getenv("GEMINI_API_KEY_1"):
+        if os.getenv("GEMINI_API_KEY_1") or AppConfig.gemini_keys:
             modelos_configurados.append(
                 ("Gemini", AppConfig.get("GEMINI_MODEL_NAME", "gemini-2.5-flash"))
             )
@@ -257,19 +262,13 @@ class SamBot(commands.Bot):
 
             if modelo_ativo:
                 secundarios = len(modelos_configurados) - 1
-                txt_secundarios = (
-                    f" (+{secundarios} secundários)" if secundarios > 0 else ""
-                )
-                ia_status = f"ONLINE -> {modelo_ativo}{txt_secundarios}"
+                txt_sec = f" (+{secundarios} secundários)" if secundarios > 0 else ""
+                ia_status = f"ONLINE -> {modelo_ativo}{txt_sec}"
             elif modelos_configurados:
                 primario_prov, primario_mod = modelos_configurados[0]
                 secundarios = len(modelos_configurados) - 1
-                txt_secundarios = (
-                    f" (+{secundarios} secundários)" if secundarios > 0 else ""
-                )
-                ia_status = (
-                    f"ONLINE -> {primario_prov} ({primario_mod}){txt_secundarios}"
-                )
+                txt_sec = f" (+{secundarios} secundários)" if secundarios > 0 else ""
+                ia_status = f"ONLINE -> {primario_prov} ({primario_mod}){txt_sec}"
             else:
                 ia_status = "ONLINE"
         else:
@@ -292,7 +291,6 @@ class SamBot(commands.Bot):
         self.log.info(f"🌐 Servidores ativos: {len(self.guilds)}")
 
         self.add_view(AppealStartView(self, 0, 0, "BAN"))
-
         await self.run_diagnostics()
 
         if not self.status_loop.is_running():
@@ -308,7 +306,6 @@ class SamBot(commands.Bot):
 
     @tasks.loop(minutes=1)
     async def save_stats_loop(self):
-        """Salva as estatísticas do bot a cada 1 minuto para o launcher conseguir ler."""
         active_vcs = len(self.voice_clients)
         self.stats["voice_time_minutes"] += active_vcs
         uptime = discord.utils.utcnow() - self.start_time
@@ -320,10 +317,16 @@ class SamBot(commands.Bot):
             "servers": len(self.guilds),
             "users": sum(g.member_count for g in self.guilds if g.member_count),
         }
-        try:
+
+        def _write_file():
+            import json
+
             os.makedirs("logs", exist_ok=True)
             with open(self.stats_file, "w", encoding="utf-8") as f:
                 json.dump(data_to_save, f, indent=4)
+
+        try:
+            await asyncio.to_thread(_write_file)
         except Exception as e:
             self.log.debug(f"Falha momentânea ao salvar estatísticas: {e}")
 
@@ -340,6 +343,7 @@ class SamBot(commands.Bot):
                 for categoria, lista in atividades_data.items():
                     if isinstance(lista, list):
                         frases_arquivo.extend(lista)
+
             padrao = ["música | Mencione-me!", "evoluindo...", "ajudando pessoas"]
             opcoes = frases_arquivo if frases_arquivo else padrao
             escolha = random.choice(opcoes)
@@ -378,7 +382,7 @@ class SamBot(commands.Bot):
             matches = difflib.get_close_matches(invoked, all_cmds, n=1, cutoff=0.6)
             if matches:
                 await ctx.reply(
-                    f"Não encontrei `{ctx.prefix}{invoked}`. Você quis dizer `{ctx.prefix}{matches[0]}`?",
+                    f"Não encontrei `{ctx.prefix}{invoked}`. Você quis dizer `{ctx.prefix}{matches[0]}`? Boboca!",
                     delete_after=15,
                 )
             return
@@ -430,13 +434,11 @@ class SamBot(commands.Bot):
             traceback.print_exception(type(error), error, error.__traceback__)
 
     async def close(self):
-        """Executado ao desligar o bot (Ctrl+C ou encerramento)."""
+        """Executado ao desligar o bot (Ctrl+C ou encerramento gracioso)."""
         if self.services:
             await self.services.stop_all()
 
-        # Fecha as sessões globais de rede
-        from Brain.Core.NetworkManager import NetworkManager
-
-        await NetworkManager.close_all()
+        if NetworkManager:
+            await NetworkManager.close_all()
 
         await super().close()

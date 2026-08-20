@@ -1,3 +1,5 @@
+import hashlib
+import json
 import os
 import re
 import logging
@@ -16,7 +18,7 @@ class TLMRouter:
         self.logger = logging.getLogger("SamBot.SemanticRouter")
         self.vector_store = vector_store
 
-        self.threshold = 0.86
+        self.threshold = 0.74
 
     def _limpar_argumentos(self, texto: str) -> str:
         ruidos = data_manager.get_router_triggers().get("config_ruidos", [])
@@ -29,29 +31,45 @@ class TLMRouter:
 
     async def sincronizar_base_rotas(self, force: bool = False):
         """
-        Sincroniza os gatilhos no ChromaDB.
-        Apaga os vetores antigos e reindexa com base no JSON atual.
+        Sincroniza automaticamente os gatilhos no ChromaDB caso o JSON
+        tenha sido alterado (comparação por Hash MD5).
         """
         col = self.vector_store.collections.get("rotas_intencoes")
         if not col:
             return
 
-        if col.count() > 0:
-            if not force:
-                self.logger.info(
-                    "Rotas semânticas já indexadas. Nenhuma alteração forçada."
-                )
-                return
+        triggers_dict = dict(data_manager.get_knowledge("router_triggers") or {})
+        if not triggers_dict:
+            return
+
+        # 1. Calcula o hash MD5 atual do dicionário de rotas
+        conteudo_canonico = json.dumps(
+            triggers_dict, sort_keys=True, ensure_ascii=False
+        )
+        hash_atual = hashlib.md5(conteudo_canonico.encode("utf-8")).hexdigest()
+
+        # 2. Recupera o último hash gravado
+        hash_salvo_data = data_manager.get_knowledge("rotas_hash_state") or {}
+        hash_salvo = hash_salvo_data.get("hash", "")
+
+        # 3. Se não mudou nada e já existem registros, não faz nada
+        if not force and col.count() > 0 and hash_salvo == hash_atual:
             self.logger.info(
-                "Atualização detectada! Limpando rotas antigas no ChromaDB..."
+                "Rotas semânticas atualizadas e consistentes. Nenhuma alteração necessária."
             )
+            return
+
+        self.logger.info(
+            "Alteração no JSON detectada! Atualizando rotas no ChromaDB..."
+        )
+
+        # 4. Limpa os vetores antigos se existirem
+        if col.count() > 0:
             ids_antigos = col.get()["ids"]
             if ids_antigos:
                 col.delete(ids=ids_antigos)
 
-        self.logger.info("Indexando novas rotas semânticas no ChromaDB...")
-        triggers_dict = dict(data_manager.get_knowledge("router_triggers") or {})
-
+        # 5. Indexa as novas frases
         for tool_name, utterances in triggers_dict.items():
             if utterances and isinstance(utterances, list):
                 for idx, phrase in enumerate(utterances):
@@ -62,7 +80,10 @@ class TLMRouter:
                         metadata={"tool": tool_name, "phrase": phrase},
                         doc_id=doc_id,
                     )
-        self.logger.info("Indexação concluída com sucesso!")
+
+        # 6. Salva o novo hash para futuras comparações
+        data_manager.save_knowledge("rotas_hash_state", {"hash": hash_atual})
+        self.logger.info("Indexação automática do ChromaDB concluída com sucesso!")
 
     async def executar(
         self, content: str, ferramentas_ativas: list

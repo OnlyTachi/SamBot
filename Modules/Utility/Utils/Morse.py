@@ -71,3 +71,7 @@ class Morse(commands.GroupCog):
         )
 
         await interaction.response.send_message(f"Morse traduzido:\n`{resultado}`")
+
+
+async def setup(bot):
+    await bot.add_cog(Morse(bot))

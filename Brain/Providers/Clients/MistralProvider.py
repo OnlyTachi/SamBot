@@ -34,9 +34,7 @@ class MistralDriver(BaseLLMProvider):
                 "  Nenhuma chave MISTRAL_API_KEY encontrada no .env. Mistral desativado."
             )
             return False
-        self.log.info(
-            f"  [Mistral AI] Configurado com sucesso usando o modelo: {self.model_name}"
-        )
+        self.log.info(f"Configurado com sucesso usando o modelo: {self.model_name}")
         return True
 
     async def generate(
@@ -68,9 +66,7 @@ class MistralDriver(BaseLLMProvider):
             )
             return response.choices[0].message.content
         except Exception as e:
-            self.log.warning(
-                f"  [Mistral AI] Falha na execução com o modelo {self.model_name}: {e}"
-            )
+            self.log.warning(f"Falha na execução com o modelo {self.model_name}: {e}")
         return None
 
     async def get_embedding(self, text: str) -> List[float]:
@@ -86,7 +82,5 @@ class MistralDriver(BaseLLMProvider):
             )
             return res.data[0].embedding
         except Exception as e:
-            self.log.warning(
-                f"  [Mistral AI] Falha ao gerar embedding com Mistral: {e}"
-            )
+            self.log.warning(f"Falha ao gerar embedding com Mistral: {e}")
             return []

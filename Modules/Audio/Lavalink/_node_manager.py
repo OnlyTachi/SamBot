@@ -61,7 +61,7 @@ async def setup_nodes(bot):
                     )
                 else:
                     logger.warning(
-                        f"  [Lavalink] Node Online {i+1} ({host}) falhou no teste de ping e foi ignorado."
+                        f"Node Online {i+1} ({host}) falhou no teste de ping e foi ignorado."
                     )
 
     if not nodes:

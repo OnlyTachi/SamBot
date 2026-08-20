@@ -1,51 +1,22 @@
-import json
 import logging
-import aiofiles
+from typing import Any, Dict, List, Optional
 from Brain.Memory.DataManager.Connections import data_manager
 
 
 class PlaylistManager:
     """
-    Gerencia playlists salvas localmente em JSON de forma assíncrona.
-    Usa o DataManager para garantir o caminho correto no Docker.
+    Gerencia playlists salvas por usuário de forma integrada ao DataManager (SQLite).
+    Mantém a assinatura assíncrona para preservar total compatibilidade com os comandos.
     """
 
     def __init__(self):
         self.logger = logging.getLogger("SamBot.Playlists.Manager")
-        self.filepath = data_manager.folders["persistence"] / "playlists.json"
 
-    async def _ensure_file(self):
-        if not self.filepath.exists():
-            try:
-                async with aiofiles.open(self.filepath, "w", encoding="utf-8") as f:
-                    await f.write(json.dumps({}, indent=4))
-            except Exception as e:
-                self.logger.error(f"Erro ao criar arquivo de playlist: {e}")
-
-    async def _load_data(self):
-        await self._ensure_file()
-        try:
-            async with aiofiles.open(self.filepath, "r", encoding="utf-8") as f:
-                content = await f.read()
-                if not content.strip():
-                    return {}
-                return json.loads(content)
-        except Exception as e:
-            self.logger.error(f"Erro ao carregar playlists: {e}")
-            return {}
-
-    async def _save_data(self, data):
-        try:
-            async with aiofiles.open(self.filepath, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(data, indent=4, ensure_ascii=False))
-        except Exception as e:
-            self.logger.error(f"Erro ao salvar playlists: {e}")
-
-    async def create_playlist(self, user_id: str, name: str, tracks: list):
-        data = await self._load_data()
+    async def create_playlist(self, user_id: str, name: str, tracks: list) -> bool:
         uid = str(user_id)
-        if uid not in data:
-            data[uid] = {}
+        playlists: Dict[str, Any] = data_manager.get_user_data(
+            uid, "playlists", default_value={}
+        )
 
         clean_tracks = []
         for t in tracks:
@@ -59,24 +30,32 @@ class PlaylistManager:
             if url:
                 clean_tracks.append({"url": url, "title": title or "Desconhecido"})
 
-        data[uid][name] = clean_tracks
-        await self._save_data(data)
+        playlists[name] = clean_tracks
+        data_manager.set_user_data(uid, "playlists", playlists)
         return True
 
-    async def get_playlist(self, user_id: str, name: str):
-        data = await self._load_data()
-        return data.get(str(user_id), {}).get(name, None)
+    async def get_playlist(
+        self, user_id: str, name: str
+    ) -> Optional[List[Dict[str, str]]]:
+        playlists: Dict[str, Any] = data_manager.get_user_data(
+            str(user_id), "playlists", default_value={}
+        )
+        return playlists.get(name, None)
 
-    async def list_playlists(self, user_id: str):
-        data = await self._load_data()
-        return list(data.get(str(user_id), {}).keys())
+    async def list_playlists(self, user_id: str) -> List[str]:
+        playlists: Dict[str, Any] = data_manager.get_user_data(
+            str(user_id), "playlists", default_value={}
+        )
+        return list(playlists.keys())
 
-    async def delete_playlist(self, user_id: str, name: str):
-        data = await self._load_data()
+    async def delete_playlist(self, user_id: str, name: str) -> bool:
         uid = str(user_id)
-        if uid in data and name in data[uid]:
-            del data[uid][name]
-            await self._save_data(data)
+        playlists: Dict[str, Any] = data_manager.get_user_data(
+            uid, "playlists", default_value={}
+        )
+        if name in playlists:
+            del playlists[name]
+            data_manager.set_user_data(uid, "playlists", playlists)
             return True
         return False
 

@@ -5,6 +5,7 @@ from typing import Dict, List, Any
 # Importacoes dos módulos especializados
 from .Connections.SQLiteConnection import DatabaseConnection
 from ._cache import DataCache
+from .DatabaseSeeder import DatabaseSeeder
 from .SubManagers.BrainDataManager import BrainDataManager
 from .SubManagers.DiscordDataManager import DiscordDataManager
 from .Connections.MeiliConnection import MeiliConnection
@@ -18,25 +19,25 @@ class DataManagerFacade:
         self.logger = logging.getLogger("SamBot.Archive")
         self.cache = DataCache()
 
-        base_dir = Path(__file__).resolve().parent.parent.parent.parent / "Data"
-        db_path = base_dir / "Persistence" / "database.db"
+        self.base_dir = Path(__file__).resolve().parent.parent.parent.parent / "Data"
+        self.persistence_dir = self.base_dir / "Persistence"
+        self.persistence_dir.mkdir(parents=True, exist_ok=True)
+
+        db_path = self.persistence_dir / "database.db"
         self.db = DatabaseConnection(db_path)
 
-        # Compatibilidade Comandos Legados
-        self.folders = {
-            "persistence": base_dir / "Persistence",
-            "users": base_dir / "Persistence",
-            "knowledge": base_dir / "Knowledge",
-            "config": base_dir / "Config",
-        }
-        for folder in self.folders.values():
-            folder.mkdir(parents=True, exist_ok=True)
+        seeder = DatabaseSeeder(self.db, self.base_dir)
+        seeder.sync_all()
 
         self.meili_db = MeiliConnection()
-
         self.brain = BrainDataManager(self.db, self.cache)
         self.discord = DiscordDataManager(self.db, self.cache)
         self.shopping = ShoppingDataManager(self.meili_db, self.db, self.cache)
+
+    # --- PERSISTÊNCIA DE ARQUIVOS / SESSÕES ---
+    def get_persistence_path(self, filename: str) -> str:
+        """Garante a resolução segura de arquivos de persistência (ex: sessões Telethon)."""
+        return str(self.persistence_dir / filename)
 
     # --- ROTEAMENTO SHOPPING (Meilisearch) ---
     async def search_cached_offers(self, query: str) -> list:

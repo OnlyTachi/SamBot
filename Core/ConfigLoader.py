@@ -10,18 +10,15 @@ class Configuration:
     """Carregador unificado de configurações (YAML) e segredos (.env)."""
 
     def __init__(self, yaml_path: str = "config.yaml"):
-        # 1. Carrega o .env
         load_dotenv()
 
         self.logger = logging.getLogger("SamBot.Config")
 
-        # 2. Validação de Segredos Críticos (Fail Fast)
         self.DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
         if not self.DISCORD_TOKEN:
             self.logger.critical("❌ FATAL: DISCORD_TOKEN não encontrado no .env!")
             sys.exit(1)
 
-        # 3. Carrega o YAML
         self._load_yaml(yaml_path)
 
     def _load_yaml(self, path: str) -> None:
@@ -47,20 +44,45 @@ class Configuration:
         self.telegram = self.yaml_data.get("telegram", {})
 
     def get(self, key: str, default: Any = None) -> Any:
-        """
-        Busca uma configuração de forma transparente.
-        Prioridade: Atributo da classe -> Dicionário YAML -> Variável .env -> Valor padrão.
-        """
-        # 1. Atributos diretos da classe (ex: prefix, debug_mode, owner_id)
         key_lower = key.lower()
         if hasattr(self, key_lower):
             return getattr(self, key_lower)
 
-        # 2. Chaves na raiz do YAML
+        if "." in key and isinstance(self.yaml_data, dict):
+            parts = key.split(".")
+            val = self.yaml_data
+            for part in parts:
+                if isinstance(val, dict) and part in val:
+                    val = val[part]
+                else:
+                    val = None
+                    break
+            if val is not None:
+                return val
+
+        model_mappings = {
+            "GROQ_MODEL": ["llm", "models", "groq"],
+            "GEMINI_MODEL_NAME": ["llm", "models", "gemini"],
+            "MISTRAL_MODEL": ["llm", "models", "mistral"],
+            "DEEPSEEK_MODEL": ["llm", "models", "deepseek"],
+            "OPENROUTER_MODEL": ["llm", "models", "openrouter"],
+            "LLM_CHAIN_ORDER": ["llm", "chain_order"],
+        }
+        if key in model_mappings:
+            path = model_mappings[key]
+            val = self.yaml_data
+            for p in path:
+                if isinstance(val, dict) and p in val:
+                    val = val[p]
+                else:
+                    val = None
+                    break
+            if val is not None:
+                return ",".join(val) if isinstance(val, list) else val
+
         if isinstance(self.yaml_data, dict) and key in self.yaml_data:
             return self.yaml_data[key]
 
-        # 3. Variáveis de ambiente (.env)
         env_val = os.getenv(key)
         if env_val is not None:
             return env_val

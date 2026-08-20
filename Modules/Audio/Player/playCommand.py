@@ -24,19 +24,28 @@ class PlayCommands(commands.Cog):
             )
 
         player: wavelink.Player = ctx.voice_client
-
         if not player:
             try:
-                player = await ctx.author.voice.channel.connect(cls=wavelink.Player)
+                player = await ctx.author.voice.channel.connect(
+                    cls=wavelink.Player, self_deaf=True
+                )
                 if hasattr(wavelink, "AutoPlayMode"):
                     player.autoplay = wavelink.AutoPlayMode.enabled
                 elif hasattr(wavelink, "AutoPlay"):
                     player.autoplay = wavelink.AutoPlay.enabled
+            except discord.ClientException:
+                player = ctx.guild.voice_client
             except Exception as e:
-                logger.error(f"Erro ao conectar ao canal de voz: {e}")
+                logger.error(f"Erro ao conectar ao canal de voz: {e}", exc_info=True)
                 return await ctx.send(
-                    "Não consegui me conectar. Verifique se o servidor de áudio está online."
+                    "❌ Não consegui conectar ao canal de voz. Verifique se possuo permissões."
                 )
+
+        if player.channel != ctx.author.voice.channel:
+            return await ctx.send(
+                "❌ Já estou tocando em outro canal de voz neste servidor!",
+                ephemeral=True,
+            )
 
         player.reply_channel = ctx.channel
         await ctx.defer()

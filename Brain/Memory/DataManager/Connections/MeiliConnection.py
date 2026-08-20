@@ -33,7 +33,7 @@ class MeiliConnection:
             ) as resp_idx:
                 if resp_idx.status not in [200, 201, 202]:
                     self.logger.warning(
-                        f"  [Meilisearch] Aviso ao criar índice: {await resp_idx.text()}"
+                        f"Aviso ao criar índice: {await resp_idx.text()}"
                     )
 
             # Configura atributos filtráveis e ordenáveis
@@ -45,15 +45,11 @@ class MeiliConnection:
                 f"{url_index}/settings", headers=self.headers, json=settings
             ) as resp:
                 if resp.status in [200, 202]:
-                    self.logger.info(
-                        "  [Meilisearch] Índice 'ofertas' configurado com sucesso."
-                    )
+                    self.logger.info("Índice 'ofertas' configurado com sucesso.")
                 else:
-                    self.logger.error(
-                        f"  [Meilisearch] Erro ao configurar índice: {await resp.text()}"
-                    )
+                    self.logger.error(f"Erro ao configurar índice: {await resp.text()}")
         except (aiohttp.ClientError, Exception) as e:
-            self.logger.error(f"  [Meilisearch] Falha ao configurar índice: {e}")
+            self.logger.error(f"Falha ao configurar índice: {e}")
 
     async def execute_request(self, method: str, endpoint: str, payload: dict = None):
         """Método base para chamadas REST."""

@@ -113,27 +113,26 @@ class ProductSearchTool:
         ofertas = []
         client = NetworkManager.get_httpx_client()
         try:
-                response = await client.get(self.ml_api_url, params=params, timeout=5.0)
-                if response.status_code != 200:
-                    return ofertas
+            response = await client.get(self.ml_api_url, params=params, timeout=5.0)
+            if response.status_code != 200:
+                return ofertas
 
-                results = response.json().get("results", [])
-                agora = int(time.time())
+            results = response.json().get("results", [])
+            agora = int(time.time())
 
-                for item in results:
-                    ofertas.append(
-                        {
-                            "id": f"ml_{item.get('id', uuid.uuid4().hex[:8])}",
-                            "titulo": item.get("title", ""),
-                            "preco": self._limpar_preco(item.get("price", 0)),
-                            "loja": "Mercado Livre",
-                            "link": item.get("permalink", ""),
-                            "coletado_em": agora,
-                            "expira_em": agora
-                            + 86400,  # +24 horas (Preços mudam rápido)
-                            "ativo": True,
-                        }
-                    )
+            for item in results:
+                ofertas.append(
+                    {
+                        "id": f"ml_{item.get('id', uuid.uuid4().hex[:8])}",
+                        "titulo": item.get("title", ""),
+                        "preco": self._limpar_preco(item.get("price", 0)),
+                        "loja": "Mercado Livre",
+                        "link": item.get("permalink", ""),
+                        "coletado_em": agora,
+                        "expira_em": agora + 86400,  # +24 horas (Preços mudam rápido)
+                        "ativo": True,
+                    }
+                )
         except Exception as e:
             self.logger.warning(f"Falha ao buscar no ML: {e}")
 
@@ -191,10 +190,10 @@ class ProductSearchTool:
 
         ofertas_cacheadas = await data_manager.search_cached_offers(termo)
         if ofertas_cacheadas:
-            self.logger.info("  [Cache HIT] Ofertas encontradas no Meilisearch.")
+            self.logger.info("[Cache HIT] Ofertas encontradas no Meilisearch.")
             return self._formatar_relatorio(ofertas_cacheadas, termo, "Cache Rápido")
 
-        self.logger.info("  [Cache MISS] Iniciando scraping simultâneo nas lojas...")
+        self.logger.info("[Cache MISS] Iniciando scraping simultâneo nas lojas...")
         ofertas_novas = []
 
         # Dispara todas as buscas ao mesmo tempo usando asyncio.gather

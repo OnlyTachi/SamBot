@@ -32,9 +32,7 @@ class CerebroIA(commands.Cog):
                 raw_channels if isinstance(raw_channels, dict) else {}
             )
 
-        self.logger.info(
-            "📡 Interface Discord (Agent) vinculada ao Pipeline com sucesso."
-        )
+        self.logger.info("📡 Interface Discord vinculada ao Pipeline com sucesso.")
 
     def _is_command(self, message: discord.Message, prefixes) -> bool:
         content = message.content.strip()
@@ -55,6 +53,9 @@ class CerebroIA(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.author.id == self.bot.user.id:
+            return
+
+        if data_manager.get_user_data(str(message.author.id), "status_ocupado", False):
             return
 
         prefix = await self.bot.get_prefix(message)

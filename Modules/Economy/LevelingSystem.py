@@ -95,6 +95,7 @@ class LevelingSystem(commands.Cog):
             users_data[guild_id] = {}
         if user_id not in users_data[guild_id]:
             users_data[guild_id][user_id] = {"xp": 0, "mensagens": 0}
+
         if "global" not in users_data:
             users_data["global"] = {}
         if user_id not in users_data["global"]:
@@ -103,16 +104,21 @@ class LevelingSystem(commands.Cog):
         xp_antigo_local = users_data[guild_id][user_id]["xp"]
         users_data[guild_id][user_id]["xp"] += xp_ganho
         users_data[guild_id][user_id]["mensagens"] += 1
+
         users_data["global"][user_id]["xp"] += xp_ganho
         users_data["global"][user_id]["mensagens"] += 1
-        xp_novo_local = users_data[guild_id][user_id]["xp"]
 
+        xp_total_user = users_data["global"][user_id]["xp"]
+        data_manager.set_user_data(user_id, "xp", xp_total_user)
+        data_manager.save_knowledge("users", users_data)
+
+        xp_novo_local = users_data[guild_id][user_id]["xp"]
         nivel_antigo = xp_antigo_local // 1000
         nivel_novo = xp_novo_local // 1000
 
         if nivel_novo > nivel_antigo:
             await message.channel.send(
-                f"🎉 Parabéns {message.author.mention}! Chegou o **Nível {nivel_novo}**!",
+                f"🎉 Parabéns {message.author.mention}! Chegou o **Nível {nivel_novo}**! Voce e demais!",
                 delete_after=15.0,
             )
 

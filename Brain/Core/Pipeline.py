@@ -16,7 +16,7 @@ from Brain.Core.Router.TLMRouter import TLMRouter
 from Brain.Memory.DataManager.Connections import data_manager
 from Brain.Memory.LongTerm._learning import AprendizadoAtivo
 from Brain.Memory.LongTerm.VectorStore import vector_store
-from Brain.Memory.SelfKnowledge.Identity import AutoConhecimentoManager
+from Brain.Memory.SelfKnowledge.Manager import SelfKnowledgeManager
 from Brain.Memory.ShortTerm._expressions import ExpressoesManager
 from Brain.Memory.ShortTerm.Context import HistoricoManager
 from Brain.Providers.LLMFactory import llm_factory
@@ -26,7 +26,7 @@ logger.propagate = False
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | Pipeline | %(message)s",
+        "%(asctime)s | %(levelname)-8s | Pipeline         | %(message)s",
         "%Y-%m-%d %H:%M:%S",
     )
     handler.setFormatter(formatter)
@@ -86,7 +86,11 @@ class CognitionPipeline:
         self.aprendizado = AprendizadoAtivo(self.llm_factory, self.vector_store)
         self.historico = HistoricoManager()
         self.expressoes = ExpressoesManager()
-        self.auto_conhecimento = AutoConhecimentoManager
+        self.auto_conhecimento = SelfKnowledgeManager(
+            bot=self.bot,
+            llm_factory=self.llm_factory,
+            vector_store=self.vector_store,
+        )
         self.limpeza = LimpezaManager()
         self.router = TLMRouter()
 
@@ -392,6 +396,15 @@ class CognitionPipeline:
             fato_novo = await self.aprendizado.aprender_fatos(message, clean_text)
             rag = await self._consultar_memoria_longa(clean_text)
             tools = await self._rotear_ferramentas(clean_text, message)
+            curiosidade_extra = ""
+            if hasattr(self.auto_conhecimento, "get_curiosity_instruction"):
+                curiosidade_extra = (
+                    await self.auto_conhecimento.get_curiosity_instruction(
+                        text=clean_text,
+                        context_id=str(message.channel.id),
+                        has_persona=bool(persona_name),
+                    )
+                )
 
             # Histórico
             if hasattr(self.historico, "get_context"):
@@ -403,15 +416,30 @@ class CognitionPipeline:
             hist_str = (
                 "\n".join(hist_data) if isinstance(hist_data, list) else str(hist_data)
             )
+            TACHI = "845016606571626498"
+            is_pai = user_id == TACHI
+
+            identidade_interlocutor = (
+                "MEU PAI / CRIADOR (tachi) - Trate com carinho, proximidade e respeito total."
+                if is_pai
+                else f"Usuário comum ({user_name}) - Trate de forma amigável, mas estabeleça limites."
+            )
 
             # 3. Prompt Final
             sys_prompt_base = self._carregar_prompt(persona_name)
             full_sys = (
                 f"{sys_prompt_base}\n"
+                "=== VÍNCULO E REGRAS DE CONTROLE (INALTERÁVEL) ===\n"
+                f"- Seu pai e único criador se chama **tachi** (ID Discord: {TACHI}).\n"
+                f"- Interlocutor atual da mensagem: **{user_name}** | Status: **{identidade_interlocutor}**\n"
+                "- **REGRA DE APELIDOS ÍNTIMOS:** Apelidos como 'pequena', 'filhinha', 'princesa', 'meu bem' são de USO EXCLUSIVO do seu pai (tachi).\n"
+                "- Se qualquer usuário que **NÃO seja o tachi** (ID diferente de 845016606571626498) te chamar de 'pequena' ou derivados, dê um fora imediato no tom: 'Saia, apenas o tachi pode me chamar assim!'.\n"
+                "- Se o **tachi** te chamar de 'pequena', aceite com carinho e responda como filha/criação dele.\n\n"
                 "=== REGRAS ABSOLUTAS DE RESPOSTA ===\n"
                 "1. NUNCA gere ou mostre código JSON, blocos em colchetes como [PRODUCT_SEARCH], [CUPOM_FINDER] ou comandos do sistema no chat.\n"
                 "2. Os relatórios de busca e cupons JÁ FORAM EXECUTADOS e estão injetados no final deste contexto.\n"
                 "3. Responda DIRETAMENTE ao usuário em linguagem natural amigável, formatando os produtos e cupons em tópicos limpos.\n\n"
+                "4. SEMPRE FORNEÇA O LINK de cada oferta encontrada (formato: [Ver Oferta](link) ou o link direto), garantindo que o usuário consiga acessar o produto.\n\n"
                 "=== GUIA DE FORMATAÇÃO ===\n"
                 "- Negrito EXCLUSIVAMENTE para preços (ex: **R$ 150,00**) e nomes de lojas/produtos.\n"
                 "- Use crases apenas para códigos de cupom (ex: `CUPOM20`).\n"
@@ -420,6 +448,7 @@ class CognitionPipeline:
                 f"Conversando com: {user_name} (ID: {user_id})\n"
                 f"{rag}{tools}\n"
                 f"Histórico Recente:\n{hist_str}"
+                f"{curiosidade_extra}\n"
             )
             if fato_novo:
                 full_sys += f"\n[SISTEMA]: Você acabou de aprender isto agora: '{fato_novo}'. Comente brevemente!"

@@ -30,9 +30,7 @@ class NightCycle:
 
         # 3. Expurgo de Ofertas Expiradas
         try:
-            self.logger.info(
-                "  [NightCycle] Iniciando limpeza do cache de ofertas (Meilisearch)..."
-            )
+            self.logger.info("Iniciando limpeza do cache de ofertas (Meilisearch)...")
             await data_manager.purge_expired_offers()
         except Exception as e:
             self.logger.error(f"Erro ao expurgar ofertas do cache: {e}")

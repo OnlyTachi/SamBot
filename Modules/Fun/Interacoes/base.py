@@ -1,3 +1,5 @@
+import asyncio
+
 import discord
 from discord.ext import commands
 import aiohttp
@@ -82,17 +84,25 @@ class SocialBase(commands.Cog):
         }
 
     async def get_gif(self, category: str) -> str:
-        """Busca um GIF aleatório da API nekos.best com fallback."""
+        """Busca um GIF aleatório da API nekos.best com fallback gracioso."""
         url = f"{self.base_url}/{category}"
         session = NetworkManager.get_aio_session()
+        fallback_gif = "https://media.giphy.com/media/Lp51TPltqpSMM/giphy.gif"
+
         try:
-            async with session.get(url) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    return data["results"][0]["url"]
-                return "https://media.giphy.com/media/Lp51TPltqpSMM/giphy.gif"
-        except:
-            return "https://media.giphy.com/media/Lp51TPltqpSMM/giphy.gif"
+                    results = data.get("results", [])
+                    if results and "url" in results[0]:
+                        return results[0]["url"]
+                return fallback_gif
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            self.bot.logger.warning(f"Timeout/Erro na API nekos.best ({category}): {e}")
+            return fallback_gif
+        except Exception as e:
+            self.bot.logger.error(f"Erro inesperado ao buscar gif: {e}", exc_info=True)
+            return fallback_gif
 
     async def execute_interaction(
         self, source, author, target, action_key, can_return=True

@@ -28,7 +28,7 @@ class TelegramCollaborator(commands.Cog):
     async def _obter_cliente_telethon(
         self, account_id: str = "default"
     ) -> TelegramClient:
-        """Gerencia instâncias do Telethon utilizando por padrão a sessão principal do bot."""
+        """Gerencia instâncias do Telethon"""
         if (
             account_id in self.telethon_clients
             and self.telethon_clients[account_id].is_connected()
@@ -37,21 +37,18 @@ class TelegramCollaborator(commands.Cog):
 
         api_id = os.getenv("TELEGRAM_API_ID")
         api_hash = os.getenv("TELEGRAM_API_HASH")
-
         if not api_id or not api_hash:
             return None
 
-        # Utiliza o nome de sessão padronizado
         session_name = (
             "sambot_telegram.session"
             if account_id == "default"
             else f"sambot_telegram_{account_id}.session"
         )
-        session_path = str(data_manager.folders["config"] / session_name)
+        session_path = data_manager.get_persistence_path(session_name)
 
         client = TelegramClient(session_path, int(api_id), api_hash)
         await client.connect()
-
         self.telethon_clients[account_id] = client
         return client
 
@@ -84,11 +81,16 @@ class TelegramCollaborator(commands.Cog):
         data_manager.save_knowledge("monitored_telegram_channels", grupos_cadastrados)
 
     async def _notificar_e_atualizar_scraper(self):
-        """Notifica o cog do Scraper para atualizar sua lista de escuta sem reiniciar o bot."""
-        scraper_cog = self.bot.get_cog("TelegramIngestionCog")
-        if scraper_cog and hasattr(scraper_cog, "scraper"):
-            if hasattr(scraper_cog.scraper, "atualizar_canais_escutados"):
-                await scraper_cog.scraper.atualizar_canais_escutados()
+        """[FIX] Notifica o TelegramScraper instanciado pelo ServiceManager."""
+        if hasattr(self.bot, "services") and hasattr(self.bot.services, "telegram"):
+            scraper = self.bot.services.telegram
+            if scraper and hasattr(scraper, "atualizar_canais_escutados"):
+                await scraper.atualizar_canais_escutados()
+                return
+
+        logger.warning(
+            "Não foi possível localizar a instância ativa do TelegramScraper para atualização."
+        )
 
     async def _buscar_grupo_proximo(self, client: TelegramClient, termo_busca: str):
         """Busca no Telegram ou sugere um nome próximo de grupos acessíveis."""
@@ -141,9 +143,7 @@ class TelegramCollaborator(commands.Cog):
         mensagens_bot = []
 
         def check_dm(m: discord.Message):
-            return m.author.id == colaborador.id and isinstance(
-                m.channel, discord.DMChannel
-            )
+            return m.guild is None and m.author.id == colaborador.id
 
         async def enviar_dm(texto: str, temporaria: bool = True):
             msg = await dm.send(texto)
@@ -283,10 +283,27 @@ class TelegramCollaborator(commands.Cog):
             "⚠️ Comando inválido! Use `+colaborar promo @user` ou `+colaborar cancelar`."
         )
 
+    @colaborar.error
+    async def colaborar_error(self, ctx, error):
+        if isinstance(error, commands.UserNotFound):
+            await ctx.send(
+                f"❌ | Não consegui encontrar o usuario **{error.argument}**. Verifique se digitou o @ corretamente e tente de novo!"
+            )
+        elif isinstance(error, commands.MemberNotFound):
+            await ctx.send(
+                f"❌ | Não consegui encontrar o membro **{error.argument}** neste servidor. Tem a certeza de que ele está aqui?"
+            )
+        elif isinstance(error, commands.MissingRequiredArgument):
+            await ctx.send("❌ | Faltam argumentos! Use: `+colaborar promo @usuario`")
+        else:
+            # Para outros erros não previstos, é bom registar no console
+            self.bot.logger.error(f"Erro não tratado no comando colaborar: {error}")
+
     async def _rotina_perguntas_promo(
         self, ctx: commands.Context, colaborador: discord.User
     ):
         colab_id = colaborador.id
+        data_manager.set_user_data(str(colab_id), "status_ocupado", True)
 
         def check_dm(m: discord.Message):
             return m.author.id == colab_id and isinstance(m.channel, discord.DMChannel)
@@ -383,7 +400,7 @@ class TelegramCollaborator(commands.Cog):
             # 4. Pergunta: Exemplo de envio
             await dm.send(
                 "📝 **Envie um exemplo de como a mensagem de oferta costuma ser enviada nesse grupo:**\n"
-                "(Copie e cole uma mensagem padrão do grupo aqui para testarmos as regras do parser)."
+                "(Copie e cole uma mensagem padrão do grupo aqui para me testarmos)."
             )
 
             msg_exemplo = await self.bot.wait_for(
@@ -423,6 +440,7 @@ class TelegramCollaborator(commands.Cog):
             except Exception:
                 pass
         finally:
+            data_manager.set_user_data(str(colab_id), "status_ocupado", False)
             if colab_id in self.active_sessions:
                 del self.active_sessions[colab_id]
 

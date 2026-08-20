@@ -1,9 +1,9 @@
 # Segredos e Configurações Locais
 .env
 config.yaml
-Data/Config/*.session-journal
-Data/Config/*.session
-Data/Config/*.json
+Data/Persistence/*.session-journal
+Data/Persistence/*.session
+Data/Persistence/*.json
 application.yml
 
 # Dados de Utilizador e Memória (RAG)
@@ -34,3 +34,4 @@ cookies.txt
 .dockerignore
 Data/Users/users.json
 Data/Knowledge/users.json
+Data/Config/igdb_token.json

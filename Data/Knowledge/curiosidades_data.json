@@ -1,0 +1,140 @@
+{
+    "sam_bot": {
+        "keywords": [
+            "sam",
+            "sambot",
+            "voce",
+            "você",
+            "sobre voce",
+            "sobre você",
+            "quem e voce",
+            "como funciona",
+            "criador"
+        ],
+        "facts": [
+            "A Sam tem vários 'cérebros' de reserva! Se o sistema principal de inteligência ficar fora do ar ou sobrecarregado, outro assume na mesma hora sem você nem perceber.",
+            "A Sam tem uma rotina noturna: enquanto todo mundo dorme, ela roda uma manutenção de madrugada para organizar memórias do dia, atualizar promoções e organizar o servidor.",
+            "A Sam não se perde no papo! Ela consegue lembrar do seu nome, seus gostos musicais e coisas que você contou para ela em conversas anteriores."
+        ]
+    },
+    "conversas_e_memoria": {
+        "keywords": [
+            "memoria",
+            "memória",
+            "lembrar",
+            "giria",
+            "gíria",
+            "conversar",
+            "falar",
+            "entender"
+        ],
+        "facts": [
+            "Você não precisa falar formalmente com a Sam: ela entende gírias e abreviações do dia a dia como 'vc', 'obg', 'tô' e 'pro'.",
+            "A Sam consegue perceber o tom da conversa e reage com risadas ou surpresa dependendo do que você está contando."
+        ]
+    },
+    "compras_e_economia": {
+        "keywords": [
+            "desconto",
+            "preco",
+            "preço",
+            "cupom",
+            "comprar",
+            "oferta",
+            "promocao",
+            "promoção",
+            "loja",
+            "barato",
+            "bolsa",
+            "investir",
+            "banco",
+            "trabalhar",
+            "work",
+            "moeda",
+            "dinheiro"
+        ],
+        "facts": [
+            "A Sam funciona como uma caçadora de ofertas: se você colocar um item na sua lista de desejos, ela avisa se o preço baixar.",
+            "Ela consegue varrer várias lojas na internet ao mesmo tempo para te mostrar onde um produto está mais barato e se existem cupons ativos.",
+            "A Sam possui um sistema financeiro completo com carteira, banco, loja de cosméticos e até uma Bolsa de Valores para comprar ações e receber dividendos!",
+            "Ao trabalhar no +work, a Sam te desafia com minijogos interativos (como separar lixo reciclável ou quebrar códigos em imagens). Se você falhar, ela fica com o seu pagamento daquele turno!"
+        ]
+    },
+    "perfil_e_niveis": {
+        "keywords": [
+            "perfil",
+            "card",
+            "nivel",
+            "nível",
+            "xp",
+            "rank",
+            "ranking",
+            "fundo",
+            "background",
+            "bio",
+            "setbio"
+        ],
+        "facts": [
+            "Seus cartões de perfil (+perfil) e de nível (+level) são pintados em imagem em tempo real, mostrando seu saldo, nível, conquistas e foto de perfil.",
+            "Você pode comprar novos planos de fundo na +loja e equipá-los no seu perfil para deixar seu cartão com a sua cara.",
+            "A Sam tem um filtro inteligente de XP que bloqueia spam e mensagens muito curtas, garantindo que ganha mais nível quem realmente conversa no servidor."
+        ]
+    },
+    "jogos_e_animes": {
+        "keywords": [
+            "anime",
+            "print",
+            "cena",
+            "jogo",
+            "game",
+            "gamer",
+            "steam",
+            "otaku",
+            "desenho"
+        ],
+        "facts": [
+            "Se você mandar a foto/print de uma cena de anime, a Sam consegue descobrir o nome do anime, o número do episódio e até o minuto exato daquela cena!",
+            "A Sam consegue pesquisar jogos em tempo real, mostrando notas de avaliações e comparando preços entre várias lojas de games."
+        ]
+    },
+    "musica_e_midia": {
+        "keywords": [
+            "musica",
+            "música",
+            "play",
+            "playlist",
+            "tocando",
+            "som",
+            "audio",
+            "áudio",
+            "filtro",
+            "nightcore",
+            "bassboost",
+            "vaporwave"
+        ],
+        "facts": [
+            "Você pode criar e guardar suas próprias playlists de música com o comando /playlist salvar para carregar direto na fila do servidor quando quiser.",
+            "A Sam consegue aplicar efeitos de áudio em tempo real enquanto toca música, como Nightcore (áudio acelerado), Vaporwave e Bassboost para reforçar os graves."
+        ]
+    },
+    "utilidades_e_moderacao": {
+        "keywords": [
+            "lembrete",
+            "snooze",
+            "ban",
+            "mute",
+            "apelo",
+            "cor",
+            "corinfo",
+            "qrcode",
+            "clima",
+            "ajuda",
+            "help"
+        ],
+        "facts": [
+            "Se você criar um lembrete no comando -lembrete e a Sam te avisar em uma hora ruim, o aviso vem com um botão de 'Snooze' para te avisar de novo mais tarde.",
+            "Se alguém for punido pela moderação, a Sam envia um formulário de apelo no privado. Se o moderador aceitar o apelo na DM dele, a punição é removida automaticamente!",
+            "Com o comando corinfo, a Sam desenha uma imagem completa com a paleta de cores, mostrando combinações harmônicas e tons claros e escuros."
+        ]
+    }
+}

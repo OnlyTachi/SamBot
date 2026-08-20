@@ -34,9 +34,7 @@ class DeepSeekDriver(BaseLLMProvider):
                 "  Nenhuma chave API da DeepSeek encontrada no .env. Camada DeepSeek desativada."
             )
             return False
-        self.log.info(
-            f"  [DeepSeek] Configurado com sucesso usando o modelo: {self.model_name}"
-        )
+        self.log.info(f"Configurado com sucesso usando o modelo: {self.model_name}")
         return True
 
     async def generate(
@@ -68,9 +66,7 @@ class DeepSeekDriver(BaseLLMProvider):
             )
             return response.choices[0].message.content
         except Exception as e:
-            self.log.warning(
-                f"  [DeepSeek] Falha na execução do modelo {self.model_name}: {e}"
-            )
+            self.log.warning(f"Falha na execução do modelo {self.model_name}: {e}")
         return None
 
     async def get_embedding(self, text: str) -> List[float]:

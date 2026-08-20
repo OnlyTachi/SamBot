@@ -38,7 +38,7 @@ class JellyfinTool:
         if not self.is_configured:
             return False
 
-        self.logger.info("  [Jellyfin] Sincronizando catálogo para o cache local...")
+        self.logger.info(" Sincronizando catálogo para o cache local...")
         catalog = {"filmes": [], "series": {}}
 
         params_movies = {
@@ -81,7 +81,7 @@ class JellyfinTool:
 
         # 3. Salvar no Banco de Dados JSON (Data/Knowledge/jellyfin_catalog.json)
         data_manager.save_knowledge(self.cache_key, catalog)
-        self.logger.info("  [Jellyfin] Cache atualizado e salvo com sucesso!")
+        self.logger.info(" Cache atualizado e salvo com sucesso!")
         return True
 
     async def search_content(self, query: str) -> str:

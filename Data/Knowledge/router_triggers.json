@@ -72,13 +72,17 @@
         "certo"
     ],
     "product_search": [
+        "procure por produto em promocao",
+        "procure desconto para controle console acessorios",
         "pesquisar produto em promoção",
-        "buscar preço de processador ou placa de vídeo",
-        "ver valor de celular smartphone notebook",
-        "onde comprar hardware pc gamer barato",
-        "quanto custa esse produto",
-        "comparar preço de eletrônicos",
-        "menor preço encontrado para"
+        "buscar preço de produto e eletronicos",
+        "ver valor e preco de produtos",
+        "onde comprar barato na internet",
+        "quanto custa e qual o menor preco",
+        "comparar preço e ofertas",
+        "encontre promocoes e descontos de compras",
+        "acha para mim o menor preco de",
+        "tem promocao de controle ou perifericos"
     ],
     "cupom_finder": [
         "tem cupom de desconto para a loja",
@@ -134,5 +138,23 @@
         "fraquezas e evoluções do pokemon",
         "como capturar e tipo do pokemon",
         "informações sobre o item e pokebola"
+    ],
+    "self_identity": [
+        "quem é você",
+        "qual sua tecnologia",
+        "qual seu modelo de linguagem",
+        "qual llm você está usando agora",
+        "como você foi programada",
+        "quem te criou",
+        "qual seu stack",
+        "mostre seus status técnicos",
+        "quanto tempo você tá online",
+        "como tá seu cérebro hoje"
+    ],
+    "bot_opinion": [
+        "o que você acha da galera do server",
+        "qual sua opinião sobre o servidor",
+        "o que você tem aprendido recentemente",
+        "qual sua personalidade"
     ]
 }
