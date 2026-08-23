@@ -35,6 +35,14 @@ class LimpezaManager:
             r"\bobg\b": "obrigado",
             r"\bq\b": "que",
             r"\bn\b": "nao",
+            r"\bvezes\b": "*",
+            r"\bdividido por\b": "/",
+            r"\bdividido\b": "/",
+            r"\bmais\b": "+",
+            r"\bmenos\b": "-",
+            r"\belevado a\b": "^",
+            r"\braiz quadrada de\b": "sqrt",
+            r"\braiz de\b": "sqrt",
         }
 
         self.emoji_pattern = re.compile(r"[\U00010000-\U0010ffff]", flags=re.UNICODE)

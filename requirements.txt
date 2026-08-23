@@ -7,9 +7,6 @@ aiohttp
 aiofiles
 Pillow
 easy-pil
-google-api-python-client
-google-auth-oauthlib
-google-auth-httplib2
 google-genai
 ollama
 beautifulsoup4
@@ -24,3 +21,7 @@ semantic-router
 h2
 telethon
 pyyaml
+fastapi>=0.110.0
+uvicorn>=0.28.0
+websockets>=12.0
+sympy

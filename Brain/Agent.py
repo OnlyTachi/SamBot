@@ -79,7 +79,7 @@ class CerebroIA(commands.Cog):
             async with message.channel.typing():
                 clean_text = re.sub(r"<@!?\d+>", "", message.content).strip()
                 if not clean_text and not message.attachments:
-                    clean_text = "Olá!"
+                    clean_text = "Olá"
 
                 input_text = clean_text
                 try:
@@ -105,7 +105,7 @@ class CerebroIA(commands.Cog):
                         )
 
                 # Delega a cognição pesada para o Pipeline
-                await self.pipeline.processar_cognicao(message, input_text, persona)
+                await self.pipeline.processar_cognicao(message, clean_text, persona)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):

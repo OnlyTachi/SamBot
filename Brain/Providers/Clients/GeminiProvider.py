@@ -30,7 +30,7 @@ class GeminiDriver(BaseLLMProvider):
 
         # Cache de castigo (Blacklist temporária para chaves com Rate Limit)
         self.blacklist_chaves = {}
-        self.tempo_castigo = 60  # 1 minuto
+        self.tempo_castigo = 300  # 5 minuto
 
     def _carregar_chaves(self) -> List[str]:
         keys = []

@@ -18,15 +18,32 @@ class TLMRouter:
         self.logger = logging.getLogger("SamBot.SemanticRouter")
         self.vector_store = vector_store
 
-        self.threshold = 0.74
+        self.threshold = 0.68
 
-    def _limpar_argumentos(self, texto: str) -> str:
-        ruidos = data_manager.get_router_triggers().get("config_ruidos", [])
-        texto_limpo = texto.lower()
-        for ruido in ruidos:
-            texto_limpo = re.sub(
-                rf"\b{re.escape(ruido)}\b", "", texto_limpo, flags=re.IGNORECASE
-            )
+    def _limpar_argumentos(self, texto: str, tool_name: str = None) -> str:
+        domain_map = {
+            "jellyfin": "streaming_midia",
+            "cupom_finder": "e_commerce_cupons",
+            "product_search": "e_commerce_cupons",
+        }
+        domain = domain_map.get(tool_name)
+        ruidos = (
+            data_manager.get_noise_words(domain)
+            if hasattr(data_manager, "get_noise_words")
+            else []
+        )
+
+        # Ruídos ordenados pelo tamanho decrescente
+        ruidos_ordenados = sorted(ruidos, key=len, reverse=True)
+
+        texto_limpo = f" {texto.lower()} "
+        # Remove pontuações
+        texto_limpo = re.sub(r"[,;:\.?!()\[\]\{\}\*\"']", " ", texto_limpo)
+
+        for ruido in ruidos_ordenados:
+            padrao = rf"\b{re.escape(ruido.lower())}\b"
+            texto_limpo = re.sub(padrao, " ", texto_limpo, flags=re.IGNORECASE)
+
         return re.sub(r"\s+", " ", texto_limpo).strip()
 
     async def sincronizar_base_rotas(self, force: bool = False):
@@ -119,7 +136,7 @@ class TLMRouter:
                 best_tool = res["metadatas"][0][0].get("tool")
 
                 if best_tool in ferramentas_ativas:
-                    args_limpos = self._limpar_argumentos(content)
+                    args_limpos = self._limpar_argumentos(content, best_tool)
                     args_final = args_limpos if args_limpos else content.strip()
 
                     self.logger.info(

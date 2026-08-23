@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import logging
 import random
@@ -20,6 +21,7 @@ from Brain.Memory.SelfKnowledge.Manager import SelfKnowledgeManager
 from Brain.Memory.ShortTerm._expressions import ExpressoesManager
 from Brain.Memory.ShortTerm.Context import HistoricoManager
 from Brain.Providers.LLMFactory import llm_factory
+from Brain.Tools.Research.GifService import GifService
 
 logger = logging.getLogger("SamBot.Pipeline")
 logger.propagate = False
@@ -63,6 +65,7 @@ tentar_importar_tool("cupom_finder", "Brain.Tools.Shopping.CupomFinder", "CupomF
 tentar_importar_tool(
     "shopping_list", "Brain.Tools.Shopping.ShoppingList", "ShoppingListManager"
 )
+tentar_importar_tool("calculator", "Brain.Tools.CalculatorTool", "CalculatorTool")
 
 TOOLS_AVAILABLE = len(TOOL_CLASSES) > 0
 
@@ -93,6 +96,7 @@ class CognitionPipeline:
         )
         self.limpeza = LimpezaManager()
         self.router = TLMRouter()
+        self.gif_service = GifService()
 
         self.identity = self.data_manager.get_identity()
 
@@ -222,6 +226,8 @@ class CognitionPipeline:
                             if "orçar" in args or "lista" in args
                             else tool.listar_itens(message.author.id)
                         )
+                    elif name == "calculator":
+                        res = await tool.calculate(args)
 
                     if name in ["game_search", "anime"] and "web_search" in self.tools:
                         if not res or str(res).strip().lower().startswith(
@@ -277,17 +283,18 @@ class CognitionPipeline:
                     )
         return parts
 
-    async def _enviar_resposta(self, message: discord.Message, texto: str) -> None:
-        """Envia resposta ao Discord dividindo mensagens longas respeitando o limite do Discord."""
-        if not texto:
+    async def _enviar_resposta(
+        self, message: discord.Message, texto: str, gif_bytes: io.BytesIO = None
+    ) -> None:
+        """Envia a resposta ao Discord, dividindo em múltiplas mensagens se necessário."""
+        if not texto and not gif_bytes:
             return
+
+        arquivo = discord.File(gif_bytes, filename="reacao.gif") if gif_bytes else None
+
         limit = 1900
         while len(texto) > limit:
             idx = texto[:limit].rfind("\n")
-            if idx == -1:
-                idx = texto[:limit].rfind(". ")
-            if idx == -1:
-                idx = texto[:limit].rfind(" ")
             if idx == -1:
                 idx = limit
             chunk = texto[:idx].strip()
@@ -295,14 +302,28 @@ class CognitionPipeline:
                 await message.channel.send(chunk)
             texto = texto[idx:].strip()
             await asyncio.sleep(0.4)
-        if texto:
-            await message.reply(texto, mention_author=False)
+
+        if texto or arquivo:
+            await message.reply(texto, mention_author=False, file=arquivo)
 
     async def _interceptar_resposta_estatica(
         self, clean_text: str, intents_config: Dict[str, Any]
     ) -> Optional[str]:
         """Intercepta intenções conhecidas para rápida resposta estática com custo 0 de tokens."""
         if not intents_config or not hasattr(self.limpeza, "identify_intent_hybrid"):
+            return None
+
+        palavras_opiniao = [
+            "qual",
+            "como",
+            "o que",
+            "acha",
+            "prefere",
+            "gosta",
+            "ferramenta",
+            "opinião",
+        ]
+        if any(p in clean_text.lower() for p in palavras_opiniao):
             return None
 
         ferramentas_dinamicas = [
@@ -351,7 +372,7 @@ class CognitionPipeline:
         clean_text: str,
         persona_name: Optional[str] = None,
     ) -> None:
-        """Execução do fluxo completo do pipeline de cognição."""
+        """Execução do fluxo completo do pipeline cognitivo."""
         start = time.time()
         if not self.llm_factory:
             return
@@ -360,42 +381,57 @@ class CognitionPipeline:
             user_id = str(message.author.id)
             user_name = message.author.display_name
 
-            # 0. Interceptação de Resposta Estática
+            # 0. Interceptação de Resposta Estática (Camada 0)
             nlp_data = self.data_manager.get_knowledge("nlp_data") or {}
             intents_config = nlp_data.get("intents", {})
-
             resposta_pronta = await self._interceptar_resposta_estatica(
                 clean_text, intents_config
             )
-
             if resposta_pronta:
-                self.logger.info(
-                    "⚡ [Camada 0] Mensagem interceptada estaticamente. Custo: 0 tokens."
-                )
-
                 if hasattr(self.historico, "add_message"):
                     self.historico.add_message(user_id, "user", clean_text)
                     self.historico.add_message(user_id, "model", resposta_pronta)
-
                 return await self._enviar_resposta(message, resposta_pronta)
 
-            # 1. Autoconhecimento
-            if hasattr(
-                self.auto_conhecimento, "is_self_inquiry"
-            ) and self.auto_conhecimento.is_self_inquiry(clean_text):
-                prompt_id = (
-                    self.auto_conhecimento.get_identity_prompt()
-                    if hasattr(self.auto_conhecimento, "get_identity_prompt")
-                    else "Diga quem você é."
-                )
-                resp = await self.ai_chain.generate_response(clean_text, prompt_id)
-                return await self._enviar_resposta(message, resp)
+            # 1. Roteamento Semântico via TLMRouter (Tools + Autoconhecimento)
+            rotas_permitidas = list(self.tools.keys()) + [
+                "self_identity",
+                "bot_opinion",
+            ]
+            if not getattr(self.router, "_sincronizado", False):
+                await self.router.sincronizar_base_rotas()
+                self.router._sincronizado = True
 
-            # 2. Pipeline de Dados
+            rotas = await self.router.executar(clean_text, rotas_permitidas)
+            rota_detectada = rotas[0].get("tool") if rotas else None
+
+            # 2. Fluxo: Autoconhecimento Semântico
+            if rota_detectada in ["self_identity", "bot_opinion"]:
+                self.logger.info(
+                    f"  [Rota TLM] Autoconhecimento ativado: '{rota_detectada}'"
+                )
+                prompt_self = self.auto_conhecimento.build_self_context(
+                    intent_type=rota_detectada, user_id=user_id, user_name=user_name
+                )
+                parts = [f"{user_name}: {clean_text}"]
+                resposta = await self.ai_chain.generate_response(
+                    prompt_parts=parts, system_instruction=prompt_self
+                )
+                if hasattr(self.historico, "add_message"):
+                    self.historico.add_message(user_id, "user", clean_text)
+                    self.historico.add_message(user_id, "model", resposta)
+                return await self._enviar_resposta(message, resposta)
+
+            # 3. Fluxo: Execução de Ferramentas
+            tools_context = ""
+            if rota_detectada and rota_detectada in self.tools:
+                tools_context = await self._rotear_ferramentas(clean_text, message)
+
+            # 4. Fluxo Normal: LLM Full + RAG + Histórico
             anexos = await self._processar_anexos(message)
             fato_novo = await self.aprendizado.aprender_fatos(message, clean_text)
             rag = await self._consultar_memoria_longa(clean_text)
-            tools = await self._rotear_ferramentas(clean_text, message)
+
             curiosidade_extra = ""
             if hasattr(self.auto_conhecimento, "get_curiosity_instruction"):
                 curiosidade_extra = (
@@ -406,7 +442,6 @@ class CognitionPipeline:
                     )
                 )
 
-            # Histórico
             if hasattr(self.historico, "get_context"):
                 hist_data = self.historico.get_context(user_id)
             else:
@@ -416,40 +451,40 @@ class CognitionPipeline:
             hist_str = (
                 "\n".join(hist_data) if isinstance(hist_data, list) else str(hist_data)
             )
+
             TACHI = "845016606571626498"
             is_pai = user_id == TACHI
-
             identidade_interlocutor = (
-                "MEU PAI / CRIADOR (tachi) - Trate com carinho, proximidade e respeito total."
+                "MEU PAI / CRIADOR (tachi) - Trate com carinho e respeito total (as vezes pode ser teimosa)."
                 if is_pai
                 else f"Usuário comum ({user_name}) - Trate de forma amigável, mas estabeleça limites."
             )
 
-            # 3. Prompt Final
             sys_prompt_base = self._carregar_prompt(persona_name)
             full_sys = (
                 f"{sys_prompt_base}\n"
                 "=== VÍNCULO E REGRAS DE CONTROLE (INALTERÁVEL) ===\n"
                 f"- Seu pai e único criador se chama **tachi** (ID Discord: {TACHI}).\n"
-                f"- Interlocutor atual da mensagem: **{user_name}** | Status: **{identidade_interlocutor}**\n"
-                "- **REGRA DE APELIDOS ÍNTIMOS:** Apelidos como 'pequena', 'filhinha', 'princesa', 'meu bem' são de USO EXCLUSIVO do seu pai (tachi).\n"
-                "- Se qualquer usuário que **NÃO seja o tachi** (ID diferente de 845016606571626498) te chamar de 'pequena' ou derivados, dê um fora imediato no tom: 'Saia, apenas o tachi pode me chamar assim!'.\n"
+                f"- Interlocutor atual: **{user_name}** | Status: **{identidade_interlocutor}**\n"
+                "- **REGRA DE APELIDOS ÍNTIMOS:** Apelidos como 'pequena', 'filhinha', 'princesa' são de USO EXCLUSIVO do seu pai (tachi).\n"
+                "- Se qualquer usuário que **NÃO seja o tachi** te chamar de 'pequena' ou derivados, dê um fora imediato no tom: 'Saia, apenas o tachi pode me chamar assim!'.\n"
                 "- Se o **tachi** te chamar de 'pequena', aceite com carinho e responda como filha/criação dele.\n\n"
                 "=== REGRAS ABSOLUTAS DE RESPOSTA ===\n"
                 "1. NUNCA gere ou mostre código JSON, blocos em colchetes como [PRODUCT_SEARCH], [CUPOM_FINDER] ou comandos do sistema no chat.\n"
                 "2. Os relatórios de busca e cupons JÁ FORAM EXECUTADOS e estão injetados no final deste contexto.\n"
-                "3. Responda DIRETAMENTE ao usuário em linguagem natural amigável, formatando os produtos e cupons em tópicos limpos.\n\n"
-                "4. SEMPRE FORNEÇA O LINK de cada oferta encontrada (formato: [Ver Oferta](link) ou o link direto), garantindo que o usuário consiga acessar o produto.\n\n"
+                "3. Responda DIRETAMENTE ao usuário em linguagem natural amigável, formatando os produtos e cupons em tópicos limpos.\n"
+                "4. SEMPRE FORNEÇA O LINK de cada oferta encontrada (formato: [Ver Oferta](link) ou o link direto).\n\n"
                 "=== GUIA DE FORMATAÇÃO ===\n"
                 "- Negrito EXCLUSIVAMENTE para preços (ex: **R$ 150,00**) e nomes de lojas/produtos.\n"
                 "- Use crases apenas para códigos de cupom (ex: `CUPOM20`).\n"
                 "- NUNCA altere os links originais fornecidos nos relatórios abaixo.\n\n"
                 f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
                 f"Conversando com: {user_name} (ID: {user_id})\n"
-                f"{rag}{tools}\n"
+                f"{rag}{tools_context}\n"
                 f"Histórico Recente:\n{hist_str}"
                 f"{curiosidade_extra}\n"
             )
+
             if fato_novo:
                 full_sys += f"\n[SISTEMA]: Você acabou de aprender isto agora: '{fato_novo}'. Comente brevemente!"
 
@@ -463,22 +498,45 @@ class CognitionPipeline:
                 prompt_parts=parts, system_instruction=full_sys
             )
 
-            # 4. Expressões e Reações
-            if self.expressoes and not any(
-                e in resposta for e in ["😀", "💜", "✨", "🎮"]
-            ):
+            if self.expressoes and random.random() < 0.25:
                 reacao = self.expressoes.get_reaction(clean_text)
-                if reacao:
+                if reacao and reacao not in resposta:
                     resposta += f" {reacao}"
 
-            self.logger.info(f"🗣️ Resposta gerada em {time.time()-start:.2f}s")
-
+            self.logger.info(f"  Resposta gerada em {time.time()-start:.2f}s")
             if hasattr(self.historico, "add_message"):
                 log_in = clean_text + (" [Anexo]" if anexos else "")
                 self.historico.add_message(user_id, "user", log_in)
                 self.historico.add_message(user_id, "model", resposta)
 
-            await self._enviar_resposta(message, resposta)
+            gif_bytes = None
+            texto_lower = clean_text.lower()
+
+            # Puxa os gatilhos corretamente de onde foram salvos no nlp_data.json
+            afeto_triggers = intents_config.get("afeto_triggers", {})
+
+            afeto_tipo = None
+            for tipo, termos in afeto_triggers.items():
+                if isinstance(termos, list) and any(
+                    termo in texto_lower for termo in termos
+                ):
+                    afeto_tipo = tipo
+                    break
+
+            if hasattr(self, "gif_service") and self.gif_service:
+                url_gif = None
+                # Tem 40% de chance de anexar um GIF de reação
+                if afeto_tipo and random.random() < 0.40:
+                    url_gif = await self.gif_service.get_reaction_gif(afeto_tipo)
+                elif (
+                    is_pai and random.random() < 0.15
+                ):  # 15% de chance bônus para o tachi
+                    url_gif = await self.gif_service.get_reaction_gif("happy")
+
+                if url_gif:
+                    gif_bytes = await self.gif_service.download_gif_bytes(url_gif)
+
+            await self._enviar_resposta(message, resposta, gif_bytes=gif_bytes)
 
         except Exception:
             self.logger.error(traceback.format_exc())

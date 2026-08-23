@@ -40,8 +40,8 @@ class DataManagerFacade:
         return str(self.persistence_dir / filename)
 
     # --- ROTEAMENTO SHOPPING (Meilisearch) ---
-    async def search_cached_offers(self, query: str) -> list:
-        return await self.shopping.search_cached_offers(query)
+    async def search_cached_offers(self, query: str, loja: str = None) -> list:
+        return await self.shopping.search_cached_offers(query, loja=loja)
 
     async def save_offers(self, offers: list):
         await self.shopping.save_offers(offers)
@@ -73,6 +73,18 @@ class DataManagerFacade:
 
     def get_router_triggers(self) -> Dict[str, List[str]]:
         return self.brain.get_knowledge("router_triggers") or {}
+
+    def get_noise_words(self, domain: str = None) -> list:
+        data = self.brain.get_knowledge("noise_words") or {}
+        ruidos = []
+
+        for _, lista in data.get("stop_words_globais", {}).items():
+            ruidos.extend(lista)
+
+        if domain and "ruidos_por_dominio" in data:
+            ruidos.extend(data["ruidos_por_dominio"].get(domain, []))
+
+        return ruidos
 
     # --- ROTEAMENTO DISCORD (Usuários e Integrações) ---
     def get_user_data(self, user_id: str, key: str, default_value: Any = None) -> Any:

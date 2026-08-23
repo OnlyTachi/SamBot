@@ -1,5 +1,6 @@
 import os
 import logging
+import unicodedata
 from Brain.Memory.DataManager.Connections import data_manager
 from Brain.Core.NetworkManager import NetworkManager
 from Core.ConfigLoader import AppConfig
@@ -13,11 +14,17 @@ class JellyfinTool:
         self.headers = {"X-Emby-Token": self.api_key, "Accept": "application/json"}
         self.is_configured = bool(self.base_url and self.api_key)
         self.cache_key = "jellyfin_catalog"
-
         if not self.is_configured:
             self.logger.warning(
                 "JellyfinTool não configurado. Verifique JELLYFIN_URL e JELLYFIN_API_KEY no .env."
             )
+
+    def _remover_acentos(self, texto: str) -> str:
+        """Remove acentuação para casamento elástico de títulos."""
+        nfkd = unicodedata.normalize("NFKD", texto)
+        return (
+            "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().strip()
+        )
 
     async def _fetch(self, endpoint: str, params: dict = None) -> dict:
         url = f"{self.base_url}{endpoint}"
@@ -34,11 +41,11 @@ class JellyfinTool:
         return {}
 
     async def sync_catalog(self):
-        """Busca todo o catálogo da API e salva um mapa estruturado em JSON no DataManager."""
+        """Busca todo o catálogo da API e salva em JSON no DataManager."""
         if not self.is_configured:
             return False
 
-        self.logger.info(" Sincronizando catálogo para o cache local...")
+        self.logger.info("Sincronizando catálogo do Jellyfin para o cache local...")
         catalog = {"filmes": [], "series": {}}
 
         params_movies = {
@@ -47,12 +54,11 @@ class JellyfinTool:
             "Fields": "ProductionYear,Overview",
         }
         data_movies = await self._fetch("/Items", params=params_movies)
-
         if data_movies:
             for item in data_movies.get("Items", []):
                 nome = item.get("Name", "Desconhecido")
                 ano = item.get("ProductionYear", "")
-                sinopse = item.get("Overview", "Sem sinopse.")[:100] + "..."
+                sinopse = item.get("Overview", "Sem sinopse.")[:120] + "..."
                 titulo_final = f"{nome} ({ano})" if ano else nome
                 catalog["filmes"].append({"titulo": titulo_final, "sinopse": sinopse})
 
@@ -62,76 +68,75 @@ class JellyfinTool:
             "Fields": "SeriesName,SeasonName",
         }
         data_episodes = await self._fetch("/Items", params=params_episodes)
-
         if data_episodes:
             for ep in data_episodes.get("Items", []):
                 serie = ep.get("SeriesName")
                 if not serie:
                     continue
-
                 temporada = ep.get("SeasonName", "Especiais")
-
                 if serie not in catalog["series"]:
                     catalog["series"][serie] = {}
-
                 if temporada not in catalog["series"][serie]:
                     catalog["series"][serie][temporada] = 0
-
                 catalog["series"][serie][temporada] += 1
 
-        # 3. Salvar no Banco de Dados JSON (Data/Knowledge/jellyfin_catalog.json)
         data_manager.save_knowledge(self.cache_key, catalog)
-        self.logger.info(" Cache atualizado e salvo com sucesso!")
+        self.logger.info("Catálogo do Jellyfin salvo no Banco De Dados com sucesso!")
         return True
 
     async def search_content(self, query: str) -> str:
-        """Pesquisa instantânea usando o JSON local salvo no DataManager."""
+        """Pesquisa no catálogo usando correspondência estrita e flexível."""
         if not self.is_configured:
             return "Serviço Jellyfin não configurado."
 
         catalog = data_manager.get_knowledge(self.cache_key)
-
         if not catalog:
-            self.logger.info("Cache não encontrado. Gerando no primeiro uso...")
             await self.sync_catalog()
             catalog = data_manager.get_knowledge(self.cache_key)
             if not catalog:
                 return "Não foi possível acessar o catálogo do Jellyfin no momento."
 
-        query_clean = (
-            query.lower()
-            .replace("filme", "")
-            .replace("série", "")
-            .replace("serie", "")
-            .strip()
-        )
-        resultados = []
+        query_normalizada = self._remover_acentos(query)
 
-        # Busca em Filmes
-        for filme in catalog.get("filmes", []):
-            titulo = filme["titulo"].lower()
-            if query_clean in titulo:
-                resultados.append(
-                    f"🎬 **{filme['titulo']}**\n  *Sinopse:* {filme['sinopse']}"
-                )
+        # Filtra preposições soltas e palavras com menos de 3 caracteres
+        termos_busca = [t for t in query_normalizada.split() if len(t) >= 3]
+        if not termos_busca:
+            termos_busca = [query_normalizada]
 
-        # Busca em Séries
+        resultados_filmes = []
+        resultados_series = []
+
+        # 1. Busca em Séries (Prioridade para termos de temporadas/séries)
         for serie_nome, temporadas in catalog.get("series", {}).items():
-            if query_clean in serie_nome.lower():
+            serie_norm = self._remover_acentos(serie_nome)
+            # Match da frase inteira OU de termos relevantes do nome da série
+            if query_normalizada in serie_norm or any(
+                termo in serie_norm for termo in termos_busca
+            ):
                 detalhes_temps = [
                     f"{temp} ({qtd} eps)" for temp, qtd in temporadas.items()
                 ]
                 resumo_serie = f"📺 **{serie_nome}**\n  *Estrutura:* " + ", ".join(
                     detalhes_temps
                 )
-                resultados.append(resumo_serie)
+                resultados_series.append(resumo_serie)
 
-        if not resultados:
-            return f"Não encontrei '{query}' salvo no servidor."
+        # 2. Busca em Filmes
+        for filme in catalog.get("filmes", []):
+            titulo_norm = self._remover_acentos(filme["titulo"])
+            if query_normalizada in titulo_norm or any(
+                termo in titulo_norm for termo in termos_busca
+            ):
+                resultados_filmes.append(
+                    f"🎬 **{filme['titulo']}**\n  *Sinopse:* {filme['sinopse']}"
+                )
 
-        report = f"🍿 **Resultados no servidor para '{query}':**\n\n"
-        # Limita a 5 resultados para não estourar os tokens da Sam (pode aumentar caso use modelo maior)
-        for res in resultados[:5]:
+        resultados_finais = resultados_series + resultados_filmes
+
+        if not resultados_finais:
+            return f"Nenhum título correspondente a '{query}' foi encontrado no catálogo do servidor."
+
+        report = f"**Resultados encontrados no Jellyfin:**\n\n"
+        for res in resultados_finais[:5]:
             report += f"{res}\n\n"
-
         return report.strip()
