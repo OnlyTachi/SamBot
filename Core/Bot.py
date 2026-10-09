@@ -13,7 +13,8 @@ from Brain.Memory.DataManager.Connections import data_manager
 from Core.ConfigLoader import AppConfig
 from Core.Logger import Logger
 from Modules.Admin.Mods._appeals import AppealStartView
-from Services.ServiceManager import ServiceManager
+
+# from Services.ServiceManager import ServiceManager
 
 try:
     from Brain.Core.NetworkManager import NetworkManager
@@ -34,7 +35,7 @@ class SamBot(commands.Bot):
         intents.voice_states = True
         intents.presences = True
 
-        self.services: ServiceManager = None
+        # self.services: ServiceManager = None
         self.version = AppConfig.get("bot.version", "3.1.0")
         self.bot_name = AppConfig.get("bot.name", "SamBot")
         self.start_time = discord.utils.utcnow()
@@ -146,9 +147,9 @@ class SamBot(commands.Bot):
         else:
             self.log.info("⏩ Sincronização automática de slash commands ignorada.")
 
-        self.services = ServiceManager(self)
-        await self.services.start_all()
-        self.log.info("✅ Setup do hook concluído.")
+        # self.services = ServiceManager(self)
+        # await self.services.start_all()
+        self.log.info("✅ Setup concluído.")
 
     async def carregar_cogs(self):
         self.log.info("📥 Carregando extensões (Cogs)...")
@@ -435,8 +436,8 @@ class SamBot(commands.Bot):
 
     async def close(self):
         """Executado ao desligar o bot (Ctrl+C ou encerramento gracioso)."""
-        if self.services:
-            await self.services.stop_all()
+        # if self.services:
+        # await self.services.stop_all()
 
         if NetworkManager:
             await NetworkManager.close_all()

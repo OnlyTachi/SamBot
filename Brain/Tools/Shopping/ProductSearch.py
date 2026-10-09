@@ -8,7 +8,7 @@ import time
 import uuid
 import re
 import html as html_module
-from selectolax.parser import HTMLParser
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 from Brain.Core.NetworkManager import NetworkManager
 from Brain.Memory.DataManager.Connections import data_manager
 

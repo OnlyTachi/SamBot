@@ -6,51 +6,60 @@ from typing import Any
 from dotenv import load_dotenv
 
 
-class Configuration:
+class _AppConfig:
     """Carregador unificado de configurações (YAML) e segredos (.env)."""
 
-    def __init__(self, yaml_path: str = "config.yaml"):
+    yaml_data: dict = {}
+    bot: dict = {}
+    llm: dict = {}
+    music: dict = {}
+    telegram: dict = {}
+    debug_mode: bool = False
+    prefix: str = "-"
+    owner_id: int | None = None
+    DISCORD_TOKEN: str | None = None
+
+    @classmethod
+    def load(cls, yaml_path: str = "config.yaml") -> None:
         load_dotenv()
-
-        self.logger = logging.getLogger("SamBot.Config")
-
-        self.DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-        if not self.DISCORD_TOKEN:
-            self.logger.critical("❌ FATAL: DISCORD_TOKEN não encontrado no .env!")
+        cls.logger = logging.getLogger("SamBot.Config")
+        cls.DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+        if not cls.DISCORD_TOKEN:
+            cls.logger.critical("DISCORD_TOKEN não encontrado no .env!")
             sys.exit(1)
 
-        self._load_yaml(yaml_path)
+        cls._load_yaml(yaml_path)
 
-    def _load_yaml(self, path: str) -> None:
+    @classmethod
+    def _load_yaml(cls, path: str) -> None:
         try:
             with open(path, "r", encoding="utf-8") as f:
-                self.yaml_data = yaml.safe_load(f) or {}
+                cls.yaml_data = yaml.safe_load(f) or {}
         except FileNotFoundError:
-            self.logger.warning(
-                f"⚠️ Arquivo {path} não encontrado! Usando configurações vazias/padrão."
+            cls.logger.warning(
+                f"Arquivo {path} não encontrado! Usando configurações padrão."
             )
-            self.yaml_data = {}
+            cls.yaml_data = {}
 
-        # 4. Extração Tipada das Configurações do YAML
-        self.bot = self.yaml_data.get("bot", {})
-        self.debug_mode = bool(self.bot.get("debug_mode", False))
-        self.prefix = str(self.bot.get("prefix", "-"))
-        self.owner_id = (
-            int(self.bot.get("owner_id", 0)) if self.bot.get("owner_id") else None
+        cls.bot = cls.yaml_data.get("bot", {})
+        cls.debug_mode = bool(cls.bot.get("debug_mode", False))
+        cls.prefix = str(cls.bot.get("prefix", "-"))
+        cls.owner_id = (
+            int(cls.bot.get("owner_id", 0)) if cls.bot.get("owner_id") else None
         )
+        cls.llm = cls.yaml_data.get("llm", {})
+        cls.music = cls.yaml_data.get("music", {})
+        cls.telegram = cls.yaml_data.get("telegram", {})
 
-        self.llm = self.yaml_data.get("llm", {})
-        self.music = self.yaml_data.get("music", {})
-        self.telegram = self.yaml_data.get("telegram", {})
-
-    def get(self, key: str, default: Any = None) -> Any:
+    @classmethod
+    def get(cls, key: str, default: Any = None) -> Any:
         key_lower = key.lower()
-        if hasattr(self, key_lower):
-            return getattr(self, key_lower)
+        if hasattr(cls, key_lower):
+            return getattr(cls, key_lower)
 
-        if "." in key and isinstance(self.yaml_data, dict):
+        if "." in key and isinstance(cls.yaml_data, dict):
             parts = key.split(".")
-            val = self.yaml_data
+            val = cls.yaml_data
             for part in parts:
                 if isinstance(val, dict) and part in val:
                     val = val[part]
@@ -70,7 +79,7 @@ class Configuration:
         }
         if key in model_mappings:
             path = model_mappings[key]
-            val = self.yaml_data
+            val = cls.yaml_data
             for p in path:
                 if isinstance(val, dict) and p in val:
                     val = val[p]
@@ -80,8 +89,8 @@ class Configuration:
             if val is not None:
                 return ",".join(val) if isinstance(val, list) else val
 
-        if isinstance(self.yaml_data, dict) and key in self.yaml_data:
-            return self.yaml_data[key]
+        if isinstance(cls.yaml_data, dict) and key in cls.yaml_data:
+            return cls.yaml_data[key]
 
         env_val = os.getenv(key)
         if env_val is not None:
@@ -89,18 +98,18 @@ class Configuration:
 
         return default
 
-    def get_secret(self, key: str, default: Any = None) -> Any:
-        """Busca segredos sensíveis diretamente do ambiente (.env)."""
+    @classmethod
+    def get_secret(cls, key: str, default: Any = None) -> Any:
+        """Busca segredos diretamente do ambiente (.env)."""
         return os.getenv(key, default)
 
     @property
-    def gemini_keys(self) -> list:
+    def gemini_keys(cls) -> list:
         """Agrupa todas as chaves do Gemini automaticamente."""
         keys = []
         k_default = os.getenv("GEMINI_API_KEY")
         if k_default:
             keys.append(k_default.strip())
-
         i = 1
         while True:
             k = os.getenv(f"GEMINI_API_KEY_{i}")
@@ -113,5 +122,6 @@ class Configuration:
         return keys
 
 
-# Singleton para exportar e usar no resto da aplicação
-AppConfig = Configuration()
+# Carrega os dados na importação e expõe como AppConfig
+_AppConfig.load()
+AppConfig = _AppConfig

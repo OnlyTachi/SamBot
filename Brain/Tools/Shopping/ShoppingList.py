@@ -1,5 +1,4 @@
 import logging
-from typing import List, Dict
 from Brain.Memory.DataManager.Connections import data_manager
 from Brain.Tools.Shopping.ProductSearch import ProductSearchTool
 
