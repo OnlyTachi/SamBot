@@ -1,0 +1,66 @@
+server:
+  port: 2333
+  address: 0.0.0.0
+
+lavalink:
+  plugins:
+    # Plugin moderno do YouTube para Lavalink v4 (necessário após a remoção do suporte nativo)
+    - dependency: "dev.arbjerg.lavalink.libraries.v4:youtube-plugin:1.11.4"
+      repository: "https://maven.lavalink.dev/releases"
+
+  server:
+    password: "youshallnotpass"
+    sources:
+      youtube: false # Desativado aqui pois o plugin 'youtube-plugin' assume o controle
+      soundcloud: true
+      bandcamp: true
+      twitch: true
+      vimeo: true
+      nico: false
+      http: true
+      local: false
+
+    filters:
+      volume: true
+      equalizer: true
+      timescale: true
+      channelMix: true
+      waveform: true
+
+    bufferDurationMs: 1000 # Buffer maior (1s) para acomodar oscilações de conexão externa
+    frameBufferDurationMs: 10000 # 10s de cache pré-carregado
+    trackStuckThresholdMs: 12000
+
+# Configurações do Plugin do YouTube (Bypass de IP e Login com Conta/Cookies)
+plugins:
+  youtube:
+    enabled: true
+    allowSearch: true
+    allowDirectVideoIds: true
+    allowDirectPlaylistIds: true
+    clients:
+      - MUSIC
+      - ANDROID_VR
+      - WEB
+      - TVHTML5EMBEDDED
+
+    # OPÇÃO 1: Autenticação via Cookies (Recomendado para VPS e Docker)
+    # Exporte os cookies do YouTube pelo navegador em formato Netscape e monte o arquivo no container
+    # Exemplo no docker-compose: ./youtube_cookies.txt:/opt/Lavalink/cookies.txt
+    # cookie: "cookies.txt"
+
+    # OPÇÃO 2: Rotação de IPv6 (Caso esteja em servidor dedicado ou VPS com bloco /64)
+    # ratelimit:
+    #   ipBlocks: ["2a01:4f8:xxxx:xxxx::/64"]
+    #   strategy: "RotateOnBan" # RotateOnBan | LoadBalance | NanoSwitch
+    #   searchTriggersFail: true
+    #   retryLimit: 3
+
+metrics:
+  prometheus:
+    enabled: false
+
+logging:
+  level:
+    root: INFO
+    lavalink: INFO

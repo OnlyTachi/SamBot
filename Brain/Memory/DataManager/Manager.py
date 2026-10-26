@@ -108,8 +108,12 @@ class DataManagerFacade:
     def get_user_music_context(self, user_id):
         prefs = self.discord.get_user_data(user_id, "music_likes", [])
         if prefs:
-            return f"O utilizador gosta de: {', '.join(prefs)}."
+            return f"O usuario gosta de: {', '.join(prefs)}."
         return ""
+
+    def increment_contribution(self, user_id: str, field: str, amount: int = 1):
+        """Atalho para incrementar métricas de contribuição do usuário"""
+        self.discord.increment_contribution(user_id, field, amount)
 
     # --- UTILITÁRIOS ---
     def reload_all(self):

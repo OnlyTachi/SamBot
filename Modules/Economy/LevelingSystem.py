@@ -1,13 +1,14 @@
-import discord
-from discord.ext import commands
+# Modules/Economy/LevelingSystem.py
 import logging
-import time
+import os
 import random
 import re
-import os
+import time
 from io import BytesIO
+
+import discord
+from discord.ext import commands
 from PIL import Image, ImageDraw, ImageFont
-from easy_pil import Editor, Canvas, Font, load_image_async
 
 from Brain.Memory.DataManager.Connections import data_manager
 
@@ -20,7 +21,6 @@ class LevelingSystem(commands.Cog):
         self.logger = logging.getLogger("SamBot.Leveling")
         self.user_cache = {}
 
-        # Caminhos de Assets (PIL)
         self.base_dir = os.path.dirname(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         )
@@ -33,6 +33,12 @@ class LevelingSystem(commands.Cog):
         self.font_reg = os.path.join(
             self.base_dir, "Data", "Assets", "MinecraftRegular-Bmg3.otf"
         )
+
+    def _get_font(self, path: str, size: int):
+        try:
+            return ImageFont.truetype(path, size)
+        except (IOError, OSError):
+            return ImageFont.load_default()
 
     def remover_repeticoes(self, texto: str) -> str:
         return re.sub(r"(.)\1+", r"\1", texto)
@@ -87,7 +93,6 @@ class LevelingSystem(commands.Cog):
                 mult = boosts[str(role.id)]
                 if mult > maior_multiplicador:
                     maior_multiplicador = mult
-
         xp_ganho = int(xp_ganho * maior_multiplicador)
 
         users_data = data_manager.get_knowledge("users") or {}
@@ -95,7 +100,6 @@ class LevelingSystem(commands.Cog):
             users_data[guild_id] = {}
         if user_id not in users_data[guild_id]:
             users_data[guild_id][user_id] = {"xp": 0, "mensagens": 0}
-
         if "global" not in users_data:
             users_data["global"] = {}
         if user_id not in users_data["global"]:
@@ -104,7 +108,6 @@ class LevelingSystem(commands.Cog):
         xp_antigo_local = users_data[guild_id][user_id]["xp"]
         users_data[guild_id][user_id]["xp"] += xp_ganho
         users_data[guild_id][user_id]["mensagens"] += 1
-
         users_data["global"][user_id]["xp"] += xp_ganho
         users_data["global"][user_id]["mensagens"] += 1
 
@@ -118,10 +121,9 @@ class LevelingSystem(commands.Cog):
 
         if nivel_novo > nivel_antigo:
             await message.channel.send(
-                f"🎉 Parabéns {message.author.mention}! Chegou o **Nível {nivel_novo}**! Voce e demais!",
+                f"🎉 Parabéns {message.author.mention}! Chegou ao **Nível {nivel_novo}**!",
                 delete_after=15.0,
             )
-
             recompensas = level_config.get("rewards", {})
             cargo_id = recompensas.get(str(nivel_novo))
             if cargo_id:
@@ -131,22 +133,14 @@ class LevelingSystem(commands.Cog):
                         await message.author.add_roles(
                             cargo, reason=f"Recompensa de Nível {nivel_novo}"
                         )
-                        await message.channel.send(
-                            f"🎖️ {message.author.mention} desbloqueou o cargo **{cargo.name}**!",
-                            delete_after=15.0,
-                        )
                     except discord.Forbidden:
                         pass
-
-        data_manager.save_knowledge("users", users_data)
 
     # ==========================================
     # CARTÃO VISUAL (PROFILE CARD)
     # ==========================================
     @commands.hybrid_command(
-        name="level",
-        aliases=["xp"],
-        description="Gera o teu cartão de perfil visual.",
+        name="level", aliases=["xp"], description="Gera o teu cartão de perfil visual."
     )
     async def level(self, ctx: commands.Context, membro: discord.Member = None):
         membro = membro or ctx.author
@@ -154,10 +148,8 @@ class LevelingSystem(commands.Cog):
 
         users_data = data_manager.get_knowledge("users") or {}
         guild_id, user_id = str(ctx.guild.id), str(membro.id)
-
         perfil_local = users_data.get(guild_id, {}).get(user_id, {"xp": 0})
         xp_total = perfil_local["xp"]
-
         nivel_atual = xp_total // 1000
         xp_progresso = xp_total % 1000
         percentual = xp_progresso / 1000.0
@@ -175,36 +167,33 @@ class LevelingSystem(commands.Cog):
             colocacao = "N/A"
 
         try:
-            bg = Image.open(self.bg_padrao).convert("RGBA")
-            bg = bg.resize((800, 250))
-        except FileNotFoundError:
+            bg = Image.open(self.bg_padrao).convert("RGBA").resize((800, 250))
+        except (FileNotFoundError, OSError):
             bg = Image.new("RGBA", (800, 250), (30, 33, 36, 255))
 
         draw = ImageDraw.Draw(bg)
+        font_title = self._get_font(self.font_bold, 36)
+        font_text = self._get_font(self.font_reg, 26)
+        font_small = self._get_font(self.font_reg, 20)
 
         try:
-            font_title = ImageFont.truetype(self.font_bold, 42)
-            font_text = ImageFont.truetype(self.font_reg, 32)
-            font_small = ImageFont.truetype(self.font_reg, 24)
-        except IOError:
-            font_title = font_text = font_small = ImageFont.load_default()
-
-        avatar_bytes = await membro.display_avatar.replace(
-            size=256, format="png"
-        ).read()
-        avatar = Image.open(BytesIO(avatar_bytes)).convert("RGBA")
-        avatar = avatar.resize((160, 160))
-
-        mask = Image.new("L", (160, 160), 0)
-        draw_mask = ImageDraw.Draw(mask)
-        draw_mask.ellipse((0, 0, 160, 160), fill=255)
-        avatar.putalpha(mask)
-
-        bg.paste(avatar, (40, 45), avatar)
+            avatar_bytes = await membro.display_avatar.replace(
+                size=256, format="png"
+            ).read()
+            avatar = (
+                Image.open(BytesIO(avatar_bytes)).convert("RGBA").resize((160, 160))
+            )
+            mask = Image.new("L", (160, 160), 0)
+            draw_mask = ImageDraw.Draw(mask)
+            draw_mask.ellipse((0, 0, 160, 160), fill=255)
+            avatar.putalpha(mask)
+            bg.paste(avatar, (40, 45), avatar)
+        except Exception as e:
+            self.logger.warning(f"Erro ao carregar avatar no level: {e}")
 
         draw.text((230, 40), str(membro.name), font=font_title, fill=(255, 255, 255))
         draw.text(
-            (230, 100),
+            (230, 95),
             f"Rank: #{colocacao}   |   Nível: {nivel_atual}",
             font=font_text,
             fill=(210, 210, 210),
@@ -213,14 +202,12 @@ class LevelingSystem(commands.Cog):
         xp_texto = f"{xp_progresso} / 1000 XP"
         bbox = draw.textbbox((0, 0), xp_texto, font=font_small)
         text_w = bbox[2] - bbox[0]
-        draw.text((750 - text_w, 145), xp_texto, font=font_small, fill=(210, 210, 210))
+        draw.text((750 - text_w, 140), xp_texto, font=font_small, fill=(210, 210, 210))
 
-        bar_x, bar_y = 230, 175
-        bar_w, bar_h = 520, 30
-
+        bar_x, bar_y, bar_w, bar_h = 230, 175, 520, 28
         draw.rounded_rectangle(
             (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h),
-            radius=15,
+            radius=14,
             fill=(40, 40, 40, 200),
         )
 
@@ -228,14 +215,13 @@ class LevelingSystem(commands.Cog):
         if fill_w > 20:
             draw.rounded_rectangle(
                 (bar_x, bar_y, bar_x + fill_w, bar_y + bar_h),
-                radius=15,
+                radius=14,
                 fill=(88, 101, 242, 255),
             )
 
         buffer = BytesIO()
         bg.save(buffer, format="PNG")
         buffer.seek(0)
-
         file = discord.File(buffer, filename=f"rank_{membro.name}.png")
         await ctx.send(file=file)
 
@@ -245,13 +231,11 @@ class LevelingSystem(commands.Cog):
     @commands.hybrid_command(
         name="rank",
         aliases=["top", "leaderboard"],
-        description="Gera uma imagem incrível com o Top 5 de Níveis!",
+        description="Gera uma imagem do Top 5 de Níveis!",
     )
     async def rank(self, ctx: commands.Context, tipo: str = "local"):
-        """Gera o ranking visual. Aceita 'local' ou 'global'."""
         await ctx.defer()
 
-        # Carrega dados unificados via data_manager
         users_data = data_manager.get_knowledge("users") or {}
         is_global = tipo.lower() == "global"
         fonte_dados = (
@@ -262,51 +246,41 @@ class LevelingSystem(commands.Cog):
 
         if not fonte_dados:
             return await ctx.send(
-                "🕸️ Ninguém tem dados de XP salvos nesta categoria ainda!"
+                "❌ Ninguém tem dados de XP salvos nesta categoria ainda!"
             )
 
-        # Extrai os dados e ordena do maior para o menor
-        tabela = []
-        for u_id, dados in fonte_dados.items():
-            xp = dados.get("xp", 0)
-            if xp > 0:
-                tabela.append((u_id, xp))
-
+        tabela = [
+            (u_id, d.get("xp", 0))
+            for u_id, d in fonte_dados.items()
+            if d.get("xp", 0) > 0
+        ]
         tabela.sort(key=lambda x: x[1], reverse=True)
         top_5 = tabela[:5]
 
         if not top_5:
             return await ctx.send("Ninguém tem XP suficiente para aparecer no ranking.")
 
-        # Inicia a tela de pintura usando easy_pil
-        background = Editor(Canvas((900, 650), color="#141414"))
+        # Criando o Canvas em Pillow puro
+        bg = Image.new("RGBA", (900, 650), (20, 20, 20, 255))
+        draw = ImageDraw.Draw(bg)
 
-        try:
-            fonte_titulo = Font.poppins(variant="bold", size=45)
-            fonte_texto = Font.poppins(variant="regular", size=30)
-            fonte_pequena = Font.poppins(variant="regular", size=20)
-        except Exception:
-            fonte_titulo = Font.default()
-            fonte_texto = Font.default()
-            fonte_pequena = Font.default()
+        font_titulo = self._get_font(self.font_bold, 34)
+        font_texto = self._get_font(self.font_bold, 22)
+        font_pequena = self._get_font(self.font_reg, 18)
 
         titulo_txt = (
-            "🏆 LEADERBOARD - TOP 5 GLOBAL 🌍"
+            "🏆 LEADERBOARD - TOP 5 GLOBAL"
             if is_global
-            else "🏆 LEADERBOARD - TOP 5 LOCAL 🏆"
+            else "🏆 LEADERBOARD - TOP 5 LOCAL"
         )
-        background.text(
-            (450, 40),
-            titulo_txt,
-            font=fonte_titulo,
-            color="#FFD700",
-            align="center",
+        bbox_t = draw.textbbox((0, 0), titulo_txt, font=font_titulo)
+        t_w = bbox_t[2] - bbox_t[0]
+        draw.text(
+            ((900 - t_w) // 2, 35), titulo_txt, font=font_titulo, fill=(255, 215, 0)
         )
 
-        y_offset = 120  # Posição Y inicial da primeira linha
-
+        y_offset = 110
         for i, (u_id, xp) in enumerate(top_5):
-            # Busca de membros adaptada para local ou global
             nome = f"User {u_id}"
             url_foto = self.bot.user.display_avatar.url
 
@@ -321,70 +295,78 @@ class LevelingSystem(commands.Cog):
                     nome = membro.display_name
                     url_foto = membro.display_avatar.url
 
-            # --- AVATAR REDONDO ---
+            # Renderiza Avatar
             try:
-                avatar_img = await load_image_async(str(url_foto))
-                avatar = Editor(avatar_img).resize((80, 80)).circle_image()
-                background.paste(avatar, (40, y_offset))
+                av_bytes = (
+                    await self.bot.session.get(str(url_foto))
+                    if hasattr(self.bot, "session")
+                    else None
+                )
+                if not av_bytes:
+                    user_target = self.bot.get_user(int(u_id))
+                    if user_target:
+                        av_raw = await user_target.display_avatar.replace(
+                            size=128, format="png"
+                        ).read()
+                    else:
+                        av_raw = await self.bot.user.display_avatar.replace(
+                            size=128, format="png"
+                        ).read()
+                avatar_img = (
+                    Image.open(BytesIO(av_raw)).convert("RGBA").resize((70, 70))
+                )
+
+                mask = Image.new("L", (70, 70), 0)
+                mask_draw = ImageDraw.Draw(mask)
+                mask_draw.ellipse((0, 0, 70, 70), fill=255)
+                avatar_img.putalpha(mask)
+                bg.paste(avatar_img, (40, y_offset), avatar_img)
             except Exception as e:
-                self.logger.warning(f"Falha ao baixar avatar de {u_id}: {e}")
+                self.logger.warning(f"Falha ao processar avatar de {u_id}: {e}")
 
-            # --- MEDALHAS E IDENTIFICAÇÃO ---
-            medalha = f"#{i+1}"
-            if i == 0:
-                medalha = "🥇"
-            elif i == 1:
-                medalha = "🥈"
-            elif i == 2:
-                medalha = "🥉"
-
+            medalhas = ["🥇", "🥈", "🥉", "#4", "#5"]
+            medalha = medalhas[i] if i < len(medalhas) else f"#{i+1}"
             nivel = (xp // 1000) + 1
 
-            # Nome / Exibição
-            background.text(
-                (150, y_offset + 10),
+            # Card de linha
+            draw.text(
+                (130, y_offset + 8),
                 f"{medalha} {nome}",
-                font=fonte_texto,
-                color="white",
+                font=font_texto,
+                fill=(255, 255, 255),
             )
-
-            # Nível e Valor formatados
             xp_fmt = f"{xp:,}".replace(",", ".")
-            background.text(
-                (860, y_offset + 10),
+            draw.text(
+                (680, y_offset + 12),
                 f"LVL {nivel} | {xp_fmt} XP",
-                font=fonte_pequena,
-                color="#00FF00",
-                align="right",
+                font=font_pequena,
+                fill=(0, 255, 128),
             )
 
-            # --- BARRA DE PROGRESSO ---
-            xp_no_nivel_atual = xp % 1000
-            porcentagem = (xp_no_nivel_atual / 1000) * 100
+            # Barra
+            xp_no_nivel = xp % 1000
+            porcentagem = xp_no_nivel / 1000.0
+            bar_w = 720
 
-            # Fundo cinza escuro
-            background.bar(
-                (150, y_offset + 55),
-                max_width=710,
-                height=15,
-                percentage=100,
-                fill="#2b2b2b",
-                radius=7,
+            draw.rounded_rectangle(
+                (130, y_offset + 46, 130 + bar_w, y_offset + 58),
+                radius=6,
+                fill=(45, 45, 45, 255),
             )
-            # Preenchimento Verde sobreposto
-            if porcentagem > 0:
-                background.bar(
-                    (150, y_offset + 55),
-                    max_width=710,
-                    height=15,
-                    percentage=porcentagem,
-                    fill="#00FF00",
-                    radius=7,
+            fill_sub = int(bar_w * porcentagem)
+            if fill_sub > 10:
+                draw.rounded_rectangle(
+                    (130, y_offset + 46, 130 + fill_sub, y_offset + 58),
+                    radius=6,
+                    fill=(0, 255, 128, 255),
                 )
 
             y_offset += 100
 
-        arquivo_imagem = discord.File(fp=background.image_bytes, filename="rank.png")
+        buffer = BytesIO()
+        bg.save(buffer, format="PNG")
+        buffer.seek(0)
+        arquivo_imagem = discord.File(fp=buffer, filename="rank.png")
         await ctx.send(file=arquivo_imagem)
 
 

@@ -14,7 +14,7 @@ from Core.ConfigLoader import AppConfig
 from Core.Logger import Logger
 from Modules.Admin.Mods._appeals import AppealStartView
 
-# from Services.ServiceManager import ServiceManager
+from Services.ServiceManager import ServiceManager
 
 try:
     from Brain.Core.NetworkManager import NetworkManager
@@ -35,7 +35,7 @@ class SamBot(commands.Bot):
         intents.voice_states = True
         intents.presences = True
 
-        # self.services: ServiceManager = None
+        self.services: ServiceManager = None
         self.version = AppConfig.get("bot.version", "3.1.0")
         self.bot_name = AppConfig.get("bot.name", "SamBot")
         self.start_time = discord.utils.utcnow()
@@ -51,7 +51,7 @@ class SamBot(commands.Bot):
         self.log = Logger()
         self.agent = None
 
-        self.log.info(f"🤖 Inicializando {self.bot_name} Core v{self.version}...")
+        self.log.info(f"Inicializando {self.bot_name} Core v{self.version}...")
         if self.debug_mode:
             self.log.debug("Modo de depuração ativado no sistema.")
 
@@ -114,12 +114,10 @@ class SamBot(commands.Bot):
         self.agent = self.get_cog("CerebroIA")
         if self.agent:
             self.log.info(
-                f"🧠 Cérebro vinculado. Status: {getattr(self.agent, 'status', 'Pronto')}"
+                f"Cérebro vinculado. Status: {getattr(self.agent, 'status', 'Pronto')}"
             )
         else:
-            self.log.warning(
-                "⚠️ O módulo Brain/Agent.py não foi carregado. O bot operará sem IA."
-            )
+            self.log.warning("O módulo Brain não foi carregado. O bot operará sem IA.")
 
         # Sincronização condicional de comandos
         sync_on_startup = AppConfig.get("SYNC_COMMANDS_ON_STARTUP", True)
@@ -145,14 +143,14 @@ class SamBot(commands.Bot):
             except Exception as e:
                 self.log.error(f"❌ Falha inesperada na sincronização: {e}")
         else:
-            self.log.info("⏩ Sincronização automática de slash commands ignorada.")
+            self.log.info("Sincronização automática de slash commands ignorada.")
 
-        # self.services = ServiceManager(self)
-        # await self.services.start_all()
-        self.log.info("✅ Setup concluído.")
+        self.services = ServiceManager(self)
+        await self.services.start_all()
+        self.log.info("Setup concluído.")
 
     async def carregar_cogs(self):
-        self.log.info("📥 Carregando extensões (Cogs)...")
+        self.log.info("Carregando extensões...")
         pastas_raizes = [Path("Modules"), Path("Brain"), Path("Services")]
         ignorar_pastas = {
             "Tools",
@@ -170,9 +168,7 @@ class SamBot(commands.Bot):
 
         for pasta_raiz in pastas_raizes:
             if not pasta_raiz.exists():
-                self.log.warning(
-                    f"⚠️ Diretório de módulos não encontrado: {pasta_raiz}"
-                )
+                self.log.warning(f"Diretório de módulos não encontrado: {pasta_raiz}")
                 continue
 
             for arquivo in pasta_raiz.rglob("*.py"):
@@ -214,7 +210,7 @@ class SamBot(commands.Bot):
 
     async def run_diagnostics(self):
         """Executa o diagnóstico completo com a conexão ativa no Discord."""
-        self.log.info("📊 Diagnóstico pós-conexão (Sistemas Online)...")
+        self.log.info("Diagnóstico pós-conexão (Sistemas Online)...")
         lat = self.latency
         latency_msg = (
             f"{int(lat * 1000)}ms" if lat and not math.isnan(lat) else "Desconhecida"
@@ -354,14 +350,14 @@ class SamBot(commands.Bot):
             await self.change_presence(
                 status=discord.Status.dnd, activity=nova_atividade
             )
-            self.log.info(f"  Status atualizado com sucesso: Ouvindo '{escolha}'")
+            self.log.info(f"Status atualizado com sucesso: Ouvindo '{escolha}'")
         except Exception as e:
-            self.log.error(f"  Erro crítico ao atualizar status no terminal: {e}")
+            self.log.error(f"Erro crítico ao atualizar status no terminal: {e}")
 
     @status_loop.before_loop
     async def before_status_loop(self):
         await self.wait_until_ready()
-        self.log.info("  Loop de status de atividades iniciado.")
+        self.log.info("Loop de status de atividades iniciado.")
 
     async def on_message(self, message):
         if message.author.bot:
@@ -389,7 +385,7 @@ class SamBot(commands.Bot):
             return
         if isinstance(error, commands.MissingPermissions):
             return await ctx.reply(
-                "⚠️ Você não tem permissão para usar este comando.", delete_after=10
+                "Você não tem permissão para usar este comando.", delete_after=10
             )
         if isinstance(error, commands.MissingRequiredArgument):
             cmd = ctx.command
@@ -436,8 +432,8 @@ class SamBot(commands.Bot):
 
     async def close(self):
         """Executado ao desligar o bot (Ctrl+C ou encerramento gracioso)."""
-        # if self.services:
-        # await self.services.stop_all()
+        if self.services:
+            await self.services.stop_all()
 
         if NetworkManager:
             await NetworkManager.close_all()

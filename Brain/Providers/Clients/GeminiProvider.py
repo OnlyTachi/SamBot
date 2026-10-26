@@ -156,7 +156,7 @@ class GeminiDriver(BaseLLMProvider):
                         contents=prompt_parts,
                         config=config,
                     ),
-                    timeout=3.0,
+                    timeout=15.0,
                 )
 
                 if not response.text:

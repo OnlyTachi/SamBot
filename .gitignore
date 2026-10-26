@@ -5,7 +5,7 @@ Data/Persistence/*.session-journal
 Data/Persistence/*.session
 Data/Persistence/*.json
 application.yml
-
+Dashboard
 # Dados de Utilizador e Memória (RAG)
 Data/Persistence/Users/*
 Data/Persistence/VectorDB/
@@ -35,3 +35,4 @@ cookies.txt
 Data/Users/users.json
 Data/Knowledge/users.json
 Data/Config/igdb_token.json
+docker-compose.override.yml

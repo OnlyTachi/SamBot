@@ -1,5 +1,85 @@
 # Changelog
 
+## [3.5.0-beta] - 2026-10-26
+
+### 🌐 Arquitetura da API (`Services/API/`)
+
+- **Servidor FastAPI & Uvicorn (`Server.py`):**
+  - Implementação do servidor assíncrono interno `APIServer` rodando com Uvicorn e suporte a CORS dinâmico configurável via `api.cors_origins`.
+  - Roteamento modular desacoplado com registro automático dos sub-roteadores: `/api/v1/files`, `/api/v1/notifications`, `/api/v1/db`, `/api/control`, `/api/download`, `/api/v1/logs` e `/api/auth/discord`.
+- **Gerenciador de Conexões WebSocket Segmentado (`GuildConnectionManager`):**
+  - Gerenciamento inteligente de conexões WebSocket por servidor Discord (`guild_id`) e conexões globais.
+  - Métodos `bind_guild`, `unbind` e `broadcast_to_guild` para emitir sincronizações de estado apenas aos clientes que estão visualizando o respectivo servidor.
+- **Comunicação Bidirecional em Tempo Real (`/ws/bot`):**
+  - **Handshake & Subscrição:** Suporte aos opcodes `HANDSHAKE` e `SUBSCRIBE_GUILD` com resposta imediata (`ACK`) e sincronização de estado do player (`sync_player_state`).
+- **Despacho de Ações de Áudio:** Recepção do opcode `COMMAND` para operações remotas delegadas ao `AudioService` (`PLAY`, `ENQUEUE`, `PAUSE`, `RESUME`, `SKIP`, `SEEK`, `SET_VOLUME`, `SET_LOOP`, `SHUFFLE`, `CLEAR_QUEUE`, `REMOVE_QUEUE`, `REORDER_QUEUE`).
+- **Auto-Connect:** Conexão automática ao canal de voz caso uma ação `PLAY` seja enviada e o usuário esteja em uma sala.
+- **Proteção Anti-Ghost DJ:** Validação para garantir que apenas usuários presentes no mesmo canal de voz que o bot executem comandos (bloqueando também interações em modo convidado `usr_guest`).
+- **Camada de Autenticação e Segurança (`Security.py`):**
+  - Validador de cabeçalho `verify_bot_token` via `x_bot_token`.
+  - Recuperação em cascata da chave de segurança a partir de `api.secret_token`, `API_SECRET_TOKEN` ou do storage persistido em `data_manager` (`staff_token`).
+
+---
+
+### 🛣️ Rotas & Serviços Especializados
+
+- **Autenticação Discord OAuth2 (`Routes/AuthRoute.py`):**
+  - `/api/auth/discord/exchange`: Troca de authorization code por `access_token` diretamente com a API v10 do Discord, obtendo avatar e perfil.
+  - `/api/auth/discord/session`: Validação de tokens de sessão no navegador com cruzamento em tempo real do estado de voz do membro no bot (guilda, bitrate e latência).
+- **Controle & Telemetria do Bot (`Routes/ControlRoute.py` & `TelemetryService.py`):**
+  - `/api/control/player`: Endpoint REST HTTP com validação de Anti-Ghost DJ para acionamento de comandos de mídia.
+- `/api/control/ping-matrix`: Matriz de latência contínua medindo o Gateway do Discord, internet externa via Cloudflare (`1.1.1.1`) e API do Navidrome.
+
+- `/api/control/status`: Snapshot completo de telemetria da máquina e do bot (CPU, RAM, versão do Python e estado do canal de voz ativo).
+
+- **Editor e Gerenciador de Arquivos (`Routes/FilesRoutes.py` & `FileService.py`):**
+  - `/api/v1/files/tree`: Árvore de arquivos autorizados categorizados em `configs`, `prompts`, `knowledge` e `persistence`.
+  - `/api/v1/files/read` & `/api/v1/files/save`: Leitura e escrita com proteção ativa contra **Path Traversal** e validação estrita de extensões permitidas (`.json`, `.yaml`, `.yml`, `.txt`, `.env`).
+- **Hot-Reload Automatizado:** Validação sintática antes da gravação (JSON/YAML), descarte de cache em memória e sincronização em segundo plano via `DatabaseSeeder` e reindexação no ChromaDB via `TLMRouter`.
+- **Explorador Multi-Bancos de Dados (`Routes/DatabasesRoute.py` & `DatabaseService.py`):**
+- **SQLite:** Consulta e paginação com suporte a busca (`LIKE`) para tabelas permitidas (`users`, `knowledge`, `config`, `prompts`).
+- **Meilisearch:** Consulta de estatísticas do índice e busca textual de ofertas/produtos com ordenação por preço.
+- **ChromaDB:** Listagem de coleções, visualização de documentos/metadados e rota de teste vetorial (`/chroma/query-test`) calculando distância e score de similaridade de cosseno.
+- **Logs & Monitoramento Contínuo (`Routes/LogsRoute.py` & `LogsService.py`):**
+  - `/api/v1/logs/tail`: Consulta paginada das últimas linhas de `sambot_general.log` ou `sambot_errors.log`.
+  - `/api/v1/logs/ws`: Stream contínuo em tempo real de logs via WebSocket com autenticação por token.
+  - `/api/v1/logs/stats`: Telemetria de conectividade e consolidação de estatísticas de contribuições dos usuários registradas no banco.
+- **Pipeline Assíncrono de Download (`Routes/DownloadRoute.py` & `DownloadService.py`):**
+  - `/api/download/tasks`: Enfileiramento de requisições de download repassadas a um worker externo via HTTP com polling automático em `BackgroundTasks` e rastreio de progresso em memória.
+  - Rastreamento e incremento dinâmico de contribuição de links do usuário (`sharedLinksCount`).
+- **Motor de Áudio Subsonic (`AudioService.py`):**
+  - Geração dinâmica de URLs autenticadas para o Navidrome via salt e hash MD5.
+  - Despacho de buscas para o `wavelink.Playable` e sincronização imediata através do `maestro.sync_player_state`.
+
+---
+
+### ⚙️ Gestão de Serviços & Ciclo de Vida (`Services/ServiceManager.py`)
+
+- **Chave Seletora Mestra (`Master Switch`):**
+  - Adicionada a flag global `services.enabled` para desativar integralmente qualquer inicialização de módulos secundários.
+- **Seletores Granulares por Serviço:**
+  - Habilitação seletiva via `config.yaml` para `services.api`, `services.telegram` e `services.notifier`.
+- **Inicialização Resiliente & Safe Stop:**
+  - Carregamento seguro com bloco `try/except` nos imports, prevenindo crashes caso dependências de serviços estejam ausentes.
+  - Métodos `start_all()`, `stop_all()` e `restart_all()` estruturados com controle de delay assíncrono para liberação de sockets e portas de rede.
+
+---
+
+### 📢 Notificações, Telegram & Webhooks
+
+- **Fila Autônoma do PromoNotifier (`PromoNotifier.py` & `NotificationRoute.py`):**
+  - Processamento em segundo plano orientado a fila assíncrona (`asyncio.Queue`).
+  - Suporte a múltiplos alvos de entrega de ofertas: canais de texto do Discord (`server`), DM direta para o usuário (`dm`) ou disparo global (`all`).
+  - Integração REST (`/api/v1/notifications/promo`) para inserção externa de anúncios diretamente na fila do bot.
+- **Disparador e Gestão de Webhooks (`WebhookDispatcher.py`):**
+  - CRUD completo de webhooks persistidos em base de conhecimento (`/api/v1/webhooks`).
+  - Suporte a segredo de autorização por token (`Bearer`) e filtragem de eventos específicos (`promo_alert`, `price_drop` ou global `*`).
+  - Endpoint de teste de conectividade (`/api/v1/webhooks/{webhook_id}/test`) enviando payloads de ping.
+- **Ingestão & Colaboração no Telegram (`TelegramCollaborator.py` & `TelegramIngestor.py`):**
+- **Comando `+colaborar promo`:** Fluxo guiado interativo via DM com o Discord para adicionar canais de promoção, com busca aproximada por títulos via `rapidfuzz`.
+- **Autenticação Interativa por DM:** Tratamento em segundo plano para envio de número de telefone, confirmação de código SMS e suporte a senha 2FA via Telethon com mensagens sensíveis auto-destrutivas (20 segundos).
+- **Atualização Dinâmica de Escuta:** Atualização da lista de canais monitorados do `TelegramScraper` a quente (`atualizar_canais_escutados`) assim que um novo grupo for registrado.
+
 ### 🚀 [v3.0.0] — 17 de junho de 2026
 
 **Roteamento & Inteligência Cognitiva**

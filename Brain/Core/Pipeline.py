@@ -28,7 +28,7 @@ logger.propagate = False
 if not logger.handlers:
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | Pipeline         | %(message)s",
+        "%(asctime)s | %(levelname)-8s | Pipeline        | %(message)s",
         "%Y-%m-%d %H:%M:%S",
     )
     handler.setFormatter(formatter)
@@ -83,7 +83,7 @@ class CognitionPipeline:
         self.llm_factory = llm_factory
         self.ai_chain = self.llm_factory.get_default_principal_chain()
         self.vector_store = vector_store
-        self.data_manager = data_manager
+        self.DataManagerFacade = data_manager
 
         # Instanciar Subdomínios
         self.aprendizado = AprendizadoAtivo(self.llm_factory, self.vector_store)
@@ -98,7 +98,7 @@ class CognitionPipeline:
         self.router = TLMRouter()
         self.gif_service = GifService()
 
-        self.identity = self.data_manager.get_identity()
+        self.identity = self.DataManagerFacade.get_identity()
 
         # Ferramentas
         self.tools: Dict[str, Any] = {}
@@ -131,7 +131,7 @@ class CognitionPipeline:
     def _carregar_prompt(self, persona_name: Optional[str]) -> str:
         """Carrega o prompt base correspondente à persona requisitada."""
         persona_key = persona_name if persona_name else "padrao"
-        return self.data_manager.get_prompt(persona_key)
+        return self.DataManagerFacade.get_prompt(persona_key)
 
     async def _consultar_memoria_longa(self, query: str) -> str:
         """Consulta a memória vetorial de longo prazo (RAG) por contexto relevante."""
@@ -382,7 +382,7 @@ class CognitionPipeline:
             user_name = message.author.display_name
 
             # 0. Interceptação de Resposta Estática (Camada 0)
-            nlp_data = self.data_manager.get_knowledge("nlp_data") or {}
+            nlp_data = self.DataManagerFacade.get_knowledge("nlp_data") or {}
             intents_config = nlp_data.get("intents", {})
             resposta_pronta = await self._interceptar_resposta_estatica(
                 clean_text, intents_config
@@ -478,6 +478,10 @@ class CognitionPipeline:
                 "- Negrito EXCLUSIVAMENTE para preços (ex: **R$ 150,00**) e nomes de lojas/produtos.\n"
                 "- Use crases apenas para códigos de cupom (ex: `CUPOM20`).\n"
                 "- NUNCA altere os links originais fornecidos nos relatórios abaixo.\n\n"
+                "=== DIRETRIZ DE DIREITOS AUTORAIS E CITAÇÃO ===\n"
+                "- Ao utilizar dados das ferramentas [WEB_SEARCH], [PRODUCT_SEARCH] ou [GAME_SEARCH], NUNCA transcreva ou copie parágrafos idênticos ao original.\n"
+                "- Sempre SINTETIZE e resuma as informações com suas próprias palavras.\n"
+                "- Jamais gere o texto exato de artigos ou letras protegidas.\n"
                 f"Data Atual: {datetime.now().strftime('%d/%m/%Y %H:%M')}\n"
                 f"Conversando com: {user_name} (ID: {user_id})\n"
                 f"{rag}{tools_context}\n"

@@ -5,7 +5,6 @@ import asyncio
 import uuid
 
 # Imports dos módulos internos
-# CORREÇÃO 1: Importa a fábrica e a instância diretamente
 from Brain.Providers.LLMFactory import llm_factory, llm_factory
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Core.NightCycle import NightCycle
@@ -23,6 +22,29 @@ class Developer(commands.Cog):
         self.factory = llm_factory
         self.chain = self.factory.get_default_principal_chain()
         self.emoji = "💻"
+
+    @commands.command(
+        name="restart_services",
+        aliases=["resetapi"],
+        description="Reinicia apenas os serviços da Sam (API, Telegram, etc).",
+    )
+    @commands.is_owner()
+    async def restart_services(self, ctx: commands.Context):
+        if not await self.bot.is_owner(ctx.author):
+            return await ctx.send(
+                "Apenas o dono pode executar este comando.", ephemeral=True
+            )
+
+        if not hasattr(self.bot, "services") or not self.bot.services:
+            return await ctx.send(
+                "Gerenciador de serviços não encontrado.", ephemeral=True
+            )
+
+        await ctx.defer(ephemeral=True)
+        await self.bot.services.restart_all()
+        await ctx.followup.send(
+            "Serviços reiniciados com sucesso aguarde uns instantes!"
+        )
 
     @commands.command(name="infra", aliases=["status_llm"])
     @commands.is_owner()

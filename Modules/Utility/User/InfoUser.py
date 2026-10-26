@@ -1,270 +1,431 @@
+from datetime import datetime, timezone
 import discord
-from discord.ext import commands
 from discord import app_commands
+from discord.ext import commands
+from discord.http import Route
 from discord.utils import format_dt
 
-# Dicionário para traduzir as permissões do Discord para Português
-PERMISSOES_TRADUCAO = {
-    "administrator": "Administrador",
-    "manage_guild": "Gerenciar servidor",
-    "manage_channels": "Gerenciar canais",
-    "manage_roles": "Gerenciar cargos",
-    "manage_webhooks": "Gerenciar webhooks",
-    "manage_expressions": "Gerenciar expressões",
-    "manage_events": "Gerenciar eventos",
-    "kick_members": "Expulsar membros",
-    "ban_members": "Banir membros",
-    "manage_nicknames": "Gerenciar apelidos",
-    "moderate_members": "Membros de castigo",
-    "view_audit_log": "Ver registro de auditoria",
-    "view_guild_insights": "Ver desempenho do servidor",
-    "create_instant_invite": "Criar um convite instantâneo",
-    "change_nickname": "Mudar apelido",
-    "add_reactions": "Adicionar reações",
-    "send_messages": "Enviar mensagens",
-    "send_tts_messages": "Enviar mensagens em TTS",
-    "manage_messages": "Gerenciar mensagens",
-    "embed_links": "Inserir links",
-    "attach_files": "Anexar arquivos",
-    "read_message_history": "Ler histórico de mensagem",
-    "mention_everyone": "Mencionar todos",
-    "use_external_emojis": "Usar emojis externos",
-    "use_application_commands": "Usar comandos de aplicativo",
-    "use_external_stickers": "Usar figurinhas externas",
-    "send_voice_messages": "Enviar mensagens de voz",
-    "create_polls": "Criar Enquetes",
-    "use_external_apps": "Usar Aplicativos Externos",
-    "manage_threads": "Gerenciar threads",
-    "create_public_threads": "Criar threads públicas",
-    "create_private_threads": "Criar threads privadas",
-    "send_messages_in_threads": "Enviar mensagens em threads",
-    "priority_speaker": "Voz prioritária",
-    "stream": "Vídeo",
-    "connect": "Conectar",
-    "speak": "Falar",
-    "mute_members": "Silenciar membros",
-    "deafen_members": "Ensurdecer membros",
-    "move_members": "Mover membros",
-    "use_voice_activation": "Usar detecção de voz",
-    "use_soundboard": "Usar efeitos sonoros",
-    "use_external_sounds": "Usar sons externos",
-    "request_to_speak": "Pedir para falar",
-    "view_channel": "Ver canais",
-    "send_polls": "Criar Enquetes",
+MESES_PTBR = {
+    1: "janeiro",
+    2: "fevereiro",
+    3: "março",
+    4: "abril",
+    5: "maio",
+    6: "junho",
+    7: "julho",
+    8: "agosto",
+    9: "setembro",
+    10: "outubro",
+    11: "novembro",
+    12: "dezembro",
 }
 
-# Dicionário para Insígnias (Badges) do Discord
 FLAGS_TRADUCAO = {
-    "staff": "🛠️ Staff do Discord",
+    "staff": "👨‍💼 Staff do Discord",
     "partner": "🤝 Parceiro",
-    "hypesquad": "🎊 Eventos HypeSquad",
+    "hypesquad": "🎉 Eventos HypeSquad",
     "bug_hunter": "🐛 Caçador de Bugs",
-    "hypesquad_bravery": "🟣 HypeSquad Bravery",
-    "hypesquad_brilliance": "🔴 HypeSquad Brilliance",
-    "hypesquad_balance": "🟢 HypeSquad Balance",
+    "hypesquad_bravery": "🛡️ HypeSquad Bravery",
+    "hypesquad_brilliance": "✨ HypeSquad Brilliance",
+    "hypesquad_balance": "⚖️ HypeSquad Balance",
     "early_supporter": "💎 Apoiador Inicial",
     "bug_hunter_level_2": "🐛 Caçador de Bugs Nível 2",
-    "verified_bot_developer": "⚙️ Desenvolvedor de Bot Verificado",
+    "verified_bot_developer": "🤖 Desenvolvedor de Bot Verificado",
     "discord_certified_moderator": "🛡️ Moderador Certificado",
     "active_developer": "💻 Desenvolvedor Ativo",
 }
 
+TRADUCAO_PERMISSOES = {
+    "administrator": "Administrador",
+    "view_audit_log": "Ver Registro de Auditoria",
+    "manage_guild": "Gerenciar Servidor",
+    "manage_roles": "Gerenciar Cargos",
+    "manage_channels": "Gerenciar Canais",
+    "kick_members": "Expulsar Membros",
+    "ban_members": "Banir Membros",
+    "create_instant_invite": "Criar Convite",
+    "change_nickname": "Alterar Apelido",
+    "manage_nicknames": "Gerenciar Apelidos",
+    "manage_emojis": "Gerenciar Emojis e Figurinhas",
+    "manage_webhooks": "Gerenciar Webhooks",
+    "view_channel": "Ver Canais",
+    "send_messages": "Enviar Mensagens",
+    "send_messages_in_threads": "Enviar Mensagens em Tópicos",
+    "create_public_threads": "Criar Tópicos Públicos",
+    "create_private_threads": "Criar Tópicos Privados",
+    "embed_links": "Inserir Links",
+    "attach_files": "Anexar Arquivos",
+    "read_message_history": "Ver Histórico de Mensagens",
+    "mention_everyone": "Mencionar @everyone e @here",
+    "use_external_emojis": "Usar Emojis Externos",
+    "add_reactions": "Adicionar Reações",
+    "connect": "Conectar no Canal de Voz",
+    "speak": "Falar no Canal de Voz",
+    "mute_members": "Silenciar Membros",
+    "deafen_members": "Ensurdecer Membros",
+    "move_members": "Mover Membros",
+    "manage_messages": "Gerenciar Mensagens",
+    "moderate_members": "Moderar Membros (Castigo)",
+}
 
-class UserInfoView(discord.ui.View):
-    def __init__(self, target_user: discord.Member, command_author: discord.Member):
+APP_FLAG_GATEWAY_PRESENCE = 1 << 12
+APP_FLAG_GATEWAY_PRESENCE_LIMITED = 1 << 13
+APP_FLAG_GATEWAY_GUILD_MEMBERS = 1 << 14
+APP_FLAG_GATEWAY_GUILD_MEMBERS_LIMITED = 1 << 15
+APP_FLAG_GATEWAY_MESSAGE_CONTENT = 1 << 18
+APP_FLAG_GATEWAY_MESSAGE_CONTENT_LIMITED = 1 << 19
+
+
+def formatar_data_ptbr(data: datetime) -> str:
+    mes = MESES_PTBR.get(data.month, "")
+    return f"{data.day} de {mes} de {data.year} às {data.strftime('%H:%M')}"
+
+
+def calcular_tempo_passado(data: datetime) -> str:
+    agora = datetime.now(timezone.utc)
+    delta = agora - data
+    dias = delta.days
+    anos = dias // 365
+    meses = (dias % 365) // 30
+
+    if anos > 0:
+        return f"há {anos} ano{'s' if anos > 1 else ''}"
+    if meses > 0:
+        return f"há {meses} mês{'es' if meses > 1 else ''}"
+    if dias > 0:
+        return f"há {dias} dia{'s' if dias > 1 else ''}"
+    horas = delta.seconds // 3600
+    if horas > 0:
+        return f"há {horas} hora{'s' if horas > 1 else ''}"
+    minutos = (delta.seconds % 3600) // 60
+    return f"há {max(1, minutos)} minuto{'s' if minutos > 1 else ''}"
+
+
+class PainelUsuarioView(discord.ui.View):
+    def __init__(
+        self,
+        target_user: discord.User | discord.Member,
+        command_author: discord.User | discord.Member,
+        user_completo: discord.User,
+    ):
         super().__init__(timeout=180)
         self.target_user = target_user
         self.command_author = command_author
+        self.user_completo = user_completo
+
+        # Desabilita botões específicos de acordo com o contexto do alvo
+        if not isinstance(target_user, discord.Member) or not target_user.guild_avatar:
+            self.btn_guild_avatar.disabled = True
+
+        if not getattr(user_completo, "banner", None):
+            self.btn_banner.disabled = True
+
+        if not isinstance(target_user, discord.Member):
+            self.btn_permissoes.disabled = True
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user != self.command_author:
+        if interaction.user.id != self.command_author.id:
             await interaction.response.send_message(
-                "❌ Apenas quem usou o comando pode interagir com estes botões! Boboca",
+                "❌ Apenas quem usou o comando pode interagir com os botões!",
                 ephemeral=True,
             )
             return False
         return True
 
     @discord.ui.button(
-        label="Permissões e Cargos",
-        style=discord.ButtonStyle.primary,
-        custom_id="btn_perms",
+        label="Avatar Global", style=discord.ButtonStyle.secondary, emoji="🌐"
     )
-    async def btn_perms(
+    async def btn_global_avatar(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        perms = []
-        for perm_name, value in self.target_user.guild_permissions:
-            if value:  # Se o utilizador tiver a permissão ativa
-                texto_traduzido = PERMISSOES_TRADUCAO.get(
-                    perm_name, perm_name.replace("_", " ").title()
-                )
-                perms.append(texto_traduzido)
-
-        if self.target_user.guild_permissions.administrator:
-            perms_text = "👑 **Administrador** (Possui todas as permissões)"
-        else:
-            perms_text = ", ".join(perms) if perms else "Nenhuma permissão especial."
-
-            if len(perms_text) > 1010:
-                perms_text = perms_text[:1000] + "... e outras."
-
-        roles = [
-            role.mention
-            for role in reversed(self.target_user.roles)
-            if role.name != "@everyone"
-        ]
-        roles_text = ", ".join(roles) if roles else "Nenhum cargo."
-
-        if len(roles_text) > 1010:
-            roles_text = roles_text[:1000] + "... e outros cargos."
-
-        embed = discord.Embed(color=self.target_user.color or 0x5865F2)
-        embed.add_field(name="😇 Permissões", value=perms_text, inline=False)
-        embed.add_field(name="😎 Cargos", value=roles_text, inline=False)
-
+        url_avatar = (
+            self.target_user.avatar.url
+            if self.target_user.avatar
+            else self.target_user.default_avatar.url
+        )
+        embed = discord.Embed(
+            title=f"🌐 Avatar Global de {self.target_user.name}",
+            color=discord.Color.from_rgb(88, 101, 242),
+        )
+        embed.set_image(url=url_avatar)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @discord.ui.button(
-        label="Ver Avatar e Detalhes",
-        style=discord.ButtonStyle.secondary,
-        custom_id="btn_avatar",
+        label="Avatar Servidor", style=discord.ButtonStyle.secondary, emoji="🏠"
     )
-    async def btn_avatar(
+    async def btn_guild_avatar(
         self, interaction: discord.Interaction, button: discord.ui.Button
     ):
-        embed = discord.Embed(
-            title=f"Avatar de {self.target_user.display_name}",
-            color=self.target_user.color or 0x5865F2,
-        )
-        embed.set_image(url=self.target_user.display_avatar.url)
+        if (
+            isinstance(self.target_user, discord.Member)
+            and self.target_user.guild_avatar
+        ):
+            embed = discord.Embed(
+                title=f"🏠 Avatar no Servidor de {self.target_user.display_name}",
+                color=discord.Color.from_rgb(88, 101, 242),
+            )
+            embed.set_image(url=self.target_user.guild_avatar.url)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message(
+                "❌ O usuário não possui avatar específico neste servidor.",
+                ephemeral=True,
+            )
 
+    @discord.ui.button(
+        label="Ver Banner", style=discord.ButtonStyle.secondary, emoji="🎨"
+    )
+    async def btn_banner(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if self.user_completo.banner:
+            embed = discord.Embed(
+                title=f"🎨 Banner de {self.target_user.display_name}",
+                color=discord.Color.from_rgb(88, 101, 242),
+            )
+            embed.set_image(url=self.user_completo.banner.url)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        else:
+            await interaction.response.send_message(
+                "❌ Este usuário não possui um banner configurado.", ephemeral=True
+            )
+
+    @discord.ui.button(
+        label="Permissões", style=discord.ButtonStyle.primary, emoji="🛡️"
+    )
+    async def btn_permissoes(
+        self, interaction: discord.Interaction, button: discord.ui.Button
+    ):
+        if not isinstance(self.target_user, discord.Member):
+            await interaction.response.send_message(
+                "❌ O usuário não está neste servidor.", ephemeral=True
+            )
+            return
+
+        perms = self.target_user.guild_permissions
+        if perms.administrator:
+            texto_perms = "👑 **Administrador** (Possui controle total no servidor)"
+        else:
+            permissoes_ativas = [
+                f"✅ {TRADUCAO_PERMISSOES.get(nome, nome.replace('_', ' ').title())}"
+                for nome, valor in perms
+                if valor and nome in TRADUCAO_PERMISSOES
+            ]
+            texto_perms = (
+                "\n".join(permissoes_ativas)
+                if permissoes_ativas
+                else "*Nenhuma permissão especial configurada.*"
+            )
+
+        embed = discord.Embed(
+            title=f"🛡️ Permissões de {self.target_user.display_name}",
+            description=texto_perms,
+            color=discord.Color.from_rgb(88, 101, 242),
+        )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class UserProfile(commands.Cog):
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot):
         self.bot = bot
-
-    @commands.hybrid_command(
-        name="avatar",
-        aliases=["pfp", "foto", "useravatar"],
-        description="Mostra o avatar do seu perfil ou de outro usuário.",
-    )
-    @app_commands.describe(
-        usuario="O usuário que deseja ver o avatar (deixe vazio para ver o seu)"
-    )
-    async def avatar(self, ctx: commands.Context, usuario: discord.Member = None):
-        usuario = usuario or ctx.author
-        embed = discord.Embed(
-            title=f"🖼️ Avatar de {usuario.display_name}", color=usuario.color
-        )
-        avatar_url = usuario.display_avatar.url
-        embed.set_image(url=avatar_url)
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label="Link Direto", url=avatar_url))
-        await ctx.send(embed=embed, view=view)
-
-    @commands.hybrid_command(
-        name="userbanner",
-        aliases=["banner", "ubanner"],
-        description="Mostra o banner do seu perfil ou de outro usuário.",
-    )
-    @app_commands.describe(
-        usuario="O usuário que deseja ver o banner (deixe vazio para ver o seu)"
-    )
-    async def userbanner(self, ctx: commands.Context, usuario: discord.Member = None):
-        usuario = usuario or ctx.author
-        fetched_user = await self.bot.fetch_user(usuario.id)
-        if not fetched_user.banner:
-            return await ctx.send(
-                f"⚠️ {usuario.mention} não possui um banner configurado!",
-                ephemeral=True,
-            )
-        embed = discord.Embed(
-            title=f"🚩 Banner de {fetched_user.display_name}",
-            color=fetched_user.accent_color or discord.Color.blurple(),
-        )
-        embed.set_image(url=fetched_user.banner.url)
-        await ctx.send(embed=embed)
 
     @commands.hybrid_command(
         name="userinfo",
         aliases=["user", "uinfo"],
-        description="Mostra informações detalhadas sobre a conta de um usuário.",
+        description="Mostra informações detalhadas sobre uma conta, membro ou bot.",
     )
-    @app_commands.describe(
-        usuario="O usuário que deseja ver as informações (deixe vazio para ver o seu)"
-    )
-    @commands.guild_only()
-    async def userinfo(self, ctx: commands.Context, usuario: discord.Member = None):
-        user = usuario or ctx.author
-        # Pega as insígnias/badges da conta do usuário
-        flags = [flag[0] for flag in user.public_flags if flag[1]]
-        badges_str = " ".join(
-            [FLAGS_TRADUCAO.get(f, f.replace("_", " ").title()) for f in flags]
-        )
-        if not badges_str:
-            badges_str = "Nenhuma"
+    @app_commands.describe(usuario="Usuário, menção ou ID para inspecionar")
+    async def userinfo(
+        self, ctx: commands.Context, usuario: discord.User | discord.Member = None
+    ):
+        await ctx.defer()
 
-        embed_user = discord.Embed(
-            title="Informações sobre o Usuário",
-            description=f"**{user.name}**",
-            color=user.color or 0x5865F2,
-        )
-        embed_user.add_field(name="🚩 Insígnias", value=badges_str, inline=False)
-        embed_user.add_field(name="🆔 ID do Discord", value=str(user.id), inline=False)
+        target_user = usuario or ctx.author
+
+        if ctx.guild and not isinstance(target_user, discord.Member):
+            membro = ctx.guild.get_member(target_user.id)
+            if membro:
+                target_user = membro
+
+        try:
+            user_completo = await self.bot.fetch_user(target_user.id)
+        except discord.HTTPException:
+            user_completo = target_user
+
+        cor_embed = discord.Color.from_rgb(88, 101, 242)
+
+        # =====================================================================
+        # 1. EMBED: Informações sobre o Usuário
+        # =====================================================================
+        embed_user = discord.Embed(title="Informações sobre o Usuário", color=cor_embed)
+        embed_user.description = f"### **{target_user.name}**"
+
+        flags_badges = [
+            FLAGS_TRADUCAO.get(flag[0], flag[0].title())
+            for flag in target_user.public_flags
+            if flag[1]
+        ]
+        if target_user.bot:
+            flags_badges.insert(0, "🤖 `BOT`")
+
         embed_user.add_field(
-            name="📌 Tag do Discord", value=f"{user.mention}", inline=False
-        )
-        created_dt = f"{format_dt(user.created_at, style='F')} ({format_dt(user.created_at, style='R')})"
-        embed_user.add_field(
-            name="📅 Data de Criação da Conta", value=created_dt, inline=False
-        )
-        embed_user.set_thumbnail(url=user.display_avatar.url)
-
-        embed_member = discord.Embed(
-            title="Informações sobre o Membro",
-            description=f"**{user.display_name}**",
-            color=user.color or 0x5865F2,
-        )
-        if user.joined_at:
-            joined_dt = f"{format_dt(user.joined_at, style='F')} ({format_dt(user.joined_at, style='R')})"
-            embed_member.add_field(
-                name="📥 Data de Entrada no Servidor", value=joined_dt, inline=False
-            )
-        top_role = (
-            user.top_role.mention
-            if user.top_role and user.top_role.name != "@everyone"
-            else "Nenhum cargo"
-        )
-        embed_member.add_field(name="👑 Maior cargo", value=top_role, inline=False)
-
-        # Checando fatos curiosos
-        curiosidades = []
-        if user.timed_out_until:
-            curiosidades.append("🚫 Castigado (De castigo/mutado no momento)")
-        if user.premium_since:
-            curiosidades.append(
-                f"💎 Impulsionando o servidor desde {format_dt(user.premium_since, style='R')}"
-            )
-        if user.bot:
-            curiosidades.append("🤖 É um aplicativo/bot")
-
-        embed_member.add_field(
-            name="💡 Curiosidades Interessantes",
-            value=(
-                "\n".join(curiosidades)
-                if curiosidades
-                else "Nenhuma curiosidade destacada."
-            ),
+            name="🧒 Insígnias",
+            value=" • ".join(flags_badges) if flags_badges else "Nenhuma",
             inline=False,
         )
+        embed_user.add_field(
+            name="🆔 ID do Discord", value=f"`{target_user.id}`", inline=True
+        )
 
-        # Renderiza a View com os botões interativos
-        view = UserInfoView(target_user=user, command_author=ctx.author)
-        await ctx.send(embeds=[embed_user, embed_member], view=view)
+        discriminator = getattr(target_user, "discriminator", "0")
+        tag_formatada = (
+            f"`{target_user.name}#{discriminator}`"
+            if discriminator and discriminator != "0"
+            else f"`@{target_user.name}`"
+        )
+        embed_user.add_field(name="🏷️ Tag do Discord", value=tag_formatada, inline=True)
+
+        criado_em = target_user.created_at
+        embed_user.add_field(
+            name="📅 Data de Criação da Conta",
+            value=f"{formatar_data_ptbr(criado_em)} `({calcular_tempo_passado(criado_em)})`",
+            inline=False,
+        )
+        embed_user.set_thumbnail(url=target_user.display_avatar.url)
+
+        fila_embeds = [embed_user]
+
+        # =====================================================================
+        # 2. EMBED: Informações sobre o Membro (se estiver no servidor)
+        # =====================================================================
+        if isinstance(target_user, discord.Member) and ctx.guild:
+            embed_member = discord.Embed(
+                title="Informações sobre o Membro", color=cor_embed
+            )
+            embed_member.description = f"### **{target_user.display_name}**"
+
+            if target_user.joined_at:
+                embed_member.add_field(
+                    name="📥 Data de Entrada no Servidor",
+                    value=f"{formatar_data_ptbr(target_user.joined_at)} `({calcular_tempo_passado(target_user.joined_at)})`",
+                    inline=False,
+                )
+
+            top_role = (
+                target_user.top_role.mention
+                if target_user.top_role and target_user.top_role.name != "@everyone"
+                else "Nenhum cargo"
+            )
+            embed_member.add_field(name="📌 Maior Cargo", value=top_role, inline=False)
+
+            curiosidades_member = []
+            if target_user.timed_out_until:
+                curiosidades_member.append(
+                    f"🔇 De Castigo até {format_dt(target_user.timed_out_until, style='R')}"
+                )
+
+            if target_user.premium_since:
+                curiosidades_member.append(
+                    f"💎 Impulsionando {format_dt(target_user.premium_since, style='R')}"
+                )
+
+            embed_member.add_field(
+                name="💡 Curiosidades Interessantes",
+                value="\n".join(curiosidades_member),
+                inline=False,
+            )
+            embed_member.set_thumbnail(url=target_user.display_avatar.url)
+            fila_embeds.append(embed_member)
+
+        # =====================================================================
+        # 3. EMBED: Informações sobre o Aplicativo (se for BOT)
+        # =====================================================================
+        if target_user.bot:
+            app_data = None
+            try:
+                route = Route("GET", f"/applications/{target_user.id}/rpc")
+                app_data = await self.bot.http.request(route)
+            except discord.HTTPException:
+                pass
+
+            embed_app = discord.Embed(
+                title="Informações sobre o Aplicativo", color=cor_embed
+            )
+            embed_app.set_thumbnail(url=target_user.display_avatar.url)
+
+            if app_data:
+                app_name = app_data.get("name", target_user.name)
+                app_desc = (
+                    app_data.get("description", "").strip()
+                    or "*Sem descrição definida.*"
+                )
+                embed_app.description = f"### **{app_name}**\n{app_desc}"
+
+                guild_id = app_data.get("guild_id")
+                if guild_id:
+                    embed_app.add_field(
+                        name="🆔 ID do Servidor de Suporte",
+                        value=f"`{guild_id}`",
+                        inline=False,
+                    )
+
+                is_public = app_data.get("bot_public", True)
+                requires_code_grant = app_data.get("bot_require_code_grant", False)
+                uses_http_interactions = bool(app_data.get("interactions_endpoint_url"))
+                app_flags = app_data.get("flags", 0)
+
+                curiosidades_bot = [
+                    f"{'✅' if is_public else '❌'} Público",
+                    f"{'✅' if requires_code_grant else '❌'} Requer Código OAuth2",
+                    f"{'✅' if uses_http_interactions else '❌'} Usa Interações via HTTP",
+                    f"{'✅' if app_flags & (APP_FLAG_GATEWAY_PRESENCE | APP_FLAG_GATEWAY_PRESENCE_LIMITED) else '❌'} Intent de Presenças",
+                    f"{'✅' if app_flags & (APP_FLAG_GATEWAY_GUILD_MEMBERS | APP_FLAG_GATEWAY_GUILD_MEMBERS_LIMITED) else '❌'} Intent de Membros",
+                    f"{'✅' if app_flags & (APP_FLAG_GATEWAY_MESSAGE_CONTENT | APP_FLAG_GATEWAY_MESSAGE_CONTENT_LIMITED) else '❌'} Intent de Conteúdo de Mensagens",
+                ]
+                embed_app.add_field(
+                    name="⚙️ Configurações da Aplicação",
+                    value="\n".join(curiosidades_bot),
+                    inline=False,
+                )
+
+                public_key = app_data.get("verify_key")
+                if public_key:
+                    embed_app.add_field(
+                        name="💻 Chave Pública de Verificação de Requisições HTTP",
+                        value=f"```{public_key}```",
+                        inline=False,
+                    )
+            else:
+                embed_app.description = (
+                    f"### **{target_user.name}**\n*Dados da aplicação indisponíveis.*"
+                )
+
+            fila_embeds.append(embed_app)
+
+        # =====================================================================
+        # ENVIO INDIVIDUAL: Garante que os botões fiquem NO ÚLTIMO embed
+        # =====================================================================
+        view = PainelUsuarioView(
+            target_user=target_user,
+            command_author=ctx.author,
+            user_completo=user_completo,
+        )
+
+        total_embeds = len(fila_embeds)
+        for index, embed in enumerate(fila_embeds):
+            eh_o_ultimo = index == total_embeds - 1
+
+            if index == 0:
+                if eh_o_ultimo:
+                    await ctx.send(embed=embed, view=view)
+                else:
+                    await ctx.send(embed=embed)
+            else:
+                if eh_o_ultimo:
+                    await ctx.channel.send(embed=embed, view=view)
+                else:
+                    await ctx.channel.send(embed=embed)
 
 
-async def setup(bot):
+async def setup(bot: commands.Bot):
     await bot.add_cog(UserProfile(bot))

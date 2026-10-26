@@ -4,6 +4,7 @@ from discord import app_commands
 import wavelink
 import logging
 from ..Lavalink._search_manager import search_manager
+from ..Lavalink._maestro import maestro
 
 logger = logging.getLogger("SamBot.PlayCommands")
 
@@ -67,26 +68,35 @@ class PlayCommands(commands.Cog):
             if isinstance(tracks, wavelink.Playlist):
                 added = 0
                 for track in tracks.tracks:
+                    track.requester = {
+                        "id": str(ctx.author.id),
+                        "name": ctx.author.display_name,
+                    }
                     player.queue.put(track)
                     added += 1
                 if not player.playing:
                     await player.play(player.queue.get())
+
                 embed = discord.Embed(
-                    description=f"✅ Carregadas **{added}** músicas da playlist **{tracks.name}** na fila.",
+                    description=f" Carregadas **{added}** músicas da playlist **{tracks.name}** na fila.",
                     color=discord.Color.green(),
                 )
                 await ctx.send(embed=embed)
 
+                await maestro.sync_player_state(self.bot, player)
             else:
                 track = tracks[0]
+                track.requester = {
+                    "id": str(ctx.author.id),
+                    "name": ctx.author.display_name,
+                }
                 txt_origem = (
-                    "🎵 Biblioteca Local" if "NAVIDROME" in origem else "🌐 Internet"
+                    " Biblioteca Local" if "NAVIDROME" in origem else " Internet"
                 )
-
                 if player.playing:
                     player.queue.put(track)
                     embed = discord.Embed(
-                        description=f"📌 **[{track.title}]({track.uri})** adicionada à fila (Posição: {player.queue.count}).",
+                        description=f" **[{track.title}]({track.uri})** adicionada à fila (Posição: {player.queue.count}).",
                         color=discord.Color.orange(),
                     )
                     embed.set_footer(text=f"Fonte: {txt_origem}")
@@ -94,8 +104,10 @@ class PlayCommands(commands.Cog):
                 else:
                     await player.play(track)
                     await ctx.send(
-                        f"🎶 Carregando sua música ({txt_origem})...", delete_after=3
+                        f" Carregando sua música ({txt_origem})...", delete_after=3
                     )
+
+                await maestro.sync_player_state(self.bot, player)
 
         except Exception as e:
             logger.error(f"Erro no comando play: {e}")

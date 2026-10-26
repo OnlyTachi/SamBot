@@ -54,3 +54,15 @@ class DiscordDataManager:
             "INSERT INTO config (key, data) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET data = excluded.data",
             ("channels", json.dumps(data, ensure_ascii=False)),
         )
+
+    def increment_contribution(self, user_id: str, field: str, amount: int = 1):
+        """métricas estatísticas do usuário"""
+        if not user_id:
+            return
+
+        contributions = self.get_user_data(user_id, "contributions", default_value={})
+
+        current_val = contributions.get(field, 0)
+        contributions[field] = current_val + amount
+
+        self.set_user_data(user_id, "contributions", contributions)

@@ -1,22 +1,34 @@
-import aiohttp
+# Modules/Economy/Perfil.py
+import io
+import logging
+from pathlib import Path
 import discord
 from discord.ext import commands
-import logging
-import io
-from pathlib import Path
-from easy_pil import Editor, Canvas, Font, load_image_async
+from PIL import Image, ImageDraw, ImageFont
 
 from Brain.Memory.DataManager.Connections import data_manager
 
 
 class Perfil(commands.Cog):
-    """
-    Cog de Perfil Visual: Exibe o status do utilizador num Card gerado por imagem.
-    """
+    """Cog de Perfil Visual: Exibe o status do utilizador num Card gerado por imagem."""
 
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger("SamBot.Perfil")
+        self.base_dir = Path(__file__).resolve().parent.parent.parent
+        self.font_path_bold = (
+            self.base_dir / "Data" / "Assets" / "MinecraftBold-nMK1.otf"
+        )
+        self.font_path_reg = (
+            self.base_dir / "Data" / "Assets" / "MinecraftRegular-Bmg3.otf"
+        )
+
+    def _get_font(self, size: int, bold: bool = False):
+        path = self.font_path_bold if bold else self.font_path_reg
+        try:
+            return ImageFont.truetype(str(path), size)
+        except (IOError, OSError):
+            return ImageFont.load_default()
 
     @commands.hybrid_command(
         name="perfil",
@@ -26,8 +38,6 @@ class Perfil(commands.Cog):
     async def perfil(self, ctx: commands.Context, membro: discord.Member = None):
         target = membro or ctx.author
         user_id = str(target.id)
-
-        # O ctx.defer() é obrigatório aqui para evitar timeout enquanto a imagem é gerada
         await ctx.defer()
 
         # 1. Recuperação de Dados
@@ -37,103 +47,104 @@ class Perfil(commands.Cog):
         bio = data_manager.get_user_data(
             user_id, "bio", "Usa +setbio para mudares esta frase!"
         )
-        emblemas = data_manager.get_user_data(user_id, "emblemas", ["🔰 Novato"])
-
+        emblemas = data_manager.get_user_data(user_id, "emblemas", ["Novato"])
         nivel = (xp // 1000) + 1
         xp_atual = xp % 1000
-        percentagem_xp = (xp_atual / 1000) * 100
+        percentagem_xp = max(0.0, min(1.0, xp_atual / 1000.0))
 
-        # BUSCA O FUNDO ATIVO
         bg_ativo = data_manager.get_user_data(user_id, "background_ativo", "padrao.png")
+        caminho_bg = self.base_dir / "Data" / "Assets" / "Backgrounds" / bg_ativo
 
-        # 2. Configuração do Fundo (Imagem vs Canvas)
-        base_dir = Path(__file__).resolve().parent.parent.parent.parent
-        caminho_bg = base_dir / "Data" / "Assets" / "Backgrounds" / bg_ativo
-
+        # 2. Configuração do Canvas Base e Overlay Escuro
+        card_size = (900, 450)
         if caminho_bg.exists():
-            background = Editor(str(caminho_bg)).resize((900, 450))
+            try:
+                base_img = Image.open(caminho_bg).convert("RGBA").resize(card_size)
+            except Exception:
+                base_img = Image.new("RGBA", card_size, (26, 26, 26, 255))
         else:
-            # Fallback caso o arquivo suma
-            background = Editor(Canvas((900, 450), color="#1A1A1A"))
+            base_img = Image.new("RGBA", card_size, (26, 26, 26, 255))
 
-        # Adiciona uma camada escura semi-transparente para o texto não sumir no fundo
-        overlay = Canvas((900, 450), color=(0, 0, 0, 140))  # 140 é a opacidade (0-255)
-        background.paste(Editor(overlay), (0, 0))
-
-        # Carregamento de Fontes
-        try:
-            f_nome = Font.poppins(variant="bold", size=45)
-            f_bio = Font.poppins(variant="italic", size=22)
-            f_stats = Font.poppins(variant="regular", size=25)
-            f_label = Font.poppins(variant="bold", size=18)
-        except (OSError, AttributeError, FileNotFoundError):
-            f_nome = f_bio = f_stats = f_label = Font.default()
+        # Overlay escuro semi-transparente (alpha 140)
+        overlay = Image.new("RGBA", card_size, (0, 0, 0, 140))
+        base_img = Image.alpha_composite(base_img, overlay)
+        draw = ImageDraw.Draw(base_img)
 
         # 3. Avatar Redondo
-        avatar_url = target.display_avatar.url
         try:
-            avatar_img = await load_image_async(str(avatar_url))
-            avatar = Editor(avatar_img).resize((200, 200)).circle_image()
-            background.paste(avatar, (40, 40))
-        except (discord.HTTPException, aiohttp.ClientError, OSError, TypeError) as e:
+            avatar_bytes = await target.display_avatar.replace(
+                size=256, format="png"
+            ).read()
+            avatar_raw = (
+                Image.open(io.BytesIO(avatar_bytes)).convert("RGBA").resize((180, 180))
+            )
+
+            mask = Image.new("L", (180, 180), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse((0, 0, 180, 180), fill=255)
+            avatar_raw.putalpha(mask)
+
+            base_img.paste(avatar_raw, (40, 45), avatar_raw)
+        except Exception as e:
             self.logger.error(f"Erro ao carregar avatar no perfil: {e}")
 
-        # 4. Textos Principais
-        # Nome e Nível
-        background.text((270, 50), target.display_name, font=f_nome, color="white")
-        background.text((270, 105), f"NÍVEL {nivel}", font=f_stats, color="#00FF00")
+        # 4. Tipografia e Textos Principais
+        f_nome = self._get_font(38, bold=True)
+        f_nivel = self._get_font(22, bold=True)
+        f_bio = self._get_font(18, bold=False)
+        f_label = self._get_font(16, bold=True)
+        f_stats = self._get_font(24, bold=True)
 
-        # Biografia (com quebra de linha manual simples se for muito longa)
-        bio_formatada = bio[:100] + "..." if len(bio) > 100 else bio
-        background.text((270, 160), bio_formatada, font=f_bio, color="#CCCCCC")
+        draw.text((250, 45), target.display_name, font=f_nome, fill=(255, 255, 255))
+        draw.text((250, 95), f"NÍVEL {nivel}", font=f_nivel, fill=(0, 255, 128))
+
+        bio_formatada = bio[:90] + "..." if len(bio) > 90 else bio
+        draw.text((250, 135), bio_formatada, font=f_bio, fill=(200, 200, 200))
 
         # 5. Seção de Economia (Caixas Informativas)
-        # Retângulo para o Bolso
-        background.rectangle(
-            (270, 230), width=280, height=80, fill="#252525", radius=10
-        )
-        background.text((285, 240), "NO BOLSO", font=f_label, color="#AAAAAA")
-        background.text((285, 270), f"🪙 {carteira:,}", font=f_stats, color="white")
+        # Bolso
+        draw.rounded_rectangle((250, 185, 530, 265), radius=10, fill=(35, 35, 35, 220))
+        draw.text((265, 195), "NO BOLSO", font=f_label, fill=(160, 160, 160))
+        draw.text((265, 225), f"${carteira:,}", font=f_stats, fill=(255, 255, 255))
 
-        # Retângulo para o Banco
-        background.rectangle(
-            (570, 230), width=280, height=80, fill="#252525", radius=10
-        )
-        background.text((585, 240), "NO BANCO", font=f_label, color="#AAAAAA")
-        background.text((585, 270), f"🪙 {banco:,}", font=f_stats, color="white")
+        # Banco
+        draw.rounded_rectangle((560, 185, 840, 265), radius=10, fill=(35, 35, 35, 220))
+        draw.text((575, 195), "NO BANCO", font=f_label, fill=(160, 160, 160))
+        draw.text((575, 225), f"${banco:,}", font=f_stats, fill=(255, 255, 255))
 
-        # 6. Barra de XP no Fundo
-        background.text(
-            (40, 360),
-            f"PROGRESSO DO NÍVEL: {xp_atual}/1000 XP",
-            font=f_label,
-            color="#AAAAAA",
-        )
-        background.bar(
-            (40, 390),
-            max_width=820,
-            height=25,
-            percentage=100,
-            fill="#333333",
-            radius=10,
-        )
-        background.bar(
-            (40, 390),
-            max_width=820,
-            height=25,
-            percentage=percentagem_xp,
-            fill="#00FF00",
-            radius=10,
-        )
-
-        # 7. Emblemas (Lista horizontal simples)
+        # 6. Emblemas
         emblemas_texto = " | ".join(emblemas)
-        background.text(
-            (270, 325), f"🏅 {emblemas_texto}", font=f_label, color="#FFD700"
+        draw.text((250, 290), f"★ {emblemas_texto}", font=f_label, fill=(255, 215, 0))
+
+        # 7. Barra de XP
+        draw.text(
+            (40, 350),
+            f"PROGRESSO: {xp_atual}/1000 XP",
+            font=f_label,
+            fill=(170, 170, 170),
         )
 
-        # Envio da Imagem
-        file = discord.File(fp=background.image_bytes, filename=f"perfil_{user_id}.png")
+        bar_x, bar_y, bar_w, bar_h = 40, 380, 820, 26
+        draw.rounded_rectangle(
+            (bar_x, bar_y, bar_x + bar_w, bar_y + bar_h),
+            radius=12,
+            fill=(45, 45, 45, 255),
+        )
+
+        fill_w = int(bar_w * percentagem_xp)
+        if fill_w > 15:
+            draw.rounded_rectangle(
+                (bar_x, bar_y, bar_x + fill_w, bar_y + bar_h),
+                radius=12,
+                fill=(88, 101, 242, 255),
+            )
+
+        # Saída em buffer
+        buffer = io.BytesIO()
+        base_img.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        file = discord.File(fp=buffer, filename=f"perfil_{user_id}.png")
         await ctx.send(file=file)
 
     @commands.hybrid_command(
@@ -142,9 +153,8 @@ class Perfil(commands.Cog):
     async def setbio(self, ctx: commands.Context, *, nova_bio: str):
         if len(nova_bio) > 100:
             return await ctx.send(
-                "❌ A biografia é muito longa! Tenta resumir em 100 caracteres."
+                "⚠️ A biografia é muito longa! Tenta resumir em 100 caracteres."
             )
-
         data_manager.set_user_data(str(ctx.author.id), "bio", nova_bio)
         await ctx.send(
             "✅ Biografia atualizada! Digita `+perfil` para veres o teu novo card."

@@ -39,7 +39,6 @@ MODEL_EMBED_LOCAL="nomic-embed-text:latest"
 # Remoto (ex: sua workstation rodando via IP do Tailscale)
 OLLAMA_REMOTE_URL="http://ip_tailscale_workstation:11434"
 MODEL_SMART_REMOTE="phi3.5:latest"
-MODEL_EMBED_REMOTE="nomic-embed-text:latest"
 
 # --- API Keys de Serviços Externos (Opcional) ---
 KLIPY_API_KEY="sua_chave_klipy"

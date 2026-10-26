@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 
 class _AppConfig:
-    """Carregador unificado de configurações (YAML) e segredos (.env)."""
+    """Carregador de configurações (YAML) e segredos (.env)."""
 
     yaml_data: dict = {}
     bot: dict = {}

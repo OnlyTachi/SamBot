@@ -1,54 +1,90 @@
+# ==============================================================================
+# CONFIGURAÇÕES BÁSICAS DO BOT
+# ==============================================================================
 bot:
   name: "SamBot"
-  version: "3.1.0"
+  version: "3.5.0-beta"
   prefix: "-"
   debug_mode: false
-  owner_id: 123456789 # Substitua pelo seu ID
 
+# ==============================================================================
+# SELETORES DE SERVIÇOS AUTÔNOMOS (ServiceManager)
+# ==============================================================================
+services:
+  enabled: false # Chave mestra: se false, desliga API, Telegram e Notifier
+  api: false # Servidor FastAPI interno (HTTP + WebSocket)
+  telegram: false # Scraper autônomo do Telethon
+  notifier: false # Fila em segundo plano de avisos e webhooks de promoções
+
+# ==============================================================================
+# SERVIDOR API INTERNO (APIServer)
+# ==============================================================================
+api:
+  host: "0.0.0.0"
+  port: 8001
+  secret_token: "sambot_secret_token_industrial_2026"
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+
+# ==============================================================================
+# REPRODUÇÃO MUSICAL & AUDIO ENGINE (Wavelink / Lavalink)
+# ==============================================================================
 music:
-  mode: "ONLINE"
-  lavalink:
-    local:
-      host: "127.0.0.1"
-      port: 2333
-      password: "sua_senha_local"
-      secure: false
+  source_mode: "LOCAL" # "LOCAL" (Navidrome/Subsonic/CookieLocal) ou "ONLINE" (YouTube/SoundCloud)
 
-    nodes:
-      - name: "Node-Publico-Exemplo"
-        host: "lavalink.exemplo.com"
-        port: 443
-        password: "sua_senha_aqui"
-        secure: true
+  # Host local (Docker Lavalink container)
+  lavalink_host: "lavalink"
+  lavalink_port: 2333
+  lavalink_password: "youshallnotpass"
 
+  # Nós remotos públicos/privados para fallback caso source_mode seja "ONLINE"
+  online_nodes:
+    hosts: "lavalink.exemplo.com"
+    ports: "443"
+    passwords: "youshallnotpass"
+
+# ==============================================================================
+# INTEGRAÇÃO TELEGRAM (TelegramScraper / TelegramCollaborator)
+# ==============================================================================
 telegram:
   enabled: false
-  channels:
-    - "canal_exemplo"
+  channels: [] # Preenchido via .env ou comandos dinâmicos (+colaborar promo)
 
+# ==============================================================================
+# BANCO DE DADOS RELACIONAL (SQLite)
+# ==============================================================================
 database:
   sqlite_timeout: 30.0
 
+# ==============================================================================
+# FERRAMENTAS & TIMEOUTS OPERACIONAIS
+# ==============================================================================
 tools:
   anime:
-    jikan:
-      timeout: 10.0
-      top_limit: 5
+    jikan_timeout: 10.0
+    jikan_top_limit: 5
   shopping:
-    pelando:
-      timeout: 8.0
-      coupon_limit: 5
+    pelando_timeout: 8.0
+    pelando_coupon_limit: 5
+  worker:
+    yt_worker_url: "http://127.0.0.1:4000"
 
+# ==============================================================================
+# INTELIGÊNCIA ARTIFICIAL (Cadeia de Provedores e Modelos)
+# ==============================================================================
 llm:
-  chain_order: ["gemini", "groq", "ollama"]
+  # Ordem prioritária de consumo na cascata de Failover:
+  chain_order: "gemini,groq,ollama,deepseek,openrouter,mistral"
+
   models:
     gemini: "gemini-2.5-flash"
     groq: "llama-3.1-8b-instant"
-    openrouter: "llama-3.1-8b-instant"
     deepseek: "deepseek-chat"
+    openrouter: "meta-llama/llama-3.3-70b-instruct:free"
     mistral: "mistral-small-latest"
+
   ollama:
-    remote_url: "http://ip:11434" # Deixe vazio se não usar
     local_url: "http://host.docker.internal:11434"
     models:
       smart: "phi3.5:latest"

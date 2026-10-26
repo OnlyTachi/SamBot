@@ -1,21 +1,29 @@
 services:
+  # Lavalink Server
   lavalink:
     image: fredboat/lavalink:master
     container_name: lavalink_local
     restart: unless-stopped
-    ports:
-      - "2333:2333"
+    expose:
+      - "2333"
     volumes:
       - ./application.yml:/opt/Lavalink/application.yml
     environment:
-      - _JAVA_OPTIONS=-Xmx512M
+      - _JAVA_OPTIONS=${JAVA_OPTIONS:--Xmx512M}
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/2333' || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/2333' || exit 1",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 10s
+    networks:
+      - SamNet
 
+  # Bot Principal Discord (SamBot)
   sambot:
     build: .
     container_name: sambot
@@ -24,17 +32,22 @@ services:
     env_file:
       - .env
     restart: always
+    ports:
+      - "8001:8001"
     depends_on:
       meilisearch:
         condition: service_healthy
       lavalink:
         condition: service_healthy
-  
+    networks:
+      - SamNet
+
+  # Motor de Busca Meilisearch
   meilisearch:
     image: getmeili/meilisearch:v1.8
     container_name: meilisearch
-    ports:
-      - "7700:7700"
+    expose:
+      - "7700"
     env_file:
       - .env
     volumes:
@@ -46,3 +59,12 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    networks:
+      - SamNet
+
+networks:
+  SamNet:
+    driver: bridge
+    # Opcional: descomente a linha abaixo para proibir qualquer container de sair para a internet pública,
+    # deixando tráfego apenas entre eles (atenção: o bot do Discord e Meilisearch precisam de internet para conectar na API do Discord).
+    # internal: false

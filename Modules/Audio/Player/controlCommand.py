@@ -1,10 +1,12 @@
+import logging
 import discord
 from discord.ext import commands
 import wavelink
-import logging
 
+from ..Lavalink._maestro import maestro
 from ..Lavalink._node_manager import setup_nodes
 from ..Lavalink._search_manager import search_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 logger = logging.getLogger("SamBot.ControlCommands")
 
@@ -113,7 +115,7 @@ class ControlCommands(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_track_start(self, payload: wavelink.TrackStartEventPayload):
         player: wavelink.Player = payload.player
-        if not player:
+        if not player or not player.guild:
             return
 
         await self.bot.change_presence(
@@ -130,17 +132,19 @@ class ControlCommands(commands.Cog):
 
         if hasattr(player, "reply_channel") and player.reply_channel:
             embed = discord.Embed(
-                title="🎶 Tocando Agora",
+                title="🎵 Tocando Agora",
                 description=f"**[{payload.track.title}]({payload.track.uri})**",
                 color=discord.Color.brand_green(),
             )
             embed.set_thumbnail(url=payload.track.artwork)
             if payload.track.author:
                 embed.set_footer(text=f"Autor: {payload.track.author}")
-
             view = PlayerControlView(player)
             message = await player.reply_channel.send(embed=embed, view=view)
             player.now_playing_message = message
+
+        # DISPARO DO MAESTRO: Transmite a nova faixa e a fila ao dashboard
+        await maestro.sync_player_state(self.bot, player)
 
     @commands.Cog.listener()
     async def on_ready(self):
@@ -167,21 +171,51 @@ class ControlCommands(commands.Cog):
         if not player:
             return
 
+        # Estatísticas de contribuição e telemetria...
+        try:
+            track = payload.track
+            if track:
+                duration_minutes = int(track.length / 60000) if track.length else 0
+                requester_id = getattr(track, "requester_id", None)
+                if requester_id:
+                    data_manager.increment_contribution(
+                        str(requester_id), "communityPlaysCount", 1
+                    )
+                if player.channel:
+                    for member in player.channel.members:
+                        if not member.bot and not member.voice.deaf:
+                            uid = str(member.id)
+                            data_manager.increment_contribution(
+                                uid, "userListenedTracksCount", 1
+                            )
+                            if duration_minutes > 0:
+                                data_manager.increment_contribution(
+                                    uid, "userListenedMinutes", duration_minutes
+                                )
+        except Exception as e:
+            logger.error(f"Erro ao computar estatísticas de áudio no banco: {e}")
+
+        # Se houver próxima faixa, o Wavelink reproduz
         if not player.queue.is_empty:
             next_track = player.queue.get()
             await player.play(next_track)
-            return
+        else:
+            if player.queue.mode == wavelink.QueueMode.normal:
+                await self.bot.change_presence(status=discord.Status.online)
+                if (
+                    hasattr(player, "now_playing_message")
+                    and player.now_playing_message
+                ):
+                    try:
+                        view = discord.ui.View.from_message(player.now_playing_message)
+                        for child in view.children:
+                            child.disabled = True
+                        await player.now_playing_message.edit(view=view)
+                    except Exception:
+                        pass
 
-        if player.queue.is_empty and player.queue.mode == wavelink.QueueMode.normal:
-            await self.bot.change_presence(status=discord.Status.online)
-            if hasattr(player, "now_playing_message") and player.now_playing_message:
-                try:
-                    view = discord.ui.View.from_message(player.now_playing_message)
-                    for child in view.children:
-                        child.disabled = True
-                    await player.now_playing_message.edit(view=view)
-                except Exception:
-                    pass
+        # DISPARO DO MAESTRO: Avisa o dashboard se a fila esvaziou ou se mudou de faixa
+        await maestro.sync_player_state(self.bot, player)
 
     @commands.Cog.listener()
     async def on_wavelink_node_closed(self, node: wavelink.Node):
