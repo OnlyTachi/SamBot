@@ -5,10 +5,8 @@ import random
 import string
 from urllib.parse import parse_qs, urlparse
 from typing import Optional
-
 from fastapi import HTTPException
 import wavelink
-
 from Core.ConfigLoader import AppConfig
 from Modules.Audio.Lavalink._maestro import maestro
 
@@ -41,6 +39,7 @@ class AudioService:
         track_id: Optional[str],
         user_id: str,
         bit_rate: Optional[int] = None,
+        user_name: Optional[str] = None,
     ):
         if not track_id:
             if vc.paused:
@@ -57,23 +56,42 @@ class AudioService:
             )
 
         track = tracks[0]
-        track.requester = {"id": user_id, "name": "Dashboard"}
+        resolved_name = user_name or "Dashboard"
+        track.requester = {"id": user_id, "name": resolved_name}
         if bit_rate:
             track.bitRate = bit_rate
+
+        vc.current_track = track
 
         await vc.play(track)
         await maestro.sync_player_state(bot, vc)
         return track
 
     @classmethod
-    async def enqueue(cls, bot, vc: wavelink.Player, track_id: str, user_id: str):
+    async def enqueue(
+        cls,
+        bot,
+        vc: wavelink.Player,
+        track_id: str,
+        user_id: str,
+        user_name: Optional[str] = None,
+    ):
         stream_url = cls.build_subsonic_stream_url(track_id)
         tracks: wavelink.Search = await wavelink.Playable.search(stream_url)
         if not tracks:
             raise HTTPException(status_code=404, detail="Faixa não localizada.")
+
         track = tracks[0]
-        track.requester = {"id": user_id, "name": "Dashboard"}
+        resolved_name = user_name or "Dashboard"
+        track.requester = {"id": user_id, "name": resolved_name}
+
         await vc.queue.put_wait(track)
+
+        if not vc.playing and not vc.paused:
+            next_track = vc.queue.get()
+            vc.current_track = next_track
+            await vc.play(next_track)
+
         await maestro.sync_player_state(bot, vc)
         return track
 
@@ -88,10 +106,21 @@ class AudioService:
         if vc.paused:
             await vc.pause(False)
             await maestro.sync_player_state(bot, vc)
+        elif not vc.playing and not vc.queue.is_empty:
+            next_track = vc.queue.get()
+            vc.current_track = next_track
+            await vc.play(next_track)
+            await maestro.sync_player_state(bot, vc)
 
     @staticmethod
     async def skip(vc: wavelink.Player):
-        await vc.skip(force=True)
+        if vc.playing or vc.paused:
+            await vc.skip(force=True)
+        elif not vc.queue.is_empty:
+            next_track = vc.queue.get()
+            vc.current_track = next_track
+            await vc.play(next_track)
+            await maestro.sync_player_state(vc.client, vc)
 
     @staticmethod
     async def seek(bot, vc: wavelink.Player, position_seconds: float):
@@ -107,6 +136,8 @@ class AudioService:
     @staticmethod
     async def set_loop(bot, vc: wavelink.Player, mode: str):
         mode_upper = mode.upper()
+        setattr(vc, "repeat_mode", mode_upper)
+
         if hasattr(wavelink, "QueueMode"):
             if mode_upper == "TRACK":
                 vc.queue.mode = wavelink.QueueMode.loop
@@ -118,6 +149,7 @@ class AudioService:
             setattr(vc, "loop", mode_upper == "TRACK")
             setattr(vc, "loop_queue", mode_upper in ("QUEUE", "PLAYLIST"))
 
+        logger.info(f"Modo de repetição atualizado no Player para: {mode_upper}")
         await maestro.sync_player_state(bot, vc)
 
     @staticmethod

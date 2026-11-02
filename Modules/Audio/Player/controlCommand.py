@@ -170,8 +170,11 @@ class ControlCommands(commands.Cog):
         player: wavelink.Player = payload.player
         if not player:
             return
+        reason = str(getattr(payload, "reason", "")).upper()
+        if reason in ("REPLACED", "CLEANUP"):
+            return
 
-        # Estatísticas de contribuição e telemetria...
+        # Estatísticas de telemetria e contribuição
         try:
             track = payload.track
             if track:
@@ -195,33 +198,41 @@ class ControlCommands(commands.Cog):
         except Exception as e:
             logger.error(f"Erro ao computar estatísticas de áudio no banco: {e}")
 
-        # Se houver próxima faixa, o Wavelink reproduz
+        repeat_mode = getattr(player, "repeat_mode", "OFF")
+
+        if repeat_mode == "TRACK" and reason == "FINISHED":
+            if payload.track:
+                await player.play(payload.track)
+                await maestro.sync_player_state(self.bot, player)
+                return
+
+        if (
+            repeat_mode == "QUEUE"
+            or getattr(player.queue, "mode", None) == wavelink.QueueMode.loop_all
+        ):
+            if payload.track:
+                player.queue.put(payload.track)
+
         if not player.queue.is_empty:
             next_track = player.queue.get()
+            player.current_track = next_track
             await player.play(next_track)
         else:
-            if player.queue.mode == wavelink.QueueMode.normal:
-                await self.bot.change_presence(status=discord.Status.online)
-                if (
-                    hasattr(player, "now_playing_message")
-                    and player.now_playing_message
-                ):
-                    try:
-                        view = discord.ui.View.from_message(player.now_playing_message)
-                        for child in view.children:
-                            child.disabled = True
-                        await player.now_playing_message.edit(view=view)
-                    except Exception:
-                        pass
+            await self.bot.change_presence(status=discord.Status.online)
+            if hasattr(player, "now_playing_message") and player.now_playing_message:
+                try:
+                    view = discord.ui.View.from_message(player.now_playing_message)
+                    for child in view.children:
+                        child.disabled = True
+                    await player.now_playing_message.edit(view=view)
+                except Exception:
+                    pass
 
-        # DISPARO DO MAESTRO: Avisa o dashboard se a fila esvaziou ou se mudou de faixa
         await maestro.sync_player_state(self.bot, player)
 
     @commands.Cog.listener()
     async def on_wavelink_node_closed(self, node: wavelink.Node):
-        logger.warning(
-            f"Node {node.identifier} fechou a conexão e foi colocado em castigo."
-        )
+        logger.warning(f"Node {node.identifier} fechou a conexão")
         search_manager.mark_node_offline(node.identifier)
 
     # --- Comandos Híbridos de Controle ---

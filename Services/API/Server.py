@@ -99,15 +99,33 @@ class APIServer:
         self._server = None
         self._serve_task = None
 
-        # Despachador de Ações delegado para o AudioService
         self._action_handlers: Dict[
             str, Callable[[wavelink.Player, dict, str], Awaitable[None]]
         ] = {
             "PLAY": lambda vc, p, u: AudioService.play(
-                self.bot, vc, p.get("trackId"), u, p.get("bitRate")
+                self.bot,
+                vc,
+                p.get("trackId"),
+                u,
+                p.get("bitRate"),
+                p.get("userName")
+                or getattr(
+                    vc.guild.get_member(int(u)) if str(u).isdigit() else None,
+                    "display_name",
+                    None,
+                ),
             ),
             "ENQUEUE": lambda vc, p, u: AudioService.enqueue(
-                self.bot, vc, p.get("trackId"), u
+                self.bot,
+                vc,
+                p.get("trackId"),
+                u,
+                p.get("userName")
+                or getattr(
+                    vc.guild.get_member(int(u)) if str(u).isdigit() else None,
+                    "display_name",
+                    None,
+                ),
             ),
             "PAUSE": lambda vc, p, u: AudioService.pause(self.bot, vc),
             "RESUME": lambda vc, p, u: AudioService.resume(self.bot, vc),
@@ -196,8 +214,7 @@ class APIServer:
                         elif self.bot.voice_clients:
                             target_vc = self.bot.voice_clients[0]
 
-                        # Se for PLAY e o bot não estiver na chamada, efetua conexão automática
-                        if action == "PLAY" and (
+                        if action in ("PLAY", "ENQUEUE") and (
                             not target_vc or not target_vc.channel
                         ):
                             user_member = None
@@ -209,7 +226,6 @@ class APIServer:
                                     if m and m.voice and m.voice.channel:
                                         user_member = m
                                         break
-
                             if (
                                 user_member
                                 and user_member.voice
@@ -220,7 +236,7 @@ class APIServer:
                                         cls=wavelink.Player, self_deaf=True
                                     )
                                     logger.info(
-                                        f"SamBot conectou-se a '{user_member.voice.channel.name}' via PLAY."
+                                        f"SamBot conectou-se a '{user_member.voice.channel.name}' via {action}."
                                     )
                                 except Exception as e:
                                     logger.error(f"Erro ao conectar SamBot: {e}")
@@ -236,7 +252,7 @@ class APIServer:
                                 await websocket.send_json(
                                     {
                                         "op": "ERROR",
-                                        "message": "Precisa de estar num canal de voz para iniciar a música.",
+                                        "message": "Precisa de estar num canal de voz para gerenciar a música.",
                                         "traceId": msg.get("traceId"),
                                     }
                                 )
