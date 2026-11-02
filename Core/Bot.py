@@ -305,6 +305,15 @@ class SamBot(commands.Bot):
     async def save_stats_loop(self):
         active_vcs = len(self.voice_clients)
         self.stats["voice_time_minutes"] += active_vcs
+
+        for vc in self.voice_clients:
+            if vc.channel and (vc.playing or not vc.paused):
+                for member in vc.channel.members:
+                    if not member.bot and not member.voice.deaf:
+                        data_manager.increment_contribution(
+                            str(member.id), "userListenedMinutes", 1
+                        )
+
         uptime = discord.utils.utcnow() - self.start_time
         data_to_save = {
             "uptime": str(uptime).split(".")[0],
