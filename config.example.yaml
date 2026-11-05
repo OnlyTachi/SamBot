@@ -69,6 +69,9 @@ tools:
     pelando_coupon_limit: 5
   worker:
     yt_worker_url: "http://127.0.0.1:4000"
+  jellyfin:
+    url: "http://tailscale-sidecar:8096"
+    notif_channel_id: null
 
 # ==============================================================================
 # INTELIGÊNCIA ARTIFICIAL (Cadeia de Provedores e Modelos)

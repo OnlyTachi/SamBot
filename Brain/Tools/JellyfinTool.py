@@ -23,17 +23,26 @@ class JellyfinTool:
     def __init__(self, bot=None):
         self.bot = bot
         self.logger = logging.getLogger("SamBot.JellyfinTool")
-        self.base_url = AppConfig.get("JELLYFIN_URL", "").rstrip("/")
+        self.base_url = (
+            AppConfig.get("tools.jellyfin.url")
+            or AppConfig.get("jellyfin.url")
+            or AppConfig.get("JELLYFIN_URL", "")
+        ).rstrip("/")
         self.api_key = os.getenv("JELLYFIN_API_KEY")
         self.headers = {"X-Emby-Token": self.api_key, "Accept": "application/json"}
         self.is_configured = bool(self.base_url and self.api_key)
         self.cache_key = "jellyfin_catalog"
         self.vector_collection = "jellyfin_midias"
-        self.notif_channel_id = AppConfig.get("JELLYFIN_NOTIF_CHANNEL_ID")
+
+        self.notif_channel_id = (
+            AppConfig.get("tools.jellyfin.notif_channel_id")
+            or AppConfig.get("jellyfin.notif_channel_id")
+            or AppConfig.get("JELLYFIN_NOTIF_CHANNEL_ID")
+        )
 
         if not self.is_configured:
             self.logger.warning(
-                "JellyfinTool não configurado. Verifique JELLYFIN_URL e JELLYFIN_API_KEY no .env."
+                "JellyfinTool não configurado. Verifique JELLYFIN_URL e JELLYFIN_API_KEY no config.yaml/.env."
             )
 
     def _remover_acentos(self, texto: str) -> str:
@@ -290,7 +299,7 @@ class JellyfinTool:
         return report.strip()
 
     async def handle_webhook_event(self, payload: dict) -> bool:
-        """Processa eventos enviados pelo webhook do Jellyfin e notifica no Discord."""
+        """Processa eventos do webhook do Jellyfin: atualiza o catálogo e (opcionalmente) notifica."""
         event_name = payload.get("NotificationType") or payload.get("Event", "")
         item_name = payload.get("Name") or payload.get(
             "ItemName", "Título desconhecido"
@@ -307,25 +316,23 @@ class JellyfinTool:
 
         await self.sync_catalog()
 
-        # Envia a notificação para o canal configurado no Discord
-        if self.bot and self.notif_channel_id:
-            try:
-                canal = self.bot.get_channel(int(self.notif_channel_id))
-                if not canal:
-                    canal = await self.bot.fetch_channel(int(self.notif_channel_id))
+        if not self.notif_channel_id or not self.bot:
+            return True
 
-                if canal:
-                    embed = discord.Embed(
-                        title="🍿 Novo Conteúdo Adicionado ao Jellyfin!",
-                        description=f"**{item_name}** ({item_type})\n\n{overview[:250]}...",
-                        color=discord.Color.from_rgb(170, 92, 195),
-                    )
-                    embed.set_footer(text="Servidor Jellyfin • SamBot")
-                    await canal.send(embed=embed)
-                    return True
-            except Exception as e:
-                self.logger.error(
-                    f"Erro ao emitir aviso de novo conteúdo no Discord: {e}"
+        try:
+            channel_id = int(str(self.notif_channel_id).strip())
+            canal = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(
+                channel_id
+            )
+            if canal:
+                embed = discord.Embed(
+                    title="🍿 Novo Conteúdo Adicionado ao Jellyfin!",
+                    description=f"**{item_name}** ({item_type})\n\n{overview[:250]}...",
+                    color=discord.Color.from_rgb(170, 92, 195),
                 )
+                embed.set_footer(text="Servidor Jellyfin • SamBot")
+                await canal.send(embed=embed)
+        except Exception as e:
+            self.logger.error(f"Erro ao emitir aviso de novo conteúdo no Discord: {e}")
 
-        return False
+        return True
