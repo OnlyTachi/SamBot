@@ -24,6 +24,7 @@ from Services.API.Routes.FilesRoutes import router as files_router
 from Services.API.Routes.LogsRoute import router as logs_router
 from Services.API.Routes.DownloadRoute import router as download_router
 from Services.API.Routes.AuthRoute import router as auth_discord_router
+from Services.API.Routes.JellyfinRoute import router as jellyfin_router
 
 logger = logging.getLogger("SamBot.APIServer")
 
@@ -95,6 +96,7 @@ class APIServer:
         self.app.include_router(logs_router)
         self.app.include_router(download_router)
         self.app.include_router(auth_discord_router)
+        self.app.include_router(jellyfin_router)
 
         self._server = None
         self._serve_task = None
