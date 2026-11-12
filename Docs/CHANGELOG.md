@@ -1,5 +1,38 @@
 # Changelog
 
+## [3.6.0-stable] - 2026-11-12
+
+### 🧠 Motor de Embeddings Local & Vetorização Nativa (`Brain/Memory/LongTerm/`)
+
+- **Migração para FastEmbed & ONNX Runtime (`SmartEmbeddingFunction`):**
+  - Substituída a dependência de servidores Ollama e chamadas remotas na geração de embeddings pela inferência embarcada via **FastEmbed** utilizando o modelo `sentence-transformers/all-MiniLM-L6-v2` (vetores densos de 384 dimensões).
+  - Implementado auto-diagnóstico de hardware no boot (`_diagnosticar_onnx_runtime`), selecionando automaticamente o acelerador de maior prioridade disponível no ambiente: **CUDA** (NVIDIA), **ROCm** (AMD), **DirectML**, **OpenVINO** (Intel) ou **CPU**.
+  - Remoção definitiva do mecanismo legado de _Fast-Track_ (`embedding_state.json`), eliminando gargalos de rede e latência na indexação e busca do **ChromaDB**.
+- **Atualização do SDK Google GenAI (`GeminiDriver`):**
+  - Migração completa para o SDK oficial `google-genai` com execução assíncrona nativa (`client.aio.models.generate_content` e `embed_content`), timeout estrito de 15s e quarentena automática (_cooldown_ de 300s) para chaves que atingirem limite de cota (`HTTP 429`).
+
+### 🛠️ Novas Ferramentas Cognitivas & Integração de Mídia (`Brain/Tools/` & `Services/API/`)
+
+- **Integração Completa com Jellyfin (`JellyfinTool.py` & `Routes/JellyfinRoute.py`):**
+  - Sincronização periódica do catálogo de filmes e séries (com agrupamento por temporadas e contagem de episódios) em cache local (`jellyfin_catalog`) e indexação semântica de sinopses no ChromaDB (`jellyfin_midias`).
+  - Busca híbrida combinando correspondência textual/fuzzy (`RapidFuzz`) com fallback semântico por enredo ou tema.
+  - Novo endpoint de webhook `/api/v1/jellyfin/webhook` para processar eventos `ItemAdded` em tempo real, atualizar o catálogo e publicar notificações formatadas no Discord.
+- **Calculadora Simbólica & Conversor Dinâmico (`CalculatorTool.py`):**
+  - Nova ferramenta baseada em **SymPy** capaz de resolver expressões aritméticas, porcentagens, equações algébricas com incógnitas e conversões dinâmicas de temperatura e unidades configuradas via `nlp_data`.
+- **Autoconhecimento & Introspecção Modular (`Brain/Memory/SelfKnowledge/`):**
+  - Reestruturação do domínio de identidade em módulos especializados: `SelfKnowledgeManager`, `SystemInspector` (telemetria em tempo real de uptime, latência e cadeia de LLMs), `PersonaState` e `CuriosidadeContextual` (injeção dinâmica de fatos com _cooldown_ por canal).
+- **Serviço de Reações Visuais (`GifService.py`):**
+  - Integração assíncrona com a API do **Giphy** para envio contextual de GIFs em memória (`io.BytesIO`, sem escrita em disco) conforme o sentimento detectado na interação.
+
+### 🔄 Refatorações & Consolidação de Estabilidade
+
+- **Database Seeder Automático (`DatabaseSeeder.py`):**
+  - Sincronização inteligente no boot entre os arquivos estáticos de `Data/Knowledge/`, `Data/Prompts/` e `Data/Persistence/identity.json` com as tabelas do **SQLite**, comparando hashes MD5 para atualizar apenas registros modificados.
+- **Normalização & Sanitização de Argumentos (`TLMRouter` & `IntentClassifier`):**
+  - Adicionada limpeza contextual de palavras de ruído por domínio (`get_noise_words`) antes do repasse de argumentos às ferramentas e verificação automática de integridade das rotas no ChromaDB via hash MD5 (`sincronizar_base_rotas`).
+- **Centralização de Conexões HTTP (`NetworkManager`):**
+  - Padronização de todas as ferramentas (`WebSearch`, `CupomFinder`, `ProductSearch`, `JikanSearch`, `TraceRecognizer`, `IGDBService`, `WeatherTool`) sob o pool compartilhado de sessões `aiohttp` e `httpx`, reduzindo o overhead de handshakes TLS.
+
 ## [3.5.0-beta] - 2026-10-26
 
 ### 🌐 Arquitetura da API (`Services/API/`)

@@ -1,12 +1,12 @@
-# 🧠 Arquitetura do Sistema — SamBot
+# 🧠 Arquitetura do Sistema
 
-Este guia une a visão geral da nossa arquitetura de software, a jornada de processamento dos dados e os truques de resiliência do sistema.
+Este guia consolida a visão estrutural do software, o fluxo detalhado de processamento de mensagens e as camadas de resiliência e failover implementadas.
 
-A SamBot evoluiu de uma estrutura simples para um ecossistema cognitivo descentralizado e modular inspirado em **Domain-Driven Design (DDD)**. O objetivo? Uma inteligência rápida, com memória de longo prazo, capaz de usar ferramentas no mundo real e que **nunca fica fora do ar** (eu acho).
+A SamBot adota uma arquitetura desacoplada, assíncrona e orientada a microsserviços e eventos, inspirada em princípios de **Domain-Driven Design (DDD)**. O objetivo é assegurar respostas em baixa latência, memória associativa de longo prazo, integração autônoma com ferramentas externas e alta disponibilidade ininterrupta.
 
-## 💡 A Filosofia por Trás do Design
+## 💡 Filosofia de Design e Camadas
 
-Em vez de disparar qualquer texto para uma IA cara e lenta, a SamBot funciona exatamente como um cérebro: possui **reflexos automáticos** (0ms de resposta), **memória de curto prazo** (contexto do chat), **memória de longo prazo** (banco vetorial para fatos) e **mãozinhas virtuais** para consultar APIs em tempo real.
+Em vez de despachar qualquer entrada de texto diretamente para um modelo de linguagem (LLM) pesado, o sistema estrutura-se como um pipeline hierárquico com reflexos rápidos (0ms), memória de curto prazo, banco vetorial e execução assíncrona de ferramentas:
 
 ```text
                ┌─────────────────────────────────────────┐
@@ -34,67 +34,89 @@ Em vez de disparar qualquer texto para uma IA cara e lenta, a SamBot funciona ex
 
 ```
 
-💡 **Curiosidade — Camada 0:** Quase 30% das mensagens enviadas a bots são cumprimentos simples ("oi", "bom dia"). A SamBot intercepta esses padrões localmente com algoritmos de busca rápida (`spaCy` e `RapidFuzz`). A resposta sai instantaneamente sem gastar um único centavo de API!
+> 💡 **Camada 0 (Reflexos Rápidos):** Interações frequentes e triviais (cumprimentos, perguntas fixas de identidade) são interceptadas localmente via algoritmos leves (`spaCy` e `RapidFuzz`), entregando retorno imediato com consumo zero de tokens.
 
-> 📖 Quer entender o fluxo completo de dados em detalhe? [saiba mais](./Extra/CerebroSam.md).
+## 🗂️ Mapeamento Modular (`sambot/Brain`)
 
-## 🗂️ Estrutura Resumida do Cérebro (`/Brain`)
+A inteligência da SamBot é desacoplada da camada visual do Discord e reside no módulo `Brain`:
 
-Organizado em subdomínios totalmente desacoplados da interface visual:
+- ⚙️ **`Core/`**: Núcleo de orquestração do pipeline cognitivo (`Pipeline.py`), rotinas noturnas assíncronas (`NightCycle.py`) e roteador semântico de intenções (`TLMRouter.py`).
+- 🧠 **`Memory/`**: Camada de persistência híbrida e memória episódica:
+  - `DataManager/`: Fachada transacional protegida por locks concorrentes, integrando SQLite e Meilisearch.
+  - `ShortTerm/`: Contexto de conversas recentes com sumarização automática após 10 mensagens.
+  - `LongTerm/`: Memória associativa vetorial indexada no **ChromaDB**.
+  - `SelfKnowledge/`: Monitoramento de telemetria, estado de personas e identidade imutável.
 
-- ⚙️ **`Core/`**: O motor central. Trata entradas, faz o roteamento inteligente de ferramentas e orquestra os ciclos de pensamento.
-- 🧠 **`Memory/`**: A camada de lembranças. Separa dados em tempo real (RAM), arquivos persistentes em disco com trava de segurança (`threading.Lock`), histórico recente e banco vetorial.
-- 🔌 **`Providers/`**: A fábrica de conexões com IAs que garante resiliência e redundância.
-- 🛠️ **`Tools/`**: As habilidades práticas (pesquisa web, rastreador de ofertas, animes e games).
-
-> 📄 Para mapeamentos de arquivos e diretrizes de expansão, [saiba mais](./Extra/CerebroSam.md).
+- 🔌 **`Providers/`**: Fábrica de clientes (`LLMFactory`) e orquestrador de failover em cascata (`LLMChainOrchestrator`).
+- 🛠️ **`Tools/`**: Módulos práticos de busca e automação (E-commerce, Jogos, Cultura Pop, Clima e Utilitários).
 
 ## 🧩 Os 4 Pilares da Cognição
 
 ### 1. Núcleo Inteligente (`Brain/Core/`)
 
-- **Pipeline:** O maestro do sistema. Sanitiza o texto, consulta memórias, invoca ferramentas e formata a resposta em blocos ideais (_smart chunks_).
-- **Limpeza:** Remove acentos, trata gírias e deduplica símbolos para facilitar o entendimento da IA.
-- **NightCycle:** Rotina assíncrona noturna onde a bot "sonha": organiza arquivos, roda a economia fictícia do servidor e consolida memórias antigas.
+- **`Pipeline.py`**: O maestro do sistema. Sanitiza a entrada, resgata contextos de memória, despacha ferramentas dinâmicas e monta o prompt mestre (`full_sys`) antes da inferência.
+- **`TLMRouter.py`**: Compara o vetor da mensagem contra a base `rotas_intencoes` no ChromaDB via distância de cosseno. Se atingir o threshold calibrado ($\ge 0.74$), extrai os argumentos limpos e aciona a ferramenta sem gastar chamadas de LLM.
+- **`NightCycle.py`**: Rotina de manutenção agendada para horários de baixa atividade: purga ofertas expiradas no Meilisearch, desfragmenta tabelas SQLite e consolida resumos na memória vetorial.
 
----
+### 2. Memória Inteligente & Persistência (`Brain/Memory/`)
 
-### 2. Memória Inteligente (`Brain/Memory/`)
+- **Padrão Facade (`DataManager`)**: Ponto de contato unificado que abstrai a complexidade do SQLite (`database.db`), dos índices tipotolerantes do Meilisearch e do armazenamento vetorial.
+- **Memória de Curto Prazo (`ShortTerm/Context.py`)**: Retém os turnos recentes do chat. Conversas que excedem 10 mensagens são condensadas em resumos narrativos por modelos auxiliares para preservar a janela de contexto.
+- **RAG & Aprendizado Ativo (`LongTerm/`)**: Extrai e indexa preferências e declarações pessoais relevantes no **ChromaDB** em lote assíncrono, resgatando esse contexto em interações futuras.
 
-- **RAM & Disco Protegido (`DataManager/`):** Gravações em arquivos `.json` envoltadas em travas de segurança para evitar que o arquivo corrompa se duas mensagens chegarem no mesmo milissegundo.
-- **Curto Prazo (`ShortTerm/`):** Guarda as últimas falas. Se a conversa passar de 10 mensagens, o sistema gera um resumo automático para economizar a memória da IA.
-- **Longo Prazo & RAG (`LongTerm/`):** Utiliza **ChromaDB** para transformar conversas em coordenadas numéricas. Se você mencionar algo pessoal (_"adoro pizza"_), o módulo guarda essa preferência em segundo plano automaticamente!
+### 3. Provedores & Resiliência em Cascata (`Brain/Providers/`)
 
----
-
-### 3. Provedores & Resiliência (`Brain/Providers/`)
-
-Se a IA principal falhar ou atingir limites de uso (_Rate Limit - HTTP 429_), a SamBot aciona o plano de contingência (_Failover_) sem parar a conversa:
+Quando ocorrem bloqueios por limite de taxa (_HTTP 429 - Rate Limit_), latência excessiva ou falhas de conectividade, a esteira executa o failover de forma transparente:
 
 ```text
-[ Requisição ] ──► 1. Google Gemini ──(Erro 429)──► 2. Groq Cloud ──(Timeout)──► 3. Ollama Local (HomeLab)
+[ Requisição ] ──► 1. Google Gemini ──(Erro 429)──► 2. Groq Cloud ──(Timeout)──► 3. Ollama Local
 ```
 
-💡 **Curiosidade — O Castigo de Chaves & a Via Verde:**
+- **Quarentena de Chaves de API**: O conector do Gemini rotaciona chaves ativas (`GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`). Em caso de sobrecarga temporária, a chave afetada entra em resfriamento automático sem interromper a sessão.
+- **Via Verde de Embeddings (_Fast-Track_)**: O sistema mapeia o provedor e modelo de vetorização funcional mais rápido em `embedding_state.json`, reutilizando a rota prioritária por até 7 dias para evitar testes de latência repetitivos.
 
-1. **Castigo de APIs:** Se o Gemini bloquear uma chave por excesso de uso, o sistema a coloca de "molho" por 60 segundos e muda para a chave reserva sem nenhum travamento para o usuário.
-2. **Via Verde (Fast-Track):** Para vetorizar textos sem perder tempo testando chaves fora do ar, o bot memoriza o caminho funcional mais rápido em `embedding_state.json` por até 7 dias.
-   > ⚡ Deseja detalhes de como a cascata e o Fast-Track funcionam? [saiba mais](./Extra/CerebroSam.md).
+### 4. Ferramentas Integradas (`Brain/Tools/`)
 
-### 4. As Ferramentas (`Brain/Tools/`)
+A SamBot não inventa dados contextuais ou voláteis:
 
-A SamBot não chuta respostas sobre fatos atuais; ela pesquisa! Módulos especializados trazem dados em tempo real:
+- 🛒 **Shopping:** Comparador de preços multilojas (`ProductSearch`), extrator de cupons ativos (`CupomFinder`) e vigilância noturna de metas de preço (`PriceTracker`).
+- 🎮 **Games & Animes:** Catálogo IGDB via OAuth2, cotações digitais via CheapShark, fichas técnicas no MyAnimeList (Jikan) e reconhecimento visual de cenas pelo Trace.moe.
+- 🌦️ **Pesquisa & Utilitários:** Geocodificação OpenStreetMap + Open-Meteo, cálculo matemático seguro baseado em árvore sintática (AST) e buscas encadeadas na Web (Google Custom Search e Brave).
 
-- 🔍 **Research:** Buscas encadeadas na Web (Google/Brave/DuckDuckGo) e análise multimodal de imagens.
-- 🛒 **Shopping:** Rastreador de ofertas, buscador de cupons e comparação de preços.
-- 🎮 **Games & Animes:** Cotação na Steam, banco de dados do IGDB, consulta no MyAnimeList e identificação de animes por prints de cenas!
-- 🌦️ **Utilidades:** Previsão do tempo local, consulta Pokémon e servidor de mídia pessoal.
+---
 
-## ⚡ O Ciclo de Vida de uma Resposta
+## ⚡ Ciclo de Vida de uma Resposta
 
-1. **Recepção:** Captura e limpa a mensagem de entrada.
-2. **Camada 0:** Devolve respostas instantâneas em saudações ou dúvidas de identidade.
-3. **Resgate de Memória:** Busca o contexto do chat e fatos marcantes sobre o usuário.
-4. **Ferramentas:** O roteador avalia e pesquisa na internet caso necessário.
-5. **Invocação:** Concatena tudo em um prompt rico e envia para a fila de IAs com _Failover_.
-6. **Entrega:** Aplica o tom comportamental e responde no chat em pedaços organizados.
+```text
+[Mensagem do Usuário]
+         │
+         ▼
+1. Recepção & Higienização (spaCy / Limpeza léxica)
+         │
+         ▼
+2. Avaliação da Camada 0 (Retorno em 0ms caso seja intenção estática)
+         │
+         ▼
+3. Recuperação Contextual (Histórico recente na RAM + RAG no ChromaDB)
+         │
+         ▼
+4. Roteamento Semântico (TLMRouter dispara Tools se score >= 0.74)
+         │
+         ▼
+5. Composição do full_sys (Persona + Regras + Evidências de Ferramentas)
+         │
+         ▼
+6. Inferência Resiliente (Gemini ➔ Groq ➔ Ollama local/remoto)
+         │
+         ▼
+7. Entrega Formatada (Markdown estrito, proteção de links e Smart Chunks)
+
+```
+
+## 🔗 Guias Técnicos Relacionados
+
+Para aprofundar-se nos detalhes de implementação de cada componente:
+
+- 🧠 **[Pipeline Cognitivo e Prompts](https://www.google.com/search?q=Brain/Core/Pipeline.md)** — Regras do `full_sys`, formatação de evidências e segurança.
+- 🎯 **[Roteamento Semântico](Docs/Brain/Core/Pipeline.md)** — Mecanismo vetorial do `TLMRouter` e gatilhos declarativos.
+- 🗄️ **[Camada de Persistência](Docs/Brain/Database/Persistence.md)** — Estruturas do SQLite, Meilisearch e ChromaDB.
