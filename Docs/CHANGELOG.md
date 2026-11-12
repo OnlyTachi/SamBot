@@ -1,5 +1,412 @@
 # Changelog
 
+## [3.6.0-stable] - 2026-11-12
+
+### 🧠 Motor de Embeddings Local & Vetorização Nativa (`Brain/Memory/LongTerm/`)
+
+- **Migração para FastEmbed & ONNX Runtime (`SmartEmbeddingFunction`):**
+  - Substituída a dependência de servidores Ollama e chamadas remotas na geração de embeddings pela inferência embarcada via **FastEmbed** utilizando o modelo `sentence-transformers/all-MiniLM-L6-v2` (vetores densos de 384 dimensões).
+  - Implementado auto-diagnóstico de hardware no boot (`_diagnosticar_onnx_runtime`), selecionando automaticamente o acelerador de maior prioridade disponível no ambiente: **CUDA** (NVIDIA), **ROCm** (AMD), **DirectML**, **OpenVINO** (Intel) ou **CPU**.
+  - Remoção definitiva do mecanismo legado de _Fast-Track_ (`embedding_state.json`), eliminando gargalos de rede e latência na indexação e busca do **ChromaDB**.
+- **Atualização do SDK Google GenAI (`GeminiDriver`):**
+  - Migração completa para o SDK oficial `google-genai` com execução assíncrona nativa (`client.aio.models.generate_content` e `embed_content`), timeout estrito de 15s e quarentena automática (_cooldown_ de 300s) para chaves que atingirem limite de cota (`HTTP 429`).
+
+### 🛠️ Novas Ferramentas Cognitivas & Integração de Mídia (`Brain/Tools/` & `Services/API/`)
+
+- **Integração Completa com Jellyfin (`JellyfinTool.py` & `Routes/JellyfinRoute.py`):**
+  - Sincronização periódica do catálogo de filmes e séries (com agrupamento por temporadas e contagem de episódios) em cache local (`jellyfin_catalog`) e indexação semântica de sinopses no ChromaDB (`jellyfin_midias`).
+  - Busca híbrida combinando correspondência textual/fuzzy (`RapidFuzz`) com fallback semântico por enredo ou tema.
+  - Novo endpoint de webhook `/api/v1/jellyfin/webhook` para processar eventos `ItemAdded` em tempo real, atualizar o catálogo e publicar notificações formatadas no Discord.
+- **Calculadora Simbólica & Conversor Dinâmico (`CalculatorTool.py`):**
+  - Nova ferramenta baseada em **SymPy** capaz de resolver expressões aritméticas, porcentagens, equações algébricas com incógnitas e conversões dinâmicas de temperatura e unidades configuradas via `nlp_data`.
+- **Autoconhecimento & Introspecção Modular (`Brain/Memory/SelfKnowledge/`):**
+  - Reestruturação do domínio de identidade em módulos especializados: `SelfKnowledgeManager`, `SystemInspector` (telemetria em tempo real de uptime, latência e cadeia de LLMs), `PersonaState` e `CuriosidadeContextual` (injeção dinâmica de fatos com _cooldown_ por canal).
+- **Serviço de Reações Visuais (`GifService.py`):**
+  - Integração assíncrona com a API do **Giphy** para envio contextual de GIFs em memória (`io.BytesIO`, sem escrita em disco) conforme o sentimento detectado na interação.
+
+### 🔄 Refatorações & Consolidação de Estabilidade
+
+- **Database Seeder Automático (`DatabaseSeeder.py`):**
+  - Sincronização inteligente no boot entre os arquivos estáticos de `Data/Knowledge/`, `Data/Prompts/` e `Data/Persistence/identity.json` com as tabelas do **SQLite**, comparando hashes MD5 para atualizar apenas registros modificados.
+- **Normalização & Sanitização de Argumentos (`TLMRouter` & `IntentClassifier`):**
+  - Adicionada limpeza contextual de palavras de ruído por domínio (`get_noise_words`) antes do repasse de argumentos às ferramentas e verificação automática de integridade das rotas no ChromaDB via hash MD5 (`sincronizar_base_rotas`).
+- **Centralização de Conexões HTTP (`NetworkManager`):**
+  - Padronização de todas as ferramentas (`WebSearch`, `CupomFinder`, `ProductSearch`, `JikanSearch`, `TraceRecognizer`, `IGDBService`, `WeatherTool`) sob o pool compartilhado de sessões `aiohttp` e `httpx`, reduzindo o overhead de handshakes TLS.
+
+## [3.5.0-beta] - 2026-10-26
+
+### 🌐 Arquitetura da API (`Services/API/`)
+
+- **Servidor FastAPI & Uvicorn (`Server.py`):**
+  - Implementação do servidor assíncrono interno `APIServer` rodando com Uvicorn e suporte a CORS dinâmico configurável via `api.cors_origins`.
+  - Roteamento modular desacoplado com registro automático dos sub-roteadores: `/api/v1/files`, `/api/v1/notifications`, `/api/v1/db`, `/api/control`, `/api/download`, `/api/v1/logs` e `/api/auth/discord`.
+- **Gerenciador de Conexões WebSocket Segmentado (`GuildConnectionManager`):**
+  - Gerenciamento inteligente de conexões WebSocket por servidor Discord (`guild_id`) e conexões globais.
+  - Métodos `bind_guild`, `unbind` e `broadcast_to_guild` para emitir sincronizações de estado apenas aos clientes que estão visualizando o respectivo servidor.
+- **Comunicação Bidirecional em Tempo Real (`/ws/bot`):**
+  - **Handshake & Subscrição:** Suporte aos opcodes `HANDSHAKE` e `SUBSCRIBE_GUILD` com resposta imediata (`ACK`) e sincronização de estado do player (`sync_player_state`).
+- **Despacho de Ações de Áudio:** Recepção do opcode `COMMAND` para operações remotas delegadas ao `AudioService` (`PLAY`, `ENQUEUE`, `PAUSE`, `RESUME`, `SKIP`, `SEEK`, `SET_VOLUME`, `SET_LOOP`, `SHUFFLE`, `CLEAR_QUEUE`, `REMOVE_QUEUE`, `REORDER_QUEUE`).
+- **Auto-Connect:** Conexão automática ao canal de voz caso uma ação `PLAY` seja enviada e o usuário esteja em uma sala.
+- **Proteção Anti-Ghost DJ:** Validação para garantir que apenas usuários presentes no mesmo canal de voz que o bot executem comandos (bloqueando também interações em modo convidado `usr_guest`).
+- **Camada de Autenticação e Segurança (`Security.py`):**
+  - Validador de cabeçalho `verify_bot_token` via `x_bot_token`.
+  - Recuperação em cascata da chave de segurança a partir de `api.secret_token`, `API_SECRET_TOKEN` ou do storage persistido em `data_manager` (`staff_token`).
+
+---
+
+### 🛣️ Rotas & Serviços Especializados
+
+- **Autenticação Discord OAuth2 (`Routes/AuthRoute.py`):**
+  - `/api/auth/discord/exchange`: Troca de authorization code por `access_token` diretamente com a API v10 do Discord, obtendo avatar e perfil.
+  - `/api/auth/discord/session`: Validação de tokens de sessão no navegador com cruzamento em tempo real do estado de voz do membro no bot (guilda, bitrate e latência).
+- **Controle & Telemetria do Bot (`Routes/ControlRoute.py` & `TelemetryService.py`):**
+  - `/api/control/player`: Endpoint REST HTTP com validação de Anti-Ghost DJ para acionamento de comandos de mídia.
+- `/api/control/ping-matrix`: Matriz de latência contínua medindo o Gateway do Discord, internet externa via Cloudflare (`1.1.1.1`) e API do Navidrome.
+
+- `/api/control/status`: Snapshot completo de telemetria da máquina e do bot (CPU, RAM, versão do Python e estado do canal de voz ativo).
+
+- **Editor e Gerenciador de Arquivos (`Routes/FilesRoutes.py` & `FileService.py`):**
+  - `/api/v1/files/tree`: Árvore de arquivos autorizados categorizados em `configs`, `prompts`, `knowledge` e `persistence`.
+  - `/api/v1/files/read` & `/api/v1/files/save`: Leitura e escrita com proteção ativa contra **Path Traversal** e validação estrita de extensões permitidas (`.json`, `.yaml`, `.yml`, `.txt`, `.env`).
+- **Hot-Reload Automatizado:** Validação sintática antes da gravação (JSON/YAML), descarte de cache em memória e sincronização em segundo plano via `DatabaseSeeder` e reindexação no ChromaDB via `TLMRouter`.
+- **Explorador Multi-Bancos de Dados (`Routes/DatabasesRoute.py` & `DatabaseService.py`):**
+- **SQLite:** Consulta e paginação com suporte a busca (`LIKE`) para tabelas permitidas (`users`, `knowledge`, `config`, `prompts`).
+- **Meilisearch:** Consulta de estatísticas do índice e busca textual de ofertas/produtos com ordenação por preço.
+- **ChromaDB:** Listagem de coleções, visualização de documentos/metadados e rota de teste vetorial (`/chroma/query-test`) calculando distância e score de similaridade de cosseno.
+- **Logs & Monitoramento Contínuo (`Routes/LogsRoute.py` & `LogsService.py`):**
+  - `/api/v1/logs/tail`: Consulta paginada das últimas linhas de `sambot_general.log` ou `sambot_errors.log`.
+  - `/api/v1/logs/ws`: Stream contínuo em tempo real de logs via WebSocket com autenticação por token.
+  - `/api/v1/logs/stats`: Telemetria de conectividade e consolidação de estatísticas de contribuições dos usuários registradas no banco.
+- **Pipeline Assíncrono de Download (`Routes/DownloadRoute.py` & `DownloadService.py`):**
+  - `/api/download/tasks`: Enfileiramento de requisições de download repassadas a um worker externo via HTTP com polling automático em `BackgroundTasks` e rastreio de progresso em memória.
+  - Rastreamento e incremento dinâmico de contribuição de links do usuário (`sharedLinksCount`).
+- **Motor de Áudio Subsonic (`AudioService.py`):**
+  - Geração dinâmica de URLs autenticadas para o Navidrome via salt e hash MD5.
+  - Despacho de buscas para o `wavelink.Playable` e sincronização imediata através do `maestro.sync_player_state`.
+
+---
+
+### ⚙️ Gestão de Serviços & Ciclo de Vida (`Services/ServiceManager.py`)
+
+- **Chave Seletora Mestra (`Master Switch`):**
+  - Adicionada a flag global `services.enabled` para desativar integralmente qualquer inicialização de módulos secundários.
+- **Seletores Granulares por Serviço:**
+  - Habilitação seletiva via `config.yaml` para `services.api`, `services.telegram` e `services.notifier`.
+- **Inicialização Resiliente & Safe Stop:**
+  - Carregamento seguro com bloco `try/except` nos imports, prevenindo crashes caso dependências de serviços estejam ausentes.
+  - Métodos `start_all()`, `stop_all()` e `restart_all()` estruturados com controle de delay assíncrono para liberação de sockets e portas de rede.
+
+---
+
+### 📢 Notificações, Telegram & Webhooks
+
+- **Fila Autônoma do PromoNotifier (`PromoNotifier.py` & `NotificationRoute.py`):**
+  - Processamento em segundo plano orientado a fila assíncrona (`asyncio.Queue`).
+  - Suporte a múltiplos alvos de entrega de ofertas: canais de texto do Discord (`server`), DM direta para o usuário (`dm`) ou disparo global (`all`).
+  - Integração REST (`/api/v1/notifications/promo`) para inserção externa de anúncios diretamente na fila do bot.
+- **Disparador e Gestão de Webhooks (`WebhookDispatcher.py`):**
+  - CRUD completo de webhooks persistidos em base de conhecimento (`/api/v1/webhooks`).
+  - Suporte a segredo de autorização por token (`Bearer`) e filtragem de eventos específicos (`promo_alert`, `price_drop` ou global `*`).
+  - Endpoint de teste de conectividade (`/api/v1/webhooks/{webhook_id}/test`) enviando payloads de ping.
+- **Ingestão & Colaboração no Telegram (`TelegramCollaborator.py` & `TelegramIngestor.py`):**
+- **Comando `+colaborar promo`:** Fluxo guiado interativo via DM com o Discord para adicionar canais de promoção, com busca aproximada por títulos via `rapidfuzz`.
+- **Autenticação Interativa por DM:** Tratamento em segundo plano para envio de número de telefone, confirmação de código SMS e suporte a senha 2FA via Telethon com mensagens sensíveis auto-destrutivas (20 segundos).
+- **Atualização Dinâmica de Escuta:** Atualização da lista de canais monitorados do `TelegramScraper` a quente (`atualizar_canais_escutados`) assim que um novo grupo for registrado.
+
+### 🚀 [v3.0.0] — 17 de junho de 2026
+
+**Roteamento & Inteligência Cognitiva**
+
+- **Validação Vetorial no TLMRouter :** Implementada checagem matemática de similaridade de cosseno (`1.0 - distance`) com linha de corte (_threshold_) configurada em `0.86`, evitando que mensagens arbitrárias disparem ferramentas indevidamente.
+- **Desambiguação do WeatherTool :** Adicionado filtro léxico/semântico e _Early Return_ com `None` para evitar que expressões cotidianas (como _"tempo de caminhada"_) ou buscas sem localidade acionem chamadas meteorológicas desnecessárias.
+- **Cascata Inteligente & Fallback para WebSearch (P2):** Criada interceptação no pipeline para redirecionar automaticamente consultas de nicho falhas (como nomes de celebridades no `game_search` ou `anime`) para o mecanismo de busca na web (`web_search`), higienizando o contexto do RAG.
+
+**Performance de Rede & Infraestrutura**
+
+- **Gerenciador Global NetworkManager:** Centralizada a criação de sessões HTTP (`aiohttp.ClientSession` e `httpx.AsyncClient`) em formato _Singleton_, ativando _Connection Pooling_ e reduzindo a latência em requisições de APIs externas.
+- **Buscas Simultâneas de Produtos:** Otimizado o método `ProductSearchTool.search` com `asyncio.gather`, executando as varreduras no Pelando, Mercado Livre e SerpApi em paralelo.
+- **Tratamento de Exceções de Rede:** Substituição de blocos de captura genéricos por exceções de rede e timeout dedicadas (`aiohttp.ClientError`, `httpx.HTTPError`, `asyncio.TimeoutError`).
+
+**Refatoração & Qualidade de Código**
+
+- **Eliminação de Magic Numbers:** Parametrização de constantes e _timeouts_ nos módulos `SQLiteConnection`, `JikanSearch` e `CupomFinder`, permitindo configuração direta via `.env`.
+- **Padronização de Type Hinting:** Adição de anotações de tipo explícitas nos métodos principais do `Pipeline.py` e utilitários auxiliares.
+- **Limpeza de Código Morto:** Remoção do método legado `executar_camada`, unificando a esteira de geração diretamente no `LLMChainOrchestrator`.
+
+### 🚀 [v2.2.9] — 12 de junho de 2026
+
+**Pipeline Cognitivo & Roteamento Híbrido (Brain/Core)**
+
+- **Transição do TLMRouter para ChromaDB:** Refatorado para atuar como orquestrador do `VectorStore`, salvando os embeddings em disco e eliminando a retenção permanente na memória RAM.
+- **Execção em Dupla Camada (Camada 0 & Camada 1):**
+  - _Camada 0 (Sintática):_ `LimpezaManager` processa saudações, FAQs e intenções simples via RapidFuzz + lematização do spaCy em ~1ms (0 tokens de LLM).
+  - _Camada 1 (Semântica):_ `TLMRouter` atua no fallback para resolver intenções e comandos mais complexos consultando o ChromaDB.
+- **Reorganização de Módulos & Limpeza de Código:**
+  - `LimpezaManager` movido para `Brain/Core/Router/Limpeza.py` para centralizar a arquitetura do roteador. Assumindo novo nome `IntentClassifier.py`
+  - Remoção do `IntentClassifier.py` por duplicidade de escopo com a `LimpezaManager`.
+- **Interceptação de Respostas Estáticas:** Unificação das seções `intents` e `intents_commands` do `nlp_data.json` no `Pipeline.py` para responder instantaneamente a dúvidas frequentes sobre o bot sem consumir cota de IA.
+
+**Core & Ciclo de Vida (Bot.py / Logger.py)**
+
+- **Separação do Fluxo de Diagnóstico:**
+  - `run_pre_flight_checks()`: Criado para checar arquivos, base de dados e variáveis do `.env` antes da conexão com o Gateway do Discord.
+- **Mapeamento de Múltiplas IAs:** Substituído o status genérico "ONLINE" por identificação dinâmica do modelo primário (ex: `gemini-2.0-flash`) e contador de provedores secundários (+N secundários).
+- **Modo de Desenvolvimento (`DEBUG_MODE=true`):** Configuração automática do nível de log (`logging.DEBUG`) com exibição do traceback completo no terminal durante exceções.
+- **Tratamento de Exceções & Imports:** Corrigida duplicação de import do `llm_factory` e adicionado log defensivo para a rotina de escrita de estatísticas (`save_stats_loop`).
+
+**Módulo de Usuário (Modules/Utility/User/InfoUser.py)**
+
+- **Desagrupamento da Classe `UserProfile`:** Removida a dependência do grupo raiz `user` para permitir execução direta por prefixo (`+`).
+- **Novos Comandos Híbridos Independente:**
+- `+avatar` / `/avatar`: Convertido com atalhos (`pfp`, `foto`, `useravatar`).
+- `+userbanner` / `/userbanner`: Criado para consulta direta de banners de conta.
+- `+userinfo` / `/userinfo`: Isolado para checagem completa de dados de conta/membro.
+
+**Módulo Roteador Semântico (`TLMRouter`)**
+
+- **Sincronização Vetorial em Background:** Implementada a rotina de _lazy loading_ no `Pipeline` para acionar a criação e atualização da coleção `rotas_intencoes` no ChromaDB.
+- **Tratamento de Coleções Inexistentes:** Corrigida a verificação inicial no `VectorStore` e no `TLMRouter` para garantir a inicialização automática da coleção de rotas durante a carga da aplicação.
+- **Resolução de Erro de Execução (`AttributeError`):** Removida a chamada indesejada do método inexistente `_extrair_args`, padronizando o envio dos argumentos limpos diretamente para o chamador da ferramenta.
+- **Gestão de Cache de Rotas:** Adicionado o mecanismo de exclusão/limpeza de IDs antigos no ChromaDB ao reindexar o arquivo `router_triggers.json`.
+  **Módulo Ferramentas de Clima (`WeatherTool`)**
+- **Extração Desacoplada de Argumentos:** Transferida a responsabilidade de sanitização de texto diretamente para a `WeatherTool`, mantendo o `Pipeline` limpo e coeso.
+- **Integração com `DataManager` & `nlp_data`:** A ferramenta agora consulta dinamicamente o dicionário `nlp_data.json` em RAM para ler `state_mapping` e `stopwords`, convertendo siglas como "RJ" ou "SP" para nomes por extenso ("Rio de Janeiro", "São Paulo") automaticamente.
+- **Normalização Dinâmica de Locais:** Implementada remoção automatizada de palavras de ruído e conectivos ("preciso", "levar", "guarda-chuva", "hoje", "em o") para evitar falhas de geocodificação no Nominatim.
+
+**Módulo Pipeline Cognitivo (`Pipeline`)**
+
+- **Ajuste de Interceptação da Camada 0:** Adicionada verificação no método `_interceptar_resposta_estatica` para ignorar a devolução de mensagens estáticas do JSON quando a intenção identificada pertencer a uma ferramenta de dados dinâmicos (`weather`, `game_search`, etc.).
+
+## [2.2.8-1] - 11 de junho de 2026
+
+### Adicionado
+
+- **Motor de Cache & Ingestão de Ofertas (Meilisearch):** Implementada a arquitetura completa de cache rápido (< 10ms) e persistência de ofertas estruturadas em JSON com suporte a ordenação por preço e coleta.
+
+- **Ingestão Passiva via Telegram:** Integrado o `TelegramScraper` assíncrono via Telethon para escuta em tempo real de canais de promoção, com extração automatizada de títulos, preços, lojas e links.
+
+- **Autenticação Interativa via DM no Discord:** Criado fluxo de login do Telegram operado via mensagens privadas com o `OWNER_ID`, incluindo suporte a 2FA e auto-exclusão das mensagens com dados sensíveis após 20 segundos.
+- **Chaves de Controle e Debug (`.env`):** Adicionada a variável `TELEGRAM_ENABLED` para ativar/desativar o módulo de ingestão sob demanda e a flag `DEBUG_MODE` para inspeção detalhada de mensagens recebidas e descarte de posts.
+- **Expurgo Físico Noturno:** Adicionada rotina no `NightCycle` para deleção automática e diária no Meilisearch de documentos cujo `expira_em` tenha vencido.
+
+### Alterado
+
+- **Estratégia de Busca (`ProductSearchTool`):** Refatorado o orquestrador para adotar a lógica de _Cache Hit_ no Meilisearch antes de acionar scrapers externos (_Cache Miss_), gravando novas ofertas automaticamente no banco.
+
+- **Modularização do DataManager:** Reorganização estrutural em `Connections/` (`SQLiteConnection`, `MeiliConnection`) e `SubManagers/` (`ShoppingDataManager`, `BrainDataManager`, `DiscordDataManager`).
+
+- **Pré-teste de Saúde no Lavalink (`_node_manager`):** Adicionada validação por ping HTTP antes da conexão ao pool do Wavelink para descartar instantaneamente nós offline ou com erros de SSL.
+
+### Corrigido
+
+- **Lazy Initialization no Meilisearch:** Resolvida a exceção `RuntimeError: no running event loop` ao adiar o setup de índices para a primeira requisição assíncrona.
+
+- **Atributo `folders` no DataManagerFacade:** Restaurado o dicionário `folders` no `Manager.py` para manter compatibilidade com módulos legados e gerenciadores de playlist.
+
+- **Resiliência de Boot do Roteador (`TLMRouter`):** Implementado loop de _retry_ com até 5 tentativas no boot para evitar suspensão do roteamento semântico caso o container do Ollama demore a inicializar.
+
+### [2.2.8] - 07 de junho de 2026
+
+#### 🚀 Adicionado
+
+- **Motor SQLite para Persistência (`DatabaseConnection`):** Implementada conexão transacional e _thread-safe_ no arquivo `Data/Persistence/database.db`, garantindo proteção contra gravações simultâneas e eliminando os riscos de corrupção de dados.
+
+- **Módulos Especializados de Dados (`BrainDataManager` & `DiscordDataManager`):** Isolamento de responsabilidades onde o `BrainDataManager` responde exclusivamente pela camada cognitiva (prompts, identidade e NLP) e o `DiscordDataManager` gerencia preferências de usuários e permissões de canais do Discord.
+
+- **Orquestrador Facade (`DataManagerFacade`):** Camada centralizada no `Manager.py` responsável por rotear chamadas para os novos módulos especializados sem quebrar a compatibilidade da API com o restante do sistema.
+
+#### 🔄 Alterado
+
+- **Descontinuação de I/O em Arquivos JSON:** Interrompida a reescrita direta de arquivos `.json` no disco para persistência de listas, preferências e configurações.
+
+- **Persistência de Token do IGDB (`IGDBService`):** Reformulada a renovação do token OAuth2 da Twitch para carregar e salvar suas credenciais temporárias na tabela `knowledge` do SQLite via `data_manager`, dispensando caminhos de arquivo locais.
+
+### [2.2.7] - 06 de junho de 2026
+
+#### Descontinuações (Deprecated / Removed)
+
+- **Remoção do Modo `HIBRIDO`:** O modo de busca de áudio `HIBRIDO` foi oficialmente descontinuado e removido do suporte da aplicação.
+- **Simplificação das Opções de Áudio:** O arquivo de configuração (`.env`) agora aceita estritamente os modos `MUSIC_SOURCE_MODE=ONLINE` ou `MUSIC_SOURCE_MODE=LOCAL`.
+
+#### ✨ Novidades e Melhorias (Added & Changed)
+
+- **Sistema de Failover & Castigo de Nodes (`ONLINE`):** Implementada rotação automática de servidores Lavalink online com sistema de _cooldown_ de 1 hora para Nodes que apresentarem falhas de conexão ou timeouts.
+- **Isolamento de Erros:** Captura e tratamento amigável de exceções do Wavelink. Falhas de conexão agora exibem avisos claros no Discord em vez de logs de erro genéricos.
+- **Suporte Expandido a Portas SSL/TLS:** Suporte automático para múltiplas portas HTTPS/WSS (443, 8443, 2053, 2083, 2096) no carregador de Nodes.
+- **Correção de Atribuição no Wavelink 3.x:** Atualizada a propriedade de `AutoPlay` para `AutoPlayMode` garantindo compatibilidade com versões recentes do ecossistema.
+
+## 💡 Por que o Modo Híbrido foi Descontinuado?
+
+A descontinuação do modo híbrido foi uma decisão arquitetural focada em **estabilidade, usabilidade e facilidade de manutenção open-source**. Abaixo estão os motivos principais:
+
+### 1. Incompatibilidade com o Ciclo de Vida de Áudio (Wavelink / Lavalink)
+
+No ecossistema do Lavalink (v4) com a biblioteca Wavelink (v3), quando o bot entra em um canal de voz, a sessão de áudio e a fila de reprodução (`queue`) ficam fisicamente atreladas ao servidor (Node) que efetuou a conexão inicial.
+
+Tentativas de buscar uma faixa em um Node Online e enviá-la para ser tocada no Node Local acionavam falhas de decodificação no servidor (`IllegalStateException: Failed to decode track / Error 500`), pois um Node sem suporte nativo ou sem plugins configurados para determinada fonte não consegue ler os metadados de mídia repassados por outro servidor.
+
+### 2. Picos de Latência ao Alternar de Conexão na Call
+
+Para fazer uma transição de música vinda do Navidrome (local) para uma música do YouTube/Soundcloud (online) em uma fila mista, o bot precisaria se desconectar e se reconectar a um Node diferente a cada faixa. Isso causava:
+
+- Engasgos e pequenos _delays_ entre a transição de mídias.
+- Risco de perda de pacotes e dessincronização no evento de voz do Discord.
+- Instabilidade no estado global do _Player_.
+
+### 3. Facilidade para o Usuário Final (Zero Burocracia)
+
+A existência de um modo híbrido exigia configurações complexas e paralelas de ambiente, o que dificultava o deploy para quem clonava o repositório no GitHub. Separar as responsabilidades resolve esse problema:
+
+- **Modo `ONLINE`:** Ideal para quem deseja apenas ligar o bot e tocar áudio da internet usando os servidores públicos configurados, sem precisar hospedar infraestrutura local.
+- **Modo `LOCAL`:** Perfeito para quem busca privacidade total e reprodução direta de sua biblioteca do Navidrome usando seu próprio servidor Lavalink.
+
+## [2.2.6-1] - 04 de junho de 2026
+
+### **DeepSeek Driver (`Brain/Providers/Clients/DeepSeekProvider.py`)**
+
+- **Integração:** Adicionado driver cliente para a API da DeepSeek com suporte aos modelos `deepseek-chat` e `deepseek-reasoner` (R1).
+- **Compatibilidade:** Implementado com base na biblioteca `openai` aproveitando a compatibilidade Nativa via `base_url` (`[https://api.deepseek.com](https://api.deepseek.com)`).
+- **Configuração:** Leitura da chave `DEEPSEEK_API_KEY` e do modelo `DEEPSEEK_MODEL` a partir do ambiente `.env`.
+
+### **OpenRouter Driver (`Brain/Providers/Clients/OpenRouterProvider.py`)**
+
+- **Integração:** Adicionado driver agregador OpenRouter, permitindo acesso a múltiplos modelos (Claude, GPT-4o, Llama 3.3, etc.).
+- **Modelos Free:** Suporte padrão inicial para o modelo gratuito `meta-llama/llama-3.3-70b-instruct:free`.
+- **Headers Personalizados:** Incluído suporte a cabeçalhos `HTTP-Referer` e `X-Title` exigidos pela OpenRouter.
+
+### **Mistral AI Driver (`Brain/Providers/Clients/MistralProvider.py`)**
+
+- **Integração:** Adicionado cliente para os modelos da Mistral AI via biblioteca SDK `mistralai`.
+- **Embeddings:** Implementado suporte nativo para geração de vetores de busca utilizando o modelo `mistral-embed`.
+- **Configuração:** Suporte a `MISTRAL_API_KEY` e modelo `mistral-small-latest` por padrão.
+
+* **Orquestração Dinâmica via `.env`:** Adicionada a variável `LLM_CHAIN_ORDER` para definir dinamicamente a ordem de preferência e _failover_ dos provedores sem a necessidade de alterar código Python.
+* **Novos Provedores Adicionados:** Criados e integrados os drivers de conexão para **DeepSeek** (`DeepSeekDriver`), **OpenRouter** (`OpenRouterDriver`) e **Mistral AI** (`MistralDriver`).
+* **Detecção Automática de Chaves Ativas:** A `LLMFactory` agora filtra e carrega apenas os provedores com chaves Válidas/Presentes no ambiente `.env`.
+
+### **Melhorias e Otimizações**
+
+- **Refatoração da `LLMFactory`:** Dicionário centralizado de instâncias de drivers para facilitar a inclusão de novas APIs e carregamento dinâmico.
+- **Validação em Cascata (`setup_chain`):** Manutenção do teste individual de conectividade durante a inicialização, descartando autonomamente motores sem credenciais válidas ou offline.
+- **Tratamento Anti-Rate Limit no Gemini:** Mantido o sistema de rotação de chaves com tempo de castigo (blacklist temporária) de 60 segundos ao atingir erro `429` (ResourceExhausted).
+- **Poda do Histórico no Groq:** Mantido o filtro automático para reduzir o _prompt_ do sistema quando superior a 3.500 palavras, evitando erros de limite de contexto (_TPM_).
+
+### **Correções e Estabilidade**
+
+- **Fallback Automático de Embeddings:** Fallback gracioso para embeddings locais via Ollama (`nomic-embed-text`) caso as chamadas de nuvem falhem.
+- **Ollama Dual-Mode:** Tratamento aprimorado para fallback automático entre instâncias _remota_ e _local_ (Docker/host).
+
+## [2.2.6] - 04 de junho de 2026
+
+### 🚀 Novidades & Adições
+
+- **Roteamento Semântico Nativo (`TLMRouter`):** Adicionada integração local com o Ollama (`all-minilm:latest`) para rotear intenções via vetores de similaridade de cosseno com alta precisão. Voce pode alterar o modelo semantico livremente. (`MODEL_TLM_LOCAL="modelo-escolha"`)
+- **Flag de Diagnóstico Dinâmica (`DEBUG_MODE`):** Criada a chave `DEBUG_MODE` no `.env` para alternar entre logs de diagnóstico detalhados de scores/rotas no terminal e o modo silencioso de produção.
+- **Mapeamento Inteligente de Slugs & Apelidos:** Adicionado suporte a sinônimos de lojas (`magalu` ➔ `magazine-luiza`, `mercadolivre` ➔ `mercado-livre`, `ali` ➔ `aliexpress`) para alinhamento com as URLs oficiais do Pelando.
+- **Redirecionamento Automático (Fallback de Cupons):** Implementado fallback transparente para busca textual geral (`/busca/cupom+loja`) caso a loja consultada não possua página fixa estruturada.
+
+---
+
+### 🛠️ Correções & Otimizações
+
+### **Raspagem de Cupons & Produtos (`CupomFinder` / `ProductSearch`):**
+
+- Corrigido o envio de cabeçalhos de navegação moderna (`User-Agent`, `Sec-Ch-Ua`, `Origin`, `Referer`) resolvendo erros de bloqueio de WAF e conexões canceladas (Status `0`).
+
+### **Isolamento de Argumentos (`_extrair_args`):**
+
+Refatorada a extração de argumentos com expressões regulares com limites de palavras (`\b`), impedindo a mutilação acidental de termos e removendo preposições residuais ("para a", "de", "no").
+
+### **Orquestração de Pipeline (`CognitionPipeline`):**
+
+- Padronizada a execução dos métodos `buscar_cupons(args)` e `search(args)` no Pipeline, garantindo a injeção dos relatórios formatados em linguagem natural no contexto da LLM.
+
+- **Balanceamento e Failover das IAs:** Otimizado o ciclo de tentativas e castigo de chaves com Rate Limit no `GeminiProvider`, garantindo failover instantâneo para o Groq (`llama-3.3-70b-versatile`) sem estourar o tempo de resposta do Discord.
+
+## [2.2.5] - 03 de junho de 2026
+
+### 🧠 Cérebro & Roteamento (TLM Router)
+
+### **Mudança de Paradigma para Roteamento por Embeddings (Semantic Router):**
+
+- Substituição da inferência de linguagem via LLM (Qwen/Ollama) por cálculo direto de similaridade vetorial via cosseno (`sentence-transformers/all-MiniLM-L6-v2`).
+
+- Latência de decisão reduzida de **~800ms** para **< 15ms** por mensagem.
+- Liberação total de RAM/VRAM local ao eliminar a necessidade de manter modelos SLM de texto rodando continuamente no Ollama.
+
+### **Gatilhos Dinâmicos via DataManager:**
+
+- Criação do arquivo `Data/Knowledge/router_triggers.json` para mapeamento dinâmico de gatilhos e palavras-chave sem necessidade de reinar no código.
+
+- Implementação da função `recarregar_gatilhos()` para atualização em tempo real do espaço vetorial do roteador.
+
+### **Limpeza e Slot Filling:**
+
+- Implementação de ordenação por tamanho de gatilho para remoção precisa de prefixos/expressões de busca antes de repassar os argumentos às ferramentas.
+
+---
+
+### 🛒 Módulo Unificado de Compras (`Brain/Tools/Shopping/`)
+
+**`ProductSearch.py` (Busca e Comparador de Ofertas):**
+
+- Integração com a API pública do Mercado Livre para consulta instantânea de frete e preços.
+
+- Suporte ao **SerpApi / Google Shopping** para agregação de grandes e-commerces (Amazon, Magalu, Kabum).
+
+- Scraper leve via `httpx` + `selectolax` para varredura de ofertas e temperatura da comunidade do **Pelando**.
+
+**`CupomFinder.py` (Buscador de Cupons):**
+
+- Extração automatizada de cupons promocionais ativos por loja com tratamento do ecossistema Astro Island.
+
+**`ShoppingList.py` (Gestor de Listas de Compras):**
+
+- Persistência de listas de compras personalizadas por usuário diretamente no `users.json` via `DataManager`.
+
+- Recurso de orçamentação automática que pesquisa todas as ofertas atuais para cada item salvo de uma vez.
+
+**`PriceTracker.py` (Monitoramento Silencioso de Preços):**
+
+- Rotina de verificação noturna em segundo plano integrada ao `NightCycle.py` para alertar usuários via DM caso um item atinja o preço-alvo definido.
+
+---
+
+### 📂 Reorganização do Módulo de Pesquisa (`Brain/Tools/Research/`)
+
+- Unificação dos utilitários de pesquisa e mídia no diretório dedicado `Research/`:
+- `BuscaTools.py` $\rightarrow$ `Research/WebSearch.py`
+
+- `Images/VisionTool.py` $\rightarrow$ `Research/VisionTool.py`
+
+- `Images/SearchImages.py` $\rightarrow$ `Research/SearchImages.py`
+
+---
+
+### 🎬 Otimização e Cache do Jellyfin (`JellyfinTool.py`)
+
+**Sincronização Local do Catálogo:**
+
+- Troca das requisições web síncronas por um cache local estruturado em JSON armazenado em `Data/Knowledge/jellyfin_catalog.json`.
+
+- Mapeamento completo de filmes (com ano e sinopse) e agrupamento estratégico de séries por **temporadas e contagem de episódios** para economizar tokens.
+
+**Automação Noturna:**
+
+- Atualização automática do catálogo inserida no ciclo de manutenção noturno do `NightCycle.py`.
+
+---
+
+### 📝 Formatação e Pipeline (`Pipeline.py`)
+
+**Injeção de Prompts e Regras Visuais:**
+
+- Atualização das diretrizes do System Prompt (`full_sys`) para exibição limpa de preços em negrito, emojis temáticos por categoria e destaque de códigos promocionais com blocos de código markdown.
+
+**Proteção de Links:**
+
+- Mapeamento para preservação estrita de links gerados pelas ferramentas sem alteração por parte das LLMs principais.
+
 ## [v2.2.4] - 23 de junho de 2026
 
 ### 🧠 Atualizações Críticas no Cérebro & Pipeline Cognitivo
@@ -319,7 +726,7 @@ O módulo `Modules/Audio/*` agora está dividido estritamente nos domínios: `Pl
 ### **Atualizações em `Core/Bot.py`:**
 
 - **Leitura Dinâmica de Configurações:** Realiza o parse e a leitura do arquivo `config.json` em tempo de execução para extrair nome e versão dinamicamente, com fallback seguro.
-- **Tratamento Resiliente do Prefix:** Suporte robusto à extração via `os.getenv("BOT_PREFIX", "-")`, garantindo o prefixo padrão caso ocorram falhas ou ausência no arquivo `.env`.
+- **Tratamento Resiliente do Prefix:** Suporte robusto à extração via `AppConfig.get("BOT_PREFIX", "-")`, garantindo o prefixo padrão caso ocorram falhas ou ausência no arquivo `.env`.
 - **Correção no Fluxo de Sincronização:** A rotina `run_diagnostics()` foi movida do `setup_hook` para o evento nativo `on_ready`, solucionando bugs de latência nula e adicionando persistência para a visualização `AppealStartView`.
 - **Gerenciador de Erros Visual Avançado:** O listener global `on_command_error` agora gera embeds detalhados e intuitivos para exceções do tipo `MissingRequiredArgument`, eliminando mensagens em texto simples.
 - **Padronização de Fuso Horário:** Correção na captura do `start_time` do sistema, migrando para o método recomendado `discord.utils.utcnow()`.

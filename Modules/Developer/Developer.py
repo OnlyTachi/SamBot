@@ -5,7 +5,7 @@ import asyncio
 import uuid
 
 # Imports dos módulos internos
-from Brain.Providers.LLMFactory import LLMFactory
+from Brain.Providers.LLMFactory import llm_factory, llm_factory
 from Brain.Memory.LongTerm.VectorStore import vector_store
 from Brain.Core.NightCycle import NightCycle
 
@@ -19,8 +19,32 @@ class Developer(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.logger = logging.getLogger("SamBot.Developer")
-        self.factory = LLMFactory.get_instance()
+        self.factory = llm_factory
+        self.chain = self.factory.get_default_principal_chain()
         self.emoji = "💻"
+
+    @commands.command(
+        name="restart_services",
+        aliases=["resetapi"],
+        description="Reinicia apenas os serviços da Sam (API, Telegram, etc).",
+    )
+    @commands.is_owner()
+    async def restart_services(self, ctx: commands.Context):
+        if not await self.bot.is_owner(ctx.author):
+            return await ctx.send(
+                "Apenas o dono pode executar este comando.", ephemeral=True
+            )
+
+        if not hasattr(self.bot, "services") or not self.bot.services:
+            return await ctx.send(
+                "Gerenciador de serviços não encontrado.", ephemeral=True
+            )
+
+        await ctx.defer(ephemeral=True)
+        await self.bot.services.restart_all()
+        await ctx.followup.send(
+            "Serviços reiniciados com sucesso aguarde uns instantes!"
+        )
 
     @commands.command(name="infra", aliases=["status_llm"])
     @commands.is_owner()
@@ -30,14 +54,15 @@ class Developer(commands.Cog):
             title="🔧 Infraestrutura de IA", color=discord.Color.dark_grey()
         )
 
+        drivers = [
+            f"`{driver.__class__.__name__}`"
+            for driver in self.factory.available_drivers.values()
+        ]
+        drivers_str = ", ".join(drivers) if drivers else "Nenhum carregado"
+
         embed.add_field(
-            name="🖥️ Remote (Nuvem/API)",
-            value=f"Modelo: `{self.factory.model_name}`\nEmbed: `{self.factory.embed_model_cloud}`",
-            inline=False,
-        )
-        embed.add_field(
-            name="💻 Local (Ollama/CPU)",
-            value=f"URL: `{self.factory.local_url}`\nFast: `{self.factory.local_model}`\nEmbed: `{self.factory.embed_model_local}`",
+            name="🤖 Drivers Disponíveis",
+            value=drivers_str,
             inline=False,
         )
         await ctx.send(embed=embed)
@@ -47,11 +72,11 @@ class Developer(commands.Cog):
     async def test_generation(
         self, ctx, *, prompt: str = "Responda curto: Você está online?"
     ):
-        """Testa a geração de texto (Prioridade: Gemini > Remote > Local)."""
+        """Testa a geração de texto via cadeia orquestrada."""
         msg = await ctx.send("🔄 **Testando pipeline de IA...**")
         try:
             start_time = asyncio.get_event_loop().time()
-            response = await self.factory.generate_response(
+            response = await self.chain.generate_response(
                 prompt, "Responda de forma técnica e curta."
             )
             elapsed = round(asyncio.get_event_loop().time() - start_time, 2)
@@ -69,7 +94,7 @@ class Developer(commands.Cog):
     @commands.command(name="memtest")
     @commands.is_owner()
     async def test_memory_system(self, ctx, *, text: str = "Teste de banco vetorial."):
-        """Testa Embedding (Gemini Cloud + Nomic Local) e ChromaDB."""
+        """Testa Embedding e ChromaDB."""
         msg = await ctx.send("💾 **Testando VectorStore (Failover Ativo)...**")
         try:
             test_id = f"test_{str(uuid.uuid4())[:8]}"
@@ -84,7 +109,6 @@ class Developer(commands.Cog):
             await msg.edit(content="💾 **Dados guardados.** Tentando recuperar...")
             await asyncio.sleep(1.5)
 
-            # CORREÇÃO: Adicionado o await
             retrieved = await vector_store.query_relevant(
                 "fatos_usuario", "O que o admin esta fazendo?", n_results=1
             )
@@ -121,6 +145,64 @@ class Developer(commands.Cog):
             )
         except Exception as e:
             await msg.edit(content=f"❌ **Erro no Ciclo:** {str(e)}")
+
+    @commands.command(name="reload_db", aliases=["atualizar", "syncdb"])
+    @commands.is_owner()
+    async def reload_knowledge_database(self, ctx):
+        """Lê os arquivos JSON da pasta Knowledge, grava no SQLite e limpa os caches."""
+        msg = await ctx.send(
+            "🔄 **Iniciando sincronização dos JSONs com o banco de dados...**"
+        )
+
+        try:
+            import json
+            from pathlib import Path
+            from Brain.Memory.DataManager.Connections import data_manager
+
+            knowledge_dir = Path("Data/Knowledge")
+            arquivos_atualizados = []
+
+            if knowledge_dir.exists():
+                for json_file in knowledge_dir.glob("*.json"):
+                    key_name = json_file.stem
+                    with open(json_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+
+                    data_manager.save_knowledge(key_name, data)
+                    arquivos_atualizados.append(f"`{key_name}`")
+
+            data_manager.reload_all()
+
+            if hasattr(self.bot, "pipeline") and hasattr(self.bot.pipeline, "router"):
+                await self.bot.pipeline.router.sincronizar_base_rotas(force=True)
+
+            embed = discord.Embed(
+                title="✅ Banco de Dados Sincronizado!",
+                description="Os arquivos JSON foram lidos e gravados com sucesso no SQLite.",
+                color=discord.Color.green(),
+            )
+
+            detalhes = (
+                ", ".join(arquivos_atualizados)
+                if arquivos_atualizados
+                else "Nenhum JSON encontrado."
+            )
+            embed.add_field(
+                name="📂 Registros Atualizados", value=detalhes, inline=False
+            )
+            embed.add_field(
+                name="🧠 Cache de Memória",
+                value="RAM limpa & VectorStore sincronizada.",
+                inline=False,
+            )
+
+            await msg.edit(content=None, embed=embed)
+
+        except Exception as e:
+            self.logger.error(f"Erro ao sincronizar banco de dados: {e}", exc_info=True)
+            await msg.edit(
+                content=f"❌ **Falha ao atualizar o banco de dados:** `{str(e)}`"
+            )
 
 
 async def setup(bot):

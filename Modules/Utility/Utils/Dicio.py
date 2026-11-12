@@ -4,6 +4,8 @@ from discord import app_commands
 import aiohttp
 import xml.etree.ElementTree as ET
 
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class Dicionario(commands.Cog):
     def __init__(self, bot):
@@ -25,26 +27,23 @@ class Dicionario(commands.Cog):
         url_sinonimos = (
             f"https://api.datamuse.com/words?rel_syn={palavra_formatada}&v=pt_wiki"
         )
+        session = NetworkManager.get_aio_session()
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                # Faz as requisições em paralelo para otimizar o tempo de resposta
-                async with session.get(url_dicio) as resp_dicio, session.get(
-                    url_sinonimos
-                ) as resp_sino:
-                    if resp_dicio.status != 200:
-                        return await ctx.send(
-                            "❌ Não consegui acessar o dicionário no momento."
-                        )
-
-                    dados_dicio = await resp_dicio.json()
-                    dados_sino = (
-                        await resp_sino.json() if resp_sino.status == 200 else []
+        try:
+            async with session.get(url_dicio) as resp_dicio, session.get(
+                url_sinonimos
+            ) as resp_sino:
+                if resp_dicio.status != 200:
+                    return await ctx.send(
+                        "❌ Não consegui acessar o dicionário no momento."
                     )
-            except Exception:
-                return await ctx.send(
-                    "❌ Ops! Os serviços de consulta linguística estão fora do ar."
-                )
+
+                dados_dicio = await resp_dicio.json()
+                dados_sino = await resp_sino.json() if resp_sino.status == 200 else []
+        except Exception:
+            return await ctx.send(
+                "❌ Ops! Os serviços de consulta linguística estão fora do ar."
+            )
 
         if not dados_dicio:
             return await ctx.send(
@@ -55,30 +54,24 @@ class Dicionario(commands.Cog):
         xml_data = dados_dicio[0].get("xml", "")
         try:
             root = ET.fromstring(xml_data)
-
-            # Classe gramatical
             gram_grp = root.find(".//gramGrp")
             classe = (
                 f"*{gram_grp.text.strip().capitalize()}*"
-                if gram_grp is not None
+                if gram_grp is not None and gram_grp.text
                 else "*Definição:*"
             )
-
-            # Definições principais
             definicoes = []
             for def_tag in root.findall(".//def"):
                 texto = "".join(def_tag.itertext()).strip()
                 texto_limpo = " ".join(texto.split())
                 if texto_limpo:
                     definicoes.append(texto_limpo)
-
             descricao_significado = ""
             for i, d in enumerate(definicoes[:2], 1):
                 descricao_significado += f"**{i}.** {d}\n"
-        except Exception:
+        except (ET.ParseError, AttributeError, TypeError):
             descricao_significado = "Erro ao processar a estrutura do significado."
             classe = "*Definição:*"
-
         # 2. PROCESSANDO OS SINÔNIMOS (Datamuse)
         if dados_sino:
             lista_sino = [item["word"] for item in dados_sino[:5]]

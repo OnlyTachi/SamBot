@@ -1,0 +1,95 @@
+# ==============================================================================
+# CONFIGURAÇÕES BÁSICAS DO BOT
+# ==============================================================================
+bot:
+  name: "SamBot"
+  version: "3.5.0-beta"
+  prefix: "-"
+  debug_mode: false
+
+# ==============================================================================
+# SELETORES DE SERVIÇOS AUTÔNOMOS (ServiceManager)
+# ==============================================================================
+services:
+  enabled: false # Chave mestra: se false, desliga API, Telegram e Notifier
+  api: false # Servidor FastAPI interno (HTTP + WebSocket)
+  telegram: false # Scraper autônomo do Telethon
+  notifier: false # Fila em segundo plano de avisos e webhooks de promoções
+
+# ==============================================================================
+# SERVIDOR API INTERNO (APIServer)
+# ==============================================================================
+api:
+  host: "0.0.0.0"
+  port: 8001
+  secret_token: "sambot_secret_token_industrial_2026"
+  cors_origins:
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"
+
+# ==============================================================================
+# REPRODUÇÃO MUSICAL & AUDIO ENGINE (Wavelink / Lavalink)
+# ==============================================================================
+music:
+  source_mode: "LOCAL" # "LOCAL" (Navidrome/Subsonic/CookieLocal) ou "ONLINE" (YouTube/SoundCloud)
+
+  # Host local (Docker Lavalink container)
+  lavalink_host: "lavalink"
+  lavalink_port: 2333
+  lavalink_password: "youshallnotpass"
+
+  # Nós remotos públicos/privados para fallback caso source_mode seja "ONLINE"
+  online_nodes:
+    hosts: "lavalink.exemplo.com"
+    ports: "443"
+    passwords: "youshallnotpass"
+
+# ==============================================================================
+# INTEGRAÇÃO TELEGRAM (TelegramScraper / TelegramCollaborator)
+# ==============================================================================
+telegram:
+  enabled: false
+  channels: [] # Preenchido via .env ou comandos dinâmicos (+colaborar promo)
+
+# ==============================================================================
+# BANCO DE DADOS RELACIONAL (SQLite)
+# ==============================================================================
+database:
+  sqlite_timeout: 30.0
+
+# ==============================================================================
+# FERRAMENTAS & TIMEOUTS OPERACIONAIS
+# ==============================================================================
+tools:
+  anime:
+    jikan_timeout: 10.0
+    jikan_top_limit: 5
+  shopping:
+    pelando_timeout: 8.0
+    pelando_coupon_limit: 5
+  worker:
+    yt_worker_url: "http://127.0.0.1:4000"
+  jellyfin:
+    url: "http://tailscale-sidecar:8096"
+    notif_channel_id: null
+
+# ==============================================================================
+# INTELIGÊNCIA ARTIFICIAL (Cadeia de Provedores e Modelos)
+# ==============================================================================
+llm:
+  # Ordem prioritária de consumo na cascata de Failover:
+  chain_order: "gemini,groq,ollama,deepseek,openrouter,mistral"
+
+  models:
+    gemini: "gemini-2.5-flash"
+    groq: "llama-3.1-8b-instant"
+    deepseek: "deepseek-chat"
+    openrouter: "meta-llama/llama-3.3-70b-instruct:free"
+    mistral: "mistral-small-latest"
+
+  ollama:
+    local_url: "http://host.docker.internal:11434"
+    models:
+      smart: "phi3.5:latest"
+      fast: "qwen2.5:1.5b"
+      embed: "nomic-embed-text"

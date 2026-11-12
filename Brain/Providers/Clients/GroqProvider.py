@@ -1,6 +1,7 @@
 import os
 from typing import List, Optional
 from Brain.Providers.BaseLLM import BaseLLMProvider
+from Core.ConfigLoader import AppConfig
 
 try:
     from groq import AsyncGroq
@@ -22,7 +23,7 @@ class GroqDriver(BaseLLMProvider):
 
         # Configurações do Groq obtidas do ambiente (.env)
         self.groq_key = os.getenv("GROQ_API_KEY")
-        self.groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        self.groq_model = AppConfig.get("GROQ_MODEL", "llama-3.1-8b-instant")
 
         # Configuração de temperatura herdada ou padrão
         self.temperature = 0.7

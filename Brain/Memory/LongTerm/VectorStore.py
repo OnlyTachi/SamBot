@@ -24,6 +24,9 @@ class VectorStore:
                 "resumos_diarios": self.client.get_or_create_collection(
                     name="resumos_diarios", metadata={"hnsw:space": "cosine"}
                 ),
+                "rotas_intencoes": self.client.get_or_create_collection(
+                    name="rotas_intencoes", metadata={"hnsw:space": "cosine"}
+                ),
             }
             logger.info(
                 f"✅ VectorStore pronta. Modo: {self.embedding_fn.working_mode}"

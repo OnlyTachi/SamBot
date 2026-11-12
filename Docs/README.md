@@ -1,98 +1,55 @@
-# 🤖 SamBot: A Agente do meu HomeLab
+# 🤖 SamBot: A Baiana do Meu HomeLab
 
-A **SamBot** não é apenas uma bot de comandos: é uma **Agente Autônomo Híbrido** que atua como o coração experimental do meu HomeLab. Este projeto nasceu da necessidade de criar uma inteligência artificial funcional que respeitasse as limitações de hardware e as particularidades de uma rede privada, oferecendo memória de longo prazo, consciência contextual e áudio de alta fidelidade.
+A **SamBot** não é apenas uma bot de comandos: é uma **Agente Autônoma Híbrida** que atua como o coração experimental do meu HomeLab. Este projeto nasceu da necessidade de criar uma assistente funcional que respeitasse as limitações de hardware e as particularidades de uma rede privada, oferecendo memória de longo prazo, consciência contextual e áudio de alta fidelidade.
 
-Ela utiliza **LLMs** (Large Language Models) para conversação natural e **RAG** (Retrieval-Augmented Generation) para recordar fatos, operando sob uma arquitetura resiliente que alterna entre o processamento em nuvem e local.
+Ela utiliza **LLMs** (Large Language Models) para conversação natural e **RAG** (Retrieval-Augmented Generation) para recordar fatos, operando sob uma arquitetura resiliente que alterna entre processamento em nuvem e local.
 
-_Curiosidade: O nome "SamBot" foi inspiração de uma pessoa muito querida para mim, esse projeto foi um presente a ela_
+_Curiosidade: O nome "SamBot" foi inspirado em uma pessoa muito querida para mim; este projeto foi um presente para ela._
 
 ## 📖 Guia de Documentação
 
-[Arquitetura do Sistema](ARCHITECTURE.md) - Detalhes sobre o pipeline cognitivo e estrutura de pastas.
-
-[Guia de Configuração](CONFIG_GUIDE.md) - Como configurar as chaves de API e o ficheiro .env.
-
-[Infraestrutura](INFRA.md) - Detalhes sobre o uso do Tailscale e Ubuntu Server.
-
-[Atualizações](CHANGELOG.md) - Informações sobre mudanças e atualizações
-
-[Api](API.md) - Informações sobre ferramentas externas e APIs.
+- 🏗️ **[Arquitetura do Sistema](./ARCHITECTURE.md)** — Detalhes sobre o pipeline cognitivo, fluxo de eventos e estrutura de pastas.
+- ⚙️ **[Guia de Configuração](./CONFIG.md)** — Como configurar as chaves de API, variáveis do `.env` e o `config.yaml`.
+- 🌐 **[Infraestrutura e Redes](./Developers/Infra.md)** — Topologia de hardware, uso do Tailscale e Ubuntu Server.
+- 📜 **[Histórico de Mudanças](./CHANGELOG.md)** — Registro completo de versões, melhorias e correções.
+- 🔌 **[Serviços](./Services/ServiceManager.md) & [APIs](./Brain/Tools/Catalog.md)** — Catálogo de rotas internas, ferramentas externas e integrações.
 
 ## 💡 Filosofia do Projeto
 
-Diferente de bots comerciais, a SamBot foi projetado para um ecossistema específico:
+Diferente de bots comerciais genéricos, a SamBot foi projetada para um ecossistema específico:
 
-- **Foco Pessoal:** Desenvolvido para uso próprio e de amigos próximos.
-- **Desenvolvimento Assistido:** O projeto é uma jornada de aprendizado, utilizando LLMs (como o Google Gemini) como "professores" para revisar código e ajudar no debug de novas arquiteturas.
-- **Otimização de Recursos:** Desenhado para ser resiliente e "compartilhar a potência" entre dispositivos, já que o hardware principal nem sempre está ligado 24/7.
-
----
-
-## 🏗️ Arquitetura Híbrida & Infraestrutura
-
-A bot opera numa estrutura de **Failover Inteligente** para garantir disponibilidade e eficiência:
-
-1. **O "Cérebro" na Nuvem (Google Gemini):** Garante respostas constantes, mesmo com o hardware local desligado ou fora da rede.
-2. **O "Músculo" Local (Ollama):** Quando a workstation está ativa, a bot prioriza o processamento local para economizar tokens e testar modelos personalizados.
-
-### 🌐 Networking com Tailscale
-
-A espinha dorsal da rede é o **Tailscale**, que permite:
-
-- Comunicação segura entre o servidor (Ubuntu) e o Ollama (Windows) em máquinas distintas.
-- Acesso remoto ao sistema de logs e persistência via DNS privado.
-- Acesso seguro para amigos sem a necessidade de expor portas públicas.
-
-### 💻 Hardware Atual (Humble Stack)
-
-- **Servidor Principal:** Acer ES1 573 (i3 6006u | 8GB RAM) rodando Ubuntu Server.
-- **Workstation:** E3-1270 | 24GB RAM | RX580 rodando Ollama via Tailscale.
-- **Futuro:** Planejamento para migração para um servidor dedicado (Xeon E5 2470).
-
----
+- **Foco Pessoal:** Desenvolvida para uso próprio e de amigos próximos.
+- **Desenvolvimento Assistido:** O projeto é uma jornada de aprendizado contínuo, utilizando LLMs (como o Google Gemini) como "tutoras" para revisar código e auxiliar no debug de novas arquiteturas.
+- **Otimização de Recursos:** Desenhada para ser resiliente e "compartilhar a potência" entre dispositivos, já que o hardware principal nem sempre fica ligado 24/7.
 
 ## ✨ Principais Funcionalidades
 
 ### 🧠 Inteligência & Memória
 
-- **Conversação Natural:** Entende contexto, ironia e intenções através de menções diretas.
-- **Memória Infinita (RAG):** Utiliza **ChromaDB** para "aprender" e persistir fatos sobre os usuários ao longo do tempo. Ex: Se você disser _"Meu nome é Tachi e gosto de Jazz"_, ela lembrará disso semanas depois.
-- **Identidade Sólida:** Personalidade definida via `identity.json` e prompts dinâmicos (Nerd, Louco, Amiga, etc.), evitando alucinações sobre sua natureza.
-- **Redundância (Failover):** \* Se a API do Google cair, ele aciona modelos locais automaticamente.Obs: Rotação automática de chaves de API para evitar limites de uso.
+- **Conversação Natural:** Compreende contexto, ironia e intenções através de menções diretas ou respostas a mensagens.
+- **Memória Infinita (RAG):** Utiliza **ChromaDB** para "aprender" e persistir fatos sobre os usuários ao longo do tempo. _Exemplo: se você disser "Meu nome é Tachi e gosto de jazz", ela lembrará disso semanas depois._
+- **Identidade Sólida:** Personalidade ancorada em `identity.json` e personas dinâmicas (`padrao`, `nerd`, `amiga`), evitando alucinações sobre sua natureza.
+- **Redundância Automática (Failover):** Rotação inteligente de chaves de API contra Rate Limit (HTTP 429) e transição silenciosa para modelos locais se a nuvem oscilar.
 
-### 🎵 Sistema de Áudio (Wavelink)
+### 🎵 Sistema de Áudio (Wavelink / Lavalink)
 
-- **Alta Fidelidade:** Integração com Lavalink para música sem lag e suporte a filtros/playlists.
-- **Status Dinâmico:** Atualiza automaticamente o status no Discord com a música em reprodução.
+- **Alta Fidelidade:** Integração com Lavalink v4 para reprodução fluida, equalizações dinâmicas (Bassboost, Nightcore) e playlists locais.
+- **Status Dinâmico:** Atualiza automaticamente a presença e o status no Discord conforme a faixa em reprodução.
+- **Modos Flexíveis:** Suporte a acervo local privado via **Navidrome** (API Subsonic) ou servidores remotos online.
 
-### 🛠️ Ferramentas Autônomas
+### 🛠️ Ferramentas Autônomas (`Tools`)
 
-O bot decide autonomamente quando utilizar ferramentas externas para:
+A bot avalia a intenção via roteamento semântico local e decide quando acionar ferramentas externas:
 
-- **Clima:** Consultas meteorológicas em tempo real.
-- **Jogos:** Busca de preços e informações na Steam ou IGDB.
-- **Busca Web:** Pesquisas na internet para dados atualizados.
-- **Busca Imagem:** Pesquisa imagens na internet.
-
----
-
-## 🧱 Tech Stack
-
-| Componente           | Tecnologia Utilizada               |
-| -------------------- | ---------------------------------- |
-| **Linguagem**        | Python 3.11                        |
-| **Core Framework**   | Discord.py 2.0+                    |
-| **Rede**             | Tailscale (Mesh VPN)               |
-| **IA (Cloud/Local)** | Google Gemini 1.5/2.0 + Ollama     |
-| **Vector DB**        | ChromaDB (Persistência de Memória) |
-| **Container**        | Docker & Docker Compose            |
-| **Áudio**            | Wavelink (Lavalink Wrapper)        |
-
----
+- **Clima:** Condições meteorológicas em tempo real via Open-Meteo e Nominatim.
+- **Compras & Cupons:** Comparador de preços (Mercado Livre, Pelando, Meilisearch) e busca de cupons ativos.
+- **Jogos:** Consulta de metadados no IGDB, preços em BRL na Steam e descontos no CheapShark.
+- **Animes:** Metadados via Jikan (MyAnimeList) e identificação de cenas por imagem no Trace.moe.
+- **Busca Web & Visão:** Pesquisas na web em tempo real e interpretação multimodal de anexos.
 
 ## 🚀 Instalação Rápida
 
-A SamBot agora possui um **Painel Assistente Interativo**, projetado para que você não precise editar códigos ou arquivos de ambiente manualmente!
+A SamBot conta com um **Painel Assistente Interativo**, permitindo gerenciar o ambiente sem precisar editar arquivos na mão:
 
 1. **Clonar o Repositório:**
 
@@ -105,16 +62,14 @@ cd SamBot
 
 - No **Linux**: Execute `./start.sh`
 - No **Windows**: Dê um duplo clique em `start.bat`
-  _(Nota: Você precisa ter o Python 3 instalado no sistema)_
+  _(Requisito: Python 3.11+ instalado e marcado no PATH)_
 
-3. **Siga as instruções na tela:** O menu guiará você passo a passo (com dicas de ajuda ao digitar `?`) para criar seu arquivo `.env`, adicionar suas chaves opcionais e decidir se deseja iniciar o bot nativamente ou de forma conteinerizada (Docker).
-
----
+3. **Siga as instruções na tela:** O assistente guiará você passo a passo (com dicas contextuais ao digitar `?`) para criar o arquivo `.env`, validar chaves opcionais e iniciar o bot nativamente ou via **Docker Compose**.
 
 ## ⚠️ Nota sobre o Estado do Projeto
 
-Este é um projeto em constante evolução e funciona como um laboratório pessoal de Python e IA. O código pode conter redundâncias ou soluções técnicas temporárias ("jeitinhos") que são aprimoradas diariamente conforme o aprendizado avança. Obs: algumas documentaçoes podem estar erradas ou desatualizadas.
+Este é um projeto em constante evolução que atua como laboratório prático de Python e Inteligência Artificial. O código passa por refatorações periódicas à medida que novos padrões de design e integrações são experimentados.
 
 ## 📝 Licença
 
-Desenvolvido com amor e curiosidade por **OnlyTachi**. Distribuído sob a licença **MIT**.
+Desenvolvido com curiosidade e carinho por **OnlyTachi**. Distribuído sob a licença **MIT**.

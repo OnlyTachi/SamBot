@@ -25,25 +25,24 @@ class LLMChainOrchestrator:
     async def setup_chain(self):
         """
         Inicializa e diagnostica individualmente cada provedor fornecido.
-        Apenas os provedores que passarem nos testes de conexão/chave entram na lista ativa.
+        Apenas os provedores que passarem nos testes entram na lista ativa.
         """
-        self.active_providers = []
-        self.log.info(
-            f"⛓️ [Cadeia: {self.name}] Iniciando a preparação dos provedores..."
-        )
+        if self.is_ready:
+            return
 
+        self.active_providers = []
+        self.log.info(f"[Cadeia: {self.name}] Iniciando a preparação dos provedores...")
         for provider in self.providers:
             try:
                 if await provider.initialize():
                     self.active_providers.append(provider)
             except Exception as e:
                 self.log.error(
-                    f"❌ Erro crítico ao inicializar provedor {provider.__class__.__name__} na cadeia {self.name}: {e}"
+                    f"Erro crítico ao inicializar provedor {provider.__class__.__name__} na cadeia {self.name}: {e}"
                 )
-
         self.is_ready = True
         self.log.info(
-            f"✨ [Cadeia: {self.name}] Concluída! {len(self.active_providers)} de {len(self.providers)} provedores prontos para uso."
+            f"[Cadeia: {self.name}] Concluída! {len(self.active_providers)} de {len(self.providers)} provedores prontos para uso."
         )
 
     async def generate_response(

@@ -1,0 +1,45 @@
+server:
+  port: 2333
+  address: 0.0.0.0
+  http2:
+    enabled: true # Melhora o throughput para múltiplos streams simultâneos
+
+lavalink:
+  server:
+    password: "youshallnotpass" # Deve ser idêntica à LAVALINK_PASSWORD configurada no SamBot
+    sources:
+      # Desativa fontes da internet que demandam scraping ou tokens externos
+      youtube: false
+      soundcloud: false
+      bandcamp: false
+      twitch: false
+      vimeo: false
+      nico: false
+      # Fontes estritamente necessárias para streaming da sua rede interna
+      http: true # Obrigatório para receber os streams do Navidrome (Subsonic API)
+      local: true # Permite tocar faixas montadas via volume no container
+
+    # Filtros de áudio suportados pelos comandos (+filtro nightcore, bassboost, volume, etc.)
+    filters:
+      volume: true
+      equalizer: true
+      timescale: true
+      channelMix: true
+      waveform: true
+
+    bufferDurationMs: 400 # Buffer de 400ms em RAM para reprodução local estável
+    frameBufferDurationMs: 5000 # Pré-carrega 5s da faixa
+    trackStuckThresholdMs: 10000 # Tempo limite para declarar faixa travada
+    useSeekGhosting: true
+    playerUpdateInterval: 5 # Intervalo em segundos de broadcast de progresso
+
+metrics:
+  prometheus:
+    enabled: false
+
+logging:
+  file:
+    path: ./logs/lavalink.log
+  level:
+    root: INFO
+    lavalink: INFO

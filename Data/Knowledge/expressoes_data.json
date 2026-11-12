@@ -1,4 +1,32 @@
 {
+    "padrao": [
+        "hmm...",
+        "olha só...",
+        "interessante...",
+        "entendi perfeitamente.",
+        "anotado!",
+        "hehe",
+        "rs"
+    ],
+    "risada": [
+        "kajsaksdalk",
+        "xd, adorei!",
+        "não aguento com isso kkkk",
+        "aiai, que funny!",
+        "xd, essa foi boa!"
+    ],
+    "triste": [
+        "puxa... que bad :c",
+        "força aí, vai ficar tudo bem! 💜",
+        "poxa, sinto muito...",
+        "não fica assim não! :("
+    ],
+    "surpresa": [
+        "uau, sério mesmo?! 😲",
+        "eita, dessa eu não sabia!",
+        "nossa, chocada!",
+        "como assim?! Que incrível!"
+    ],
     "emojis": {
         "neutro": [
             "🤖",
@@ -17,7 +45,7 @@
         "confuso": [
             "😵‍💫",
             "🤨",
-            "?",
+            "❓",
             "🧐"
         ],
         "bravo": [
@@ -30,20 +58,8 @@
         "triste": [
             "😢",
             "💔",
-            "F",
             "😔",
             "☁️"
-        ]
-    },
-    "reaction_gifs": {
-        "pensando": [
-            "https://media.tenor.com/7zK_.../thinking-emoji.gif"
-        ],
-        "risada": [
-            "[link suspeito removido]"
-        ],
-        "surpresa": [
-            "[link suspeito removido]"
         ]
     },
     "keywords": {
@@ -52,7 +68,7 @@
             "valeu",
             "bom",
             "legal",
-            "kkk",
+            "ksks",
             "amei",
             "top",
             "perfeito"

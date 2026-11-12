@@ -6,7 +6,7 @@ import random
 import logging
 
 from Brain.Core.Pipeline import CognitionPipeline
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 logger = logging.getLogger("SamBot.Agent")
 
@@ -32,9 +32,7 @@ class CerebroIA(commands.Cog):
                 raw_channels if isinstance(raw_channels, dict) else {}
             )
 
-        self.logger.info(
-            "📡 Interface Discord (Agent) vinculada ao Pipeline com sucesso."
-        )
+        self.logger.info("📡 Interface Discord vinculada ao Pipeline com sucesso.")
 
     def _is_command(self, message: discord.Message, prefixes) -> bool:
         content = message.content.strip()
@@ -55,6 +53,9 @@ class CerebroIA(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.author.id == self.bot.user.id:
+            return
+
+        if data_manager.get_user_data(str(message.author.id), "status_ocupado", False):
             return
 
         prefix = await self.bot.get_prefix(message)
@@ -78,7 +79,7 @@ class CerebroIA(commands.Cog):
             async with message.channel.typing():
                 clean_text = re.sub(r"<@!?\d+>", "", message.content).strip()
                 if not clean_text and not message.attachments:
-                    clean_text = "Olá!"
+                    clean_text = "Olá"
 
                 input_text = clean_text
                 try:
@@ -104,7 +105,7 @@ class CerebroIA(commands.Cog):
                         )
 
                 # Delega a cognição pesada para o Pipeline
-                await self.pipeline.processar_cognicao(message, input_text, persona)
+                await self.pipeline.processar_cognicao(message, clean_text, persona)
 
     @commands.Cog.listener()
     async def on_reaction_add(self, reaction, user):

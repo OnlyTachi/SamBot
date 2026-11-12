@@ -1,7 +1,8 @@
 # nao sei se esse arquivo sera usado futuramente
 # vai ficar aqui por enquanto
 import logging
-from Brain.Tools.BuscaTools import BuscaTool
+from Brain.Tools.Research.WebSearch import BuscaTool
+
 
 class MusicRecTool:
     def __init__(self):
@@ -13,12 +14,12 @@ class MusicRecTool:
         Busca recomendações de música baseadas no pedido do usuário.
         """
         self.logger.info(f"🔎 Buscando recomendações para: {query}")
-        
+
         search_query = f"melhores músicas de {query} recomendações youtube"
-        
+
         try:
             resultados = await self.busca_tool.buscar_na_cascata(search_query)
-            
+
             if "Nenhum resultado" in resultados:
                 return "❌ Não consegui encontrar recomendações específicas para isso agora."
 

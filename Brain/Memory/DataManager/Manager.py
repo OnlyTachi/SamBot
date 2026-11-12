@@ -1,215 +1,124 @@
-# Brain/Memory/DataManager/Manager.py
-
-import os
 import logging
 from pathlib import Path
 from typing import Dict, List, Any
-from abc import ABC, abstractmethod
-from dotenv import load_dotenv
 
-from ._json_provider import JsonIO
+# Importacoes dos módulos especializados
+from .Connections.SQLiteConnection import DatabaseConnection
 from ._cache import DataCache
-
-load_dotenv()
-
-
-# --- 1. O CONTRATO (INTERFACE UNIVERSAL) ---
-class DatabaseProvider(ABC):
-    @abstractmethod
-    def get_identity(self) -> Dict:
-        pass
-
-    @abstractmethod
-    def get_prompt(self, persona: str) -> str:
-        pass
-
-    @abstractmethod
-    def get_knowledge(self, key: str) -> Any:
-        pass
-
-    @abstractmethod
-    def save_knowledge(self, key: str, data: Any):
-        pass
-
-    @abstractmethod
-    def get_user_data(self, user_id: str, key: str) -> Any:
-        pass
-
-    @abstractmethod
-    def set_user_data(self, user_id: str, key: str, value: Any):
-        pass
+from .DatabaseSeeder import DatabaseSeeder
+from .SubManagers.BrainDataManager import BrainDataManager
+from .SubManagers.DiscordDataManager import DiscordDataManager
+from .Connections.MeiliConnection import MeiliConnection
+from .SubManagers.ShoppingDataManager import ShoppingDataManager
 
 
-# --- 2. ORQUESTRADOR JSON ---
-class JsonProvider(DatabaseProvider):
-    """
-    Gestor Unificado de Dados em JSON refatorado.
-    """
+class DataManagerFacade:
+    """Orquestrador Principal"""
 
     def __init__(self):
         self.logger = logging.getLogger("SamBot.Archive")
-
-        # Módulos isolados
-        self.io = JsonIO()
         self.cache = DataCache()
 
-        # Ajuste de rota: Agora estamos dentro de Brain/Memory/DataManager
-        self.base_dir = Path(__file__).resolve().parent.parent
-        self.root = self.base_dir.parent.parent / "Data"
+        self.base_dir = Path(__file__).resolve().parent.parent.parent.parent / "Data"
+        self.persistence_dir = self.base_dir / "Persistence"
+        self.persistence_dir.mkdir(parents=True, exist_ok=True)
 
-        self.folders = {
-            "config": self.root / "Config",
-            "prompts": self.root / "Prompts",
-            "knowledge": self.root / "Knowledge",
-            "persistence": self.root / "Persistence",
-            "users": self.root / "Users",
-        }
+        db_path = self.persistence_dir / "database.db"
+        self.db = DatabaseConnection(db_path)
 
-        for folder in self.folders.values():
-            folder.mkdir(parents=True, exist_ok=True)
+        seeder = DatabaseSeeder(self.db, self.base_dir)
+        seeder.sync_all()
 
-    # --- ATALHOS DE COMPATIBILIDADE (Para NightCycle.py) ---
-    def _io_read_json(self, path: Path, default_type: Any = dict) -> Any:
-        return self.io.read(path, default_type)
+        self.meili_db = MeiliConnection()
+        self.brain = BrainDataManager(self.db, self.cache)
+        self.discord = DiscordDataManager(self.db, self.cache)
+        self.shopping = ShoppingDataManager(self.meili_db, self.db, self.cache)
 
-    def _io_save_json(self, path: Path, data: Any):
-        self.io.save(path, data)
+    # --- PERSISTÊNCIA DE ARQUIVOS / SESSÕES ---
+    def get_persistence_path(self, filename: str) -> str:
+        """Garante a resolução segura de arquivos de persistência (ex: sessões Telethon)."""
+        return str(self.persistence_dir / filename)
 
-    # --- IDENTIDADE E CONFIGURAÇÃO ---
+    # --- ROTEAMENTO SHOPPING (Meilisearch) ---
+    async def search_cached_offers(self, query: str, loja: str = None) -> list:
+        return await self.shopping.search_cached_offers(query, loja=loja)
+
+    async def save_offers(self, offers: list):
+        await self.shopping.save_offers(offers)
+
+    async def purge_expired_offers(self):
+        await self.shopping.purge_expired_offers()
+
+    def parse_and_process_telegram_offer(self, text: str, msg_id: int) -> dict | None:
+        if not self.cache.get("nlp_shopping"):
+            nlp_data = self.brain.get_knowledge("nlp_shopping")
+            self.cache.set("nlp_shopping", nlp_data)
+        return self.shopping.parse_telegram_offer(text, msg_id)
+
+    # --- ROTEAMENTO BRAIN (Cognição e Config) ---
     def get_identity(self) -> Dict:
-        cached = self.cache.get("identity")
-        if cached:
-            return cached
-
-        path = self.folders["config"] / "identity.json"
-        data = self.io.read(path)
-        if not data:
-            data = {"name": "SamBot", "version": "3.0", "status": "online"}
-
-        self.cache.set("identity", data)
-        return data
+        return self.brain.get_identity()
 
     def get_prompt(self, persona: str = "padrao") -> str:
-        filename = f"{persona.replace('.txt', '')}.txt"
-        cached = self.cache.get_prompt(filename)
-        if cached:
-            return cached
+        return self.brain.get_prompt(persona)
 
-        path = self.folders["prompts"] / filename
-
-        if not path.exists():
-            if persona != "padrao":
-                self.logger.warning(
-                    f"Persona {persona} não encontrada, usando 'padrao'."
-                )
-                return self.get_prompt("padrao")
-            return "Você é o SamBot, um assistente inteligente."
-
-        try:
-            content = path.read_text(encoding="utf-8").strip()
-            self.cache.set_prompt(filename, content)
-            return content
-        except Exception as e:
-            self.logger.error(f"Erro ao carregar ficheiro de prompt: {e}")
-            return "Erro interno ao carregar personalidade."
-
-    def list_available_personalities(self) -> List[str]:
-        files = self.folders["prompts"].glob("*.txt")
-        return [f.stem for f in files]
-
-    # --- CONHECIMENTO E NLP ---
     def get_knowledge(self, key: str) -> Any:
-        if key == "nlp_data" and self.cache.get("nlp"):
-            return self.cache.get("nlp")
-        if key == "expressoes_data" and self.cache.get("expressions"):
-            return self.cache.get("expressions")
-
-        path = self.folders["knowledge"] / f"{key.replace('.json', '')}.json"
-        data = self.io.read(path)
-
-        if "nlp" in key:
-            self.cache.set("nlp", data)
-        if "expressoes" in key:
-            self.cache.set("expressions", data)
-        return data
+        return self.brain.get_knowledge(key)
 
     def save_knowledge(self, key: str, data: Any):
-        path = self.folders["knowledge"] / f"{key.replace('.json', '')}.json"
-        self.io.save(path, data)
-        if "nlp" in key:
-            self.cache.set("nlp", data)
-        if "expressoes" in key:
-            self.cache.set("expressions", data)
+        self.brain.save_knowledge(key, data)
 
     def get_expressions(self) -> Dict:
-        return self.get_knowledge("expressoes_data")
+        return self.brain.get_knowledge("expressoes_data")
 
-    # --- SISTEMA DINÂMICO DE USUÁRIOS ---
+    def get_router_triggers(self) -> Dict[str, List[str]]:
+        return self.brain.get_knowledge("router_triggers") or {}
+
+    def get_noise_words(self, domain: str = None) -> list:
+        data = self.brain.get_knowledge("noise_words") or {}
+        ruidos = []
+
+        for _, lista in data.get("stop_words_globais", {}).items():
+            ruidos.extend(lista)
+
+        if domain and "ruidos_por_dominio" in data:
+            ruidos.extend(data["ruidos_por_dominio"].get(domain, []))
+
+        return ruidos
+
+    # --- ROTEAMENTO DISCORD (Usuários e Integrações) ---
     def get_user_data(self, user_id: str, key: str, default_value: Any = None) -> Any:
-        path = self.folders["users"] / "users.json"
-        data = self.io.read(path)
-        user_str = str(user_id)
-
-        if user_str not in data:
-            return default_value
-        return data[user_str].get(key, default_value)
+        return self.discord.get_user_data(user_id, key, default_value)
 
     def set_user_data(self, user_id: str, key: str, value: Any):
-        path = self.folders["users"] / "users.json"
-        data = self.io.read(path)
-        user_str = str(user_id)
+        self.discord.set_user_data(user_id, key, value)
 
-        if user_str not in data:
-            data[user_str] = {}
-
-        data[user_str][key] = value
-        self.io.save(path, data)
-
-    # --- LEGADO ---
-    def save_music_preference(self, user_id, genre_or_artist):
-        current_likes = self.get_user_data(user_id, "music_likes", [])
-        if genre_or_artist not in current_likes:
-            current_likes.append(genre_or_artist)
-            self.set_user_data(user_id, "music_likes", current_likes)
-            self.logger.info(
-                f"Gosto musical '{genre_or_artist}' salvo para o usuário {user_id}"
-            )
-
-    def get_user_music_context(self, user_id):
-        prefs = self.get_user_data(user_id, "music_likes", [])
-        if prefs:
-            return f"O utilizador gosta de: {', '.join(prefs)}."
-        return ""
-
-    # --- PERSISTÊNCIA DE CANAIS ---
     def load_active_channels(self) -> Dict:
-        cached = self.cache.get("channels")
-        if cached:
-            return cached
-
-        path = self.folders["config"] / "channels.json"
-        if not path.exists():
-            path = self.folders["persistence"] / "channels.json"
-
-        data = self.io.read(path, default_type=dict)
-        self.cache.set("channels", data)
-        return data
+        return self.discord.load_active_channels()
 
     def save_active_channels(self, data: Dict):
-        if not isinstance(data, dict):
-            return
-        path = self.folders["config"] / "channels.json"
-        self.cache.set("channels", data)
-        self.io.save(path, data)
+        self.discord.save_active_channels(data)
 
+    def save_music_preference(self, user_id, genre_or_artist):
+        current_likes = self.discord.get_user_data(user_id, "music_likes", [])
+        if genre_or_artist not in current_likes:
+            current_likes.append(genre_or_artist)
+            self.discord.set_user_data(user_id, "music_likes", current_likes)
+
+    def get_user_music_context(self, user_id):
+        prefs = self.discord.get_user_data(user_id, "music_likes", [])
+        if prefs:
+            return f"O usuario gosta de: {', '.join(prefs)}."
+        return ""
+
+    def increment_contribution(self, user_id: str, field: str, amount: int = 1):
+        """Atalho para incrementar métricas de contribuição do usuário"""
+        self.discord.increment_contribution(user_id, field, amount)
+
+    # --- UTILITÁRIOS ---
     def reload_all(self):
         self.cache.reset()
-        self.logger.info("♻️ DataManager: Cache limpo com sucesso.")
+        self.logger.info("  DataManager: Cache limpo com sucesso.")
 
 
-db_type = os.getenv("DB_TYPE", "json")
-
-if db_type == "json":
-    data_manager = JsonProvider()
-else:
-    data_manager = JsonProvider()
+data_manager = DataManagerFacade()

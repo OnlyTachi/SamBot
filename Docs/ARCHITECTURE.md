@@ -1,128 +1,122 @@
-# 🧠 Arquitetura do Sistema — SamBot
+# 🧠 Arquitetura do Sistema
 
-Este documento descreve a arquitetura de software, o fluxo de dados e os padrões de design aplicados no ecossistema cognitivo da **SamBot**. O projeto evoluiu de uma estrutura monolítica rasa para um design modular inspirado em **Domain-Driven Design (DDD)**, isolando regras de negócio, persistência física, interfaces de comunicação e pipelines de inteligência artificial.
+Este guia consolida a visão estrutural do software, o fluxo detalhado de processamento de mensagens e as camadas de resiliência e failover implementadas.
 
----
+A SamBot adota uma arquitetura desacoplada, assíncrona e orientada a microsserviços e eventos, inspirada em princípios de **Domain-Driven Design (DDD)**. O objetivo é assegurar respostas em baixa latência, memória associativa de longo prazo, integração autônoma com ferramentas externas e alta disponibilidade ininterrupta.
 
-## 1. Visão Geral do Design Arquitetural
+## 💡 Filosofia de Design e Camadas
 
-A arquitetura da SamBot é dividida em quatro pilares fundamentais, organizados dentro do diretório `/Brain`:
-
-1. **Interfaces de Entrada/Saída (`Agent.py`):** Camada superficial acoplada ao ecossistema do Discord. Funciona puramente como um receptor de eventos e despachante de sinais.
-2. **Orquestração Cognitiva (`Core/`):** O motor de pensamento descentralizado que higieniza entradas, toma decisões de roteamento de ferramentas e constrói o contexto semântico.
-3. **Subdomínios de Memória (`Memory/`):** Camada segregada por tempo e afinidade lógica, separando RAM estática, persistência estruturada em disco, contexto imediato de chat e recuperação de vetores (RAG).
-4. **Provedores de Infraestrutura (`Providers/`):** Fábrica centralizada de modelos de linguagem e falhas controladas (_failover_).
+Em vez de despachar qualquer entrada de texto diretamente para um modelo de linguagem (LLM) pesado, o sistema estrutura-se como um pipeline hierárquico com reflexos rápidos (0ms), memória de curto prazo, banco vetorial e execução assíncrona de ferramentas:
 
 ```text
-       [ Discord Gateway ]
-               │
-               ▼
-        [ Brain.Agent ] (Interface Leve)
-               │
-               ▼
-     [ Core.CognitionPipeline ] ◄───► [ Core.Limpeza ]
-               │
-       ┌───────┴───────┬───────────────┐
-       ▼               ▼               ▼
-  [ShortTerm]     [LongTerm]    [SelfKnowledge]
-  (Contexto/Humor) (ChromaDB/RAG) (Identidade)
-       ▲               ▲               ▲
-       └───────┬───────┴───────────────┘
-               ▼
-       [ Memory.DataManager ] ◄────────┐
-       (Cache + JSON IO Protegido)     │
-                                [ Core.NightCycle ] (Cron)
+               ┌─────────────────────────────────────────┐
+               │     Entrada de Texto (Discord/Outros)   │
+               └────────────────────┬────────────────────┘
+                                    │
+                                    ▼
+                         [ Camada 0: Filtro e Limpeza ]
+                       (Trata gírias, acentos e bordões)
+                                    │
+            ┌───────────────────────┼───────────────────────┐
+            ▼                       ▼                       ▼
+   [ Intercepção Estática ]   [ Memória & RAG ]      [ Roteador de Tools ]
+   (Responde sem gastar API)  (Busca fatos no ChromaDB) (Sabe se deve buscar algo)
+            │                       │                       │
+            └───────────────────────┼───────────────────────┘
+                                    │
+                                    ▼
+                         [ Orquestrador de LLMs ]
+                (Gemini ──► Groq/Llama ──► Ollama Local)
+                                    │
+                                    ▼
+                          [ Pós-Processamento ]
+               (Aplica o humor atual e divide em blocos)
 
 ```
 
----
+> 💡 **Camada 0 (Reflexos Rápidos):** Interações frequentes e triviais (cumprimentos, perguntas fixas de identidade) são interceptadas localmente via algoritmos leves (`spaCy` e `RapidFuzz`), entregando retorno imediato com consumo zero de tokens.
 
-## 2. Estrutura de Diretórios e Componentes
+## 🗂️ Mapeamento Modular (`sambot/Brain`)
 
-### 📁 `Brain/Core/` (Núcleo de Processamento)
+A inteligência da SamBot é desacoplada da camada visual do Discord e reside no módulo `Brain`:
 
-- **`Pipeline.py` (CognitionPipeline):** O cérebro real do bot. Centraliza a execução assíncrona, faz o parse de anexos visuais, invoca o RAG, orquestra o roteamento de ferramentas paralelas e divide as mensagens em blocos naturais (_smart chunks_) para respeitar os limites do Discord.
-- **`Limpeza.py` (LimpezaManager):** Mecanismo de higienização linguística profunda. Realiza normalização Unicode (remoção de acentos), deduplicação de símbolos, substituição de gírias da internet em tempo de execução e classificação estatística de intenções brutas.
-- **`NightCycle.py` (NightCycle):** Rotina assíncrona de manutenção executada em segundo plano. Simula o mercado financeiro (flutuação de ativos e pagamento de dividendos virtuais) e consolida os logs diários em vetores históricos.
+- ⚙️ **`Core/`**: Núcleo de orquestração do pipeline cognitivo (`Pipeline.py`), rotinas noturnas assíncronas (`NightCycle.py`) e roteador semântico de intenções (`TLMRouter.py`).
+- 🧠 **`Memory/`**: Camada de persistência híbrida e memória episódica:
+  - `DataManager/`: Fachada transacional protegida por locks concorrentes, integrando SQLite e Meilisearch.
+  - `ShortTerm/`: Contexto de conversas recentes com sumarização automática após 10 mensagens.
+  - `LongTerm/`: Memória associativa vetorial indexada no **ChromaDB**.
+  - `SelfKnowledge/`: Monitoramento de telemetria, estado de personas e identidade imutável.
 
-### 📁 `Brain/Memory/` (Gestão de Estado e Persistência)
+- 🔌 **`Providers/`**: Fábrica de clientes (`LLMFactory`) e orquestrador de failover em cascata (`LLMChainOrchestrator`).
+- 🛠️ **`Tools/`**: Módulos práticos de busca e automação (E-commerce, Jogos, Cultura Pop, Clima e Utilitários).
 
-#### 🔹 `DataManager/` (Camada de I/O e Acesso Físico)
+## 🧩 Os 4 Pilares da Cognição
 
-- **`Manager.py` (JsonProvider):** Orquestrador de dados estruturados. Expõe interfaces limpas para o restante do sistema através do contrato `DatabaseProvider`.
-- **`_json_provider.py` (JsonIO):** Classe de baixo nível que lida exclusivamente com escrita e leitura física em disco, envelopada por travas de exclusão mútua (`threading.Lock`) para evitar concorrência destrutiva entre Cogs ou loops noturnos.
-- **`_cache.py` (DataCache):** Gerenciador de cache na memória RAM, impedindo gargalos de leitura em disco para configurações estáticas (identidade, prompts e canais ativos).
+### 1. Núcleo Inteligente (`Brain/Core/`)
 
-#### 🔹 `ShortTerm/` (Contexto Imediato e Humores)
+- **`Pipeline.py`**: O maestro do sistema. Sanitiza a entrada, resgata contextos de memória, despacha ferramentas dinâmicas e monta o prompt mestre (`full_sys`) antes da inferência.
+- **`TLMRouter.py`**: Compara o vetor da mensagem contra a base `rotas_intencoes` no ChromaDB via distância de cosseno. Se atingir o threshold calibrado ($\ge 0.74$), extrai os argumentos limpos e aciona a ferramenta sem gastar chamadas de LLM.
+- **`NightCycle.py`**: Rotina de manutenção agendada para horários de baixa atividade: purga ofertas expiradas no Meilisearch, desfragmenta tabelas SQLite e consolida resumos na memória vetorial.
 
-- **`Context.py` (HistoricoManager):** Retém a memória de trabalho do canal de texto. Implementa compressão dinâmica via IA: se a sessão de chat ultrapassar 10 mensagens, o módulo gera um resumo narrativo compacto do bloco antigo, liberando a janela de contexto da LLM.
-- **`_expressions.py` (ExpressoesManager):** Analisa a carga emocional do input do usuário e injeta reações idiomáticas e comportamentais na resposta final, humanizando o tom da conversa.
+### 2. Memória Inteligente & Persistência (`Brain/Memory/`)
 
-#### 🔹 `LongTerm/` (Memória Episódica e RAG)
+- **Padrão Facade (`DataManager`)**: Ponto de contato unificado que abstrai a complexidade do SQLite (`database.db`), dos índices tipotolerantes do Meilisearch e do armazenamento vetorial.
+- **Memória de Curto Prazo (`ShortTerm/Context.py`)**: Retém os turnos recentes do chat. Conversas que excedem 10 mensagens são condensadas em resumos narrativos por modelos auxiliares para preservar a janela de contexto.
+- **RAG & Aprendizado Ativo (`LongTerm/`)**: Extrai e indexa preferências e declarações pessoais relevantes no **ChromaDB** em lote assíncrono, resgatando esse contexto em interações futuras.
 
-- **`VectorStore.py` (VectorStore):** Wrapper de alto nível sobre o banco de dados vetorial **ChromaDB** persistente. Gerencia e pesquisa coleções analíticas utilizando distância por cosseno.
-- **`_embeddings.py` (SmartEmbeddingFunction):** Motor otimizado de vetorização de texto. Implementa a **Via Verde (Fast Track)** com cache de estado de 7 dias, salvando o último provedor e par de chaves funcionais para mitigar os gargalos de latência causados por erros 404 em modelos antigos.
-- **`_learning.py` (AprendizadoAtivo):** Analisa assincronamente as interações à procura de fatos biográficos permanentes do usuário através de filtros cognitivos baseados em LLM, salvando-os em tempo real e sinalizando o aprendizado visualmente no chat.
+### 3. Provedores & Resiliência em Cascata (`Brain/Providers/`)
 
-#### 🔹 `SelfKnowledge/` (Auto-Imagem e Persona)
-
-- **`Identity.py` (AutoConhecimento):** Responsável por interceptar dúvidas sobre a natureza técnica, autoria ou stack do bot, construindo prompts baseados estritamente na configuração contida em `identity.json`.
-- **`Curiosidades.py` (CuriosidadeManager):** Gerencia gatilhos probabilísticos para enriquecer os prompts do sistema com fatos interessantes ou curiosidades adicionais, quebrando a linearidade das respostas da IA.
-
----
-
-## 3. Fluxo Cognitivo da Resposta (A Pipeline)
-
-Quando uma mensagem é postada em um canal monitorado, o fluxo segue rigorosamente a seguinte linha do tempo assíncrona:
+Quando ocorrem bloqueios por limite de taxa (_HTTP 429 - Rate Limit_), latência excessiva ou falhas de conectividade, a esteira executa o failover de forma transparente:
 
 ```text
-[Mensagem] -> Agent (Filtra Comandos/Bots) -> Pipeline.Limpeza (Normaliza Input)
-   │
-   ├──> SelfKnowledge.Identity (Verifica Inquérito sobre Identidade) -> Resposta Direta
-   │
-   └──> Fluxo Geral:
-         ├──> LongTerm._embeddings (Ativa Via Verde) -> VectorStore.query_relevant (RAG)
-         ├──> Core.Pipeline (Analisa Imagens / Roteia Ferramentas Paralelas em JSON)
-         ├──> ShortTerm.Context (Recupera e Comprime Histórico Recente se > 10 msgs)
+[ Requisição ] ──► 1. Google Gemini ──(Erro 429)──► 2. Groq Cloud ──(Timeout)──► 3. Ollama Local
+```
+
+- **Quarentena de Chaves de API**: O conector do Gemini rotaciona chaves ativas (`GEMINI_API_KEY_1`, `GEMINI_API_KEY_2`). Em caso de sobrecarga temporária, a chave afetada entra em resfriamento automático sem interromper a sessão.
+- **Via Verde de Embeddings (_Fast-Track_)**: O sistema mapeia o provedor e modelo de vetorização funcional mais rápido em `embedding_state.json`, reutilizando a rota prioritária por até 7 dias para evitar testes de latência repetitivos.
+
+### 4. Ferramentas Integradas (`Brain/Tools/`)
+
+A SamBot não inventa dados contextuais ou voláteis:
+
+- 🛒 **Shopping:** Comparador de preços multilojas (`ProductSearch`), extrator de cupons ativos (`CupomFinder`) e vigilância noturna de metas de preço (`PriceTracker`).
+- 🎮 **Games & Animes:** Catálogo IGDB via OAuth2, cotações digitais via CheapShark, fichas técnicas no MyAnimeList (Jikan) e reconhecimento visual de cenas pelo Trace.moe.
+- 🌦️ **Pesquisa & Utilitários:** Geocodificação OpenStreetMap + Open-Meteo, cálculo matemático seguro baseado em árvore sintática (AST) e buscas encadeadas na Web (Google Custom Search e Brave).
+
+---
+
+## ⚡ Ciclo de Vida de uma Resposta
+
+```text
+[Mensagem do Usuário]
          │
          ▼
-   [Montagem do Prompt Final] -> Providers.LLMFactory (Invocação com Failover)
+1. Recepção & Higienização (spaCy / Limpeza léxica)
          │
          ▼
-   [Pós-Processamento] -> ShortTerm._expressions (Injeta Humor) -> Envio via Smart Chunks
+2. Avaliação da Camada 0 (Retorno em 0ms caso seja intenção estática)
+         │
+         ▼
+3. Recuperação Contextual (Histórico recente na RAM + RAG no ChromaDB)
+         │
+         ▼
+4. Roteamento Semântico (TLMRouter dispara Tools se score >= 0.74)
+         │
+         ▼
+5. Composição do full_sys (Persona + Regras + Evidências de Ferramentas)
+         │
+         ▼
+6. Inferência Resiliente (Gemini ➔ Groq ➔ Ollama local/remoto)
+         │
+         ▼
+7. Entrega Formatada (Markdown estrito, proteção de links e Smart Chunks)
 
 ```
 
----
+## 🔗 Guias Técnicos Relacionados
 
-## 4. Resiliência de IA e Mecanismo Fast-Track
+Para aprofundar-se nos detalhes de implementação de cada componente:
 
-Para garantir que a SamBot opere com alta disponibilidade e latência reduzida, duas arquiteturas de contingência foram integradas:
-
-### A. Cascata de Failover de LLM (`LLMFactory`)
-
-Caso o provedor principal sofra instabilidades, o sistema rotaciona automaticamente sua execução em camadas descendentes:
-
-1. **Google Gemini Cloud:** (Utilizando rotação automática de múltiplas chaves API em caso de Rate Limit - Erro 429).
-2. **Ollama Remoto:** Instância secundária em nuvem privada.
-3. **Ollama Local (Docker):** Modelo local compacto (`qwen2.5:1.5b`) rodando localmente no HomeLab, garantindo que o processamento lógico nunca seja interrompido por falta de internet.
-
-### B. Via Verde de Embeddings (`_embeddings`)
-
-Para mitigar os tempos de resposta que ultrapassavam 13 segundos devido à checagem sequencial de chaves e modelos depreciados, o sistema adota um padrão de estado preferencial persistido via `DataManager`:
-
-- Ao encontrar uma rota de embedding válida (ex: `models/embedding-004` com a chave do índice `X` ou `Ollama Local`), o estado é gravado em `embedding_state.json`.
-- As próximas requisições ignoram a busca em cascata e efetuam o bypass direto para o canal vitorioso.
-- Uma janela temporal de **7 dias** força a revalidação do ecossistema, garantindo adaptabilidade caso chaves expirem ou modelos novos surjam.
-
----
-
-## 5. Diretrizes para Expansão da Arquitetura
-
-Ao adicionar novas funcionalidades ao ecossistema da bot, respeite os seguintes princípios:
-
-- **Ferramentas externas (Tools):** Devem ser criadas na pasta `/Brain/Tools`, contendo tratamento de erro isolado, e mapeadas em `TOOL_CLASSES` dentro do arquivo `Brain/Core/Pipeline.py` para carregamento dinâmico.
-- **Dados e Negócios:** Funções lógicas que alteram perfis, moedas ou economias devem interagir única e exclusivamente através das assinaturas expostas pelo `data_manager` vindo de `Brain/Memory/DataManager`, respeitando o isolamento do cache e as travas de thread do arquivo físico.
-- **Mudanças na Persona:** Modificações comportamentais profundas devem ser alteradas adicionando arquivos `.txt` na pasta `Data/Prompts/` e alternando o nome da persona no banco de canais, sem tocar nas estruturas de código do `Pipeline`.
-
----
+- 🧠 **[Pipeline Cognitivo e Prompts](https://www.google.com/search?q=Brain/Core/Pipeline.md)** — Regras do `full_sys`, formatação de evidências e segurança.
+- 🎯 **[Roteamento Semântico](Docs/Brain/Core/Pipeline.md)** — Mecanismo vetorial do `TLMRouter` e gatilhos declarativos.
+- 🗄️ **[Camada de Persistência](Docs/Brain/Database/Persistence.md)** — Estruturas do SQLite, Meilisearch e ChromaDB.

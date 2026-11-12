@@ -4,6 +4,8 @@ import aiohttp
 import logging
 from urllib.parse import urlparse
 
+from Brain.Core.NetworkManager import NetworkManager
+
 
 class LinkHandler:
     def __init__(self):
@@ -84,27 +86,24 @@ class LinkHandler:
         # Endpoint gratuito da Sinking Yachts
         api_url = f"https://phish.sinking.yachts/v2/check/{dominio}"
         headers = {"accept": "application/json", "X-Identity": "SamBot-Security"}
-
+        session = NetworkManager.get_aio_session()
         try:
             # Colocamos um timeout de 4 segundos. Se a internet oscilar ou a API cair,
             # o bot não trava e a mensagem do usuário é enviada normalmente.
-            async with aiohttp.ClientSession() as session:
-                async with session.get(api_url, headers=headers, timeout=4.0) as resp:
-                    if resp.status == 200:
-                        is_bad = (
-                            await resp.json()
-                        )  # Retorna booleano direto (true/false)
+            async with session.get(api_url, headers=headers, timeout=4.0) as resp:
+                if resp.status == 200:
+                    is_bad = await resp.json()  # Retorna booleano direto (true/false)
 
-                        # Prevenção caso a API retorne texto em vez de booleano
-                        if isinstance(is_bad, str):
-                            is_bad = is_bad.lower() == "true"
+                    # Prevenção caso a API retorne texto em vez de booleano
+                    if isinstance(is_bad, str):
+                        is_bad = is_bad.lower() == "true"
 
-                        # Salva a resposta no cache
-                        self.link_cache[dominio] = is_bad
-                        return is_bad
-                    else:
-                        # Se a API sobrecarregar, deixamos passar por segurança
-                        return False
+                    # Salva a resposta no cache
+                    self.link_cache[dominio] = is_bad
+                    return is_bad
+                else:
+                    # Se a API sobrecarregar, deixamos passar por segurança
+                    return False
         except Exception as e:
             self.logger.warning(
                 f"⚠️ Erro ao consultar API de links para o domínio {dominio}. Passando direto."

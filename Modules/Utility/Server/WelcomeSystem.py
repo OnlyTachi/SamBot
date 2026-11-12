@@ -3,7 +3,7 @@ from discord.ext import commands
 import asyncio
 from typing import Optional
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 # ==========================================
 # VIEWS DE CONFIGURAÇÃO (PRIMEIRA VEZ E EDIÇÃO)

@@ -4,7 +4,7 @@ import logging
 import random
 import asyncio
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class Cassino(commands.Cog):

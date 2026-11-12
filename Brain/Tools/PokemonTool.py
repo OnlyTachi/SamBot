@@ -1,6 +1,5 @@
-import aiohttp
-import asyncio
 from typing import Dict, Any, Optional
+from Brain.Core.NetworkManager import NetworkManager
 
 
 class PokemonTool:
@@ -11,24 +10,23 @@ class PokemonTool:
     BASE_URL = "https://pokeapi.co/api/v2"
 
     def __init__(self):
-        self.headers = {
-            "User-Agent": "SamBot/3.0 (Discord Bot, Cybersecurity/Edu Project)"
-        }
+        self.headers = {"User-Agent": "SamBot/3.0 (Discord Bot, Edu Project)"}
 
     async def _fetch(self, endpoint: str) -> Optional[Dict[str, Any]]:
         """Método auxiliar interno para requisições GET assíncronas."""
-        async with aiohttp.ClientSession(headers=self.headers) as session:
-            try:
-                async with session.get(f"{self.BASE_URL}/{endpoint}") as response:
-                    if response.status == 200:
-                        return await response.json()
-                    elif response.status == 404:
-                        return None
-                    else:
-                        # Log interno do bot ou tratamento de erro silencioso
-                        return None
-            except Exception:
-                return None
+        session = NetworkManager.get_aio_session()
+        try:
+            async with session.get(
+                f"{self.BASE_URL}/{endpoint}", headers=self.headers
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                elif response.status == 404:
+                    return None
+                else:
+                    return None
+        except Exception:
+            return None
 
     async def buscar_pokemon(self, nome_ou_id: str) -> str:
         """

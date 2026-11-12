@@ -1,10 +1,10 @@
 import discord
-from Brain.Providers.LLMFactory import LLMFactory
+from Brain.Providers.LLMFactory import llm_factory
 
 
 class HistoricoManager:
     def __init__(self):
-        self.llm = LLMFactory.get_instance()
+        self.llm = llm_factory
 
     async def get_formatted_history(
         self, message: discord.Message, bot_user: discord.User, limit=20

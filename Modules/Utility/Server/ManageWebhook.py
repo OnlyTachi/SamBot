@@ -3,6 +3,9 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import json
+from Brain.Core.NetworkManager import NetworkManager
+
+session = NetworkManager.get_aio_session()
 
 
 class Webhooks(commands.Cog):
@@ -40,19 +43,16 @@ class Webhooks(commands.Cog):
         # Ephemeral=True impede que a URL do webhook fique visível no chat para outros utilizadores
         await interaction.response.defer(ephemeral=True)
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                webhook = discord.Webhook.from_url(url, session=session)
-                await webhook.send(
-                    content=mensagem,
-                    username=interaction.user.display_name,
-                    avatar_url=interaction.user.display_avatar.url,
-                )
-                await interaction.followup.send(
-                    "✅ Mensagem simples enviada com sucesso!"
-                )
-            except Exception as e:
-                await interaction.followup.send(f"❌ Ocorreu um erro ao enviar: `{e}`")
+        try:
+            webhook = discord.Webhook.from_url(url, session=session)
+            await webhook.send(
+                content=mensagem,
+                username=interaction.user.display_name,
+                avatar_url=interaction.user.display_avatar.url,
+            )
+            await interaction.followup.send("✅ Mensagem simples enviada com sucesso!")
+        except Exception as e:
+            await interaction.followup.send(f"❌ Ocorreu um erro ao enviar: `{e}`")
 
     @grupo_enviar.command(
         name="json",
@@ -75,31 +75,28 @@ class Webhooks(commands.Cog):
                 "❌ O formato JSON que forneceu é inválido. Verifique se existem erros de sintaxe."
             )
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                webhook = discord.Webhook.from_url(url, session=session)
+        try:
+            webhook = discord.Webhook.from_url(url, session=session)
 
-                # Converte os blocos "embeds" do JSON para objetos discord.Embed nativos
-                embeds = [discord.Embed.from_dict(e) for e in dados.get("embeds", [])]
+            # Converte os blocos "embeds" do JSON para objetos discord.Embed nativos
+            embeds = [discord.Embed.from_dict(e) for e in dados.get("embeds", [])]
 
-                await webhook.send(
-                    content=dados.get("content"),
-                    embeds=embeds,
-                    username=dados.get("username", interaction.bot.user.name),
-                    avatar_url=dados.get(
-                        "avatar_url",
-                        (
-                            interaction.bot.user.avatar.url
-                            if interaction.bot.user.avatar
-                            else None
-                        ),
+            await webhook.send(
+                content=dados.get("content"),
+                embeds=embeds,
+                username=dados.get("username", interaction.bot.user.name),
+                avatar_url=dados.get(
+                    "avatar_url",
+                    (
+                        interaction.bot.user.avatar.url
+                        if interaction.bot.user.avatar
+                        else None
                     ),
-                )
-                await interaction.followup.send("✅ Mensagem JSON enviada com sucesso!")
-            except Exception as e:
-                await interaction.followup.send(
-                    f"❌ Erro ao enviar a mensagem JSON: `{e}`"
-                )
+                ),
+            )
+            await interaction.followup.send("✅ Mensagem JSON enviada com sucesso!")
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erro ao enviar a mensagem JSON: `{e}`")
 
     @grupo_enviar.command(
         name="repostar",
@@ -123,22 +120,19 @@ class Webhooks(commands.Cog):
                 "❌ Mensagem não encontrada. Certifique-se de utilizar um ID válido de uma mensagem **neste canal**."
             )
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                webhook = discord.Webhook.from_url(url, session=session)
+        try:
+            webhook = discord.Webhook.from_url(url, session=session)
 
-                # Clona o conteúdo, os embeds, o autor e a foto
-                await webhook.send(
-                    content=msg.content,
-                    embeds=msg.embeds,
-                    username=msg.author.display_name,
-                    avatar_url=msg.author.display_avatar.url,
-                )
-                await interaction.followup.send("✅ Mensagem repostada com sucesso!")
-            except Exception as e:
-                await interaction.followup.send(
-                    f"❌ Erro ao repostar a mensagem: `{e}`"
-                )
+            # Clona o conteúdo, os embeds, o autor e a foto
+            await webhook.send(
+                content=msg.content,
+                embeds=msg.embeds,
+                username=msg.author.display_name,
+                avatar_url=msg.author.display_avatar.url,
+            )
+            await interaction.followup.send("✅ Mensagem repostada com sucesso!")
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erro ao repostar a mensagem: `{e}`")
 
     # ---------------- EDITAR ---------------- #
 
@@ -168,22 +162,21 @@ class Webhooks(commands.Cog):
                 "❌ O formato JSON fornecido é inválido."
             )
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                webhook = discord.Webhook.from_url(url, session=session)
-                embeds = [discord.Embed.from_dict(e) for e in dados.get("embeds", [])]
+        try:
+            webhook = discord.Webhook.from_url(url, session=session)
+            embeds = [discord.Embed.from_dict(e) for e in dados.get("embeds", [])]
 
-                # Edita a mensagem alvo no webhook
-                await webhook.edit_message(
-                    message_id=int(mensagem_id),
-                    content=dados.get("content"),
-                    embeds=embeds,
-                )
-                await interaction.followup.send(
-                    "✅ Mensagem de webhook editada com sucesso!"
-                )
-            except Exception as e:
-                await interaction.followup.send(f"❌ Erro ao editar a mensagem: `{e}`")
+            # Edita a mensagem alvo no webhook
+            await webhook.edit_message(
+                message_id=int(mensagem_id),
+                content=dados.get("content"),
+                embeds=embeds,
+            )
+            await interaction.followup.send(
+                "✅ Mensagem de webhook editada com sucesso!"
+            )
+        except Exception as e:
+            await interaction.followup.send(f"❌ Erro ao editar a mensagem: `{e}`")
 
 
 async def setup(bot):

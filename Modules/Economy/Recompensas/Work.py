@@ -5,7 +5,7 @@ from discord.ext import commands
 import logging
 import time
 
-from Brain.Memory.DataManager import data_manager
+from Brain.Memory.DataManager.Connections import data_manager
 
 
 class JobDropdown(discord.ui.Select):
